@@ -217,6 +217,11 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
             expect(data.tasks[0].deadline).toBeDefined();
             expect(data.tasks[0].submissions).toHaveLength(1);
 
+            // Kiểm tra workItems và waitingStatus bổ sung trong Hub
+            expect(Array.isArray(data.workItems)).toBe(true);
+            expect(data.workItems.some((w) => w.id === 'task-1' && w.bucket === 'DONE')).toBe(true);
+            expect(data.workItems.some((w) => w.id === 'task-2' && w.bucket === 'READY')).toBe(true);
+
             // Kiểm tra số buổi gặp mặt thật và điểm đánh giá GVHD thật
             expect(data.meetingLogsCount).toBe(3);
             expect(data.mentorScore).toBe(9.2);
@@ -266,12 +271,17 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
             expect(data.mentorFullName).toBe('ThS. Trần Thị C');
             expect(data.allowedActions).toEqual(expect.arrayContaining(['SUBMIT_BM01']));
             expect(data.nextAction).toMatchObject({
-                kind: 'SUBMIT_BM01',
-                target: '/student/submissions',
+                kind: 'BM01_INITIAL',
+                target: '/student/submissions?work=BM01_INITIAL',
                 sourceStatus: 'APPROVED',
                 canAct: true,
                 dueAt: null,
             });
+            expect(Array.isArray(data.workItems)).toBe(true);
+            const readyBm01 = data.workItems.find((w) => w.kind === 'BM01_INITIAL' && w.bucket === 'READY');
+            expect(readyBm01).toBeDefined();
+            expect(readyBm01.target).toBe('/student/submissions?work=BM01_INITIAL');
+            expect(data.waitingStatus).toBeNull();
         });
 
         test('Test 1.3: Trả về nextAction đúng cho trạng thái PENDING (chờ GVHD, canAct: false) và chưa đăng ký (REGISTER_TOPIC)', async () => {
@@ -304,6 +314,10 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
                 canAct: false,
                 dueAt: null,
             });
+            expect(pendingRes.body.data.waitingStatus).toMatchObject({
+                sourceStatus: 'PENDING',
+            });
+            expect(Array.isArray(pendingRes.body.data.workItems)).toBe(true);
 
             mockPrisma.semester.findFirst.mockResolvedValueOnce({
                 ...activeSemester,
@@ -325,6 +339,11 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
                 target: '/student/topics',
                 sourceStatus: null,
                 canAct: true,
+            });
+            expect(Array.isArray(noRegRes.body.data.workItems)).toBe(true);
+            expect(noRegRes.body.data.workItems[0]).toMatchObject({
+                kind: 'REGISTER_TOPIC',
+                bucket: 'READY',
             });
         });
     });

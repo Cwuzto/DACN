@@ -1,4 +1,5 @@
 const { buildStudentNextAction } = require('../../src/services/studentDashboardActionService');
+const { buildStudentWorkState } = require('../../src/services/studentWorkItemService');
 
 describe('studentDashboardActionService - buildStudentNextAction', () => {
     const now = new Date('2026-10-10T10:00:00.000Z');
@@ -102,7 +103,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         expect(action.title).toMatch(/giảng viên hướng dẫn/i);
     });
 
-    test('APPROVED registration with SUBMIT_BM01 and open window returns SUBMIT_BM01 with real deadline', () => {
+    test('APPROVED registration with SUBMIT_BM01 and open window returns BM01_INITIAL with real deadline and deep link target', () => {
         const action = buildStudentNextAction({
             registration: { id: 11, status: 'APPROVED' },
             semester: baseSemester,
@@ -112,8 +113,8 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
 
         expect(action).toMatchObject({
-            kind: 'SUBMIT_BM01',
-            target: '/student/submissions',
+            kind: 'BM01_INITIAL',
+            target: '/student/submissions?work=BM01_INITIAL',
             sourceStatus: 'APPROVED',
             canAct: true,
             dueAt: baseSemester.outlineSubmissionDeadline,
@@ -128,7 +129,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
             allowedActions: [],
             now,
         });
-        expect(missingPerm.kind).toBe('SUBMIT_BM01');
+        expect(missingPerm.kind).toBe('BM01_INITIAL');
         expect(missingPerm.canAct).toBe(false);
         expect(missingPerm.target).toBeNull();
 
@@ -142,7 +143,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
             allowedActions: ['SUBMIT_BM01'],
             now,
         });
-        expect(pastDeadline.kind).toBe('SUBMIT_BM01');
+        expect(pastDeadline.kind).toBe('BM01_INITIAL');
         expect(pastDeadline.canAct).toBe(false);
         expect(pastDeadline.target).toBeNull();
     });
@@ -156,7 +157,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
             now,
         });
 
-        expect(action.kind).toBe('SUBMIT_BM01');
+        expect(action.kind).toBe('BM01_INITIAL');
         expect(action.dueAt).toBeNull();
         expect(action.canAct).toBe(true);
     });
@@ -181,7 +182,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         }
     );
 
-    test('BM01_NEEDS_REVISION returns RESUBMIT_BM01 with canAct: true when allowed', () => {
+    test('BM01_NEEDS_REVISION returns BM01_RESUBMIT with canAct: true when allowed', () => {
         const action = buildStudentNextAction({
             registration: { id: 13, status: 'BM01_NEEDS_REVISION' },
             semester: baseSemester,
@@ -191,14 +192,14 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
 
         expect(action).toMatchObject({
-            kind: 'RESUBMIT_BM01',
-            target: '/student/submissions',
+            kind: 'BM01_RESUBMIT',
+            target: '/student/submissions?work=BM01_RESUBMIT',
             sourceStatus: 'BM01_NEEDS_REVISION',
             canAct: true,
         });
     });
 
-    test('BM01_PASSED returns SUBMIT_BM02 when SUBMIT_BM02 is allowed', () => {
+    test('BM01_PASSED returns BM02 when SUBMIT_BM02 is allowed', () => {
         const action = buildStudentNextAction({
             registration: { id: 14, status: 'BM01_PASSED' },
             semester: baseSemester,
@@ -208,8 +209,8 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
 
         expect(action).toMatchObject({
-            kind: 'SUBMIT_BM02',
-            target: '/student/submissions',
+            kind: 'BM02',
+            target: '/student/submissions?work=BM02',
             sourceStatus: 'BM01_PASSED',
             canAct: true,
         });
@@ -233,28 +234,45 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
     });
 
     test.each(['DECISION_ISSUED', 'IN_PROGRESS', 'IN_PROGRESS_BM03'])(
-        '%s returns progress/BM03 action targeting /student/submissions with real task dueDate',
+        '%s with open task returns task action targeting work hub with real task dueDate',
         (status) => {
             const taskDue = new Date('2026-10-18T12:00:00.000Z');
             const action = buildStudentNextAction({
                 registration: { id: 16, status },
                 semester: baseSemester,
-                tasks: [{ id: 1, status: 'OPEN', dueDate: taskDue }],
+                tasks: [{ id: 1, status: 'OPEN', dueDate: taskDue, title: 'Báo cáo khảo sát' }],
                 allowedActions: [],
                 now,
             });
 
             expect(action).toMatchObject({
-                kind: 'SUBMIT_PROGRESS_BM03',
-                target: '/student/submissions',
-                sourceStatus: status,
+                kind: 'TASK_SUBMISSION',
+                target: '/student/submissions?work=task-1',
+                sourceStatus: 'OPEN',
                 canAct: true,
                 dueAt: taskDue,
             });
         }
     );
 
-    test('BM03_SIGNATURE_PENDING returns SIGN_BM03_CHECKPOINT gated by SIGN_CHECKPOINT', () => {
+    test('IN_PROGRESS with NO open task returns waitingStatus with canAct: false and target: null', () => {
+        const action = buildStudentNextAction({
+            registration: { id: 16, status: 'IN_PROGRESS' },
+            semester: baseSemester,
+            tasks: [],
+            allowedActions: [],
+            now,
+        });
+
+        expect(action).toMatchObject({
+            kind: 'SUBMIT_PROGRESS_BM03',
+            target: null,
+            sourceStatus: 'IN_PROGRESS',
+            canAct: false,
+        });
+    });
+
+    test('BM03_SIGNATURE_PENDING returns BM03_ACK gated by SIGN_CHECKPOINT', () => {
         const action = buildStudentNextAction({
             registration: { id: 17, status: 'BM03_SIGNATURE_PENDING' },
             semester: baseSemester,
@@ -264,8 +282,8 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
 
         expect(action).toMatchObject({
-            kind: 'SIGN_BM03_CHECKPOINT',
-            target: '/student/submissions',
+            kind: 'BM03_ACK',
+            target: '/student/submissions?work=BM03_ACK',
             sourceStatus: 'BM03_SIGNATURE_PENDING',
             canAct: true,
         });
@@ -291,7 +309,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         }
     );
 
-    test('DEFENSE_READY returns PREPARE_DEFENSE with semester defenseDate and never leaks unpublished scores', () => {
+    test('DEFENSE_READY returns PRE_DEFENSE with semester defenseDate and never leaks unpublished scores', () => {
         const action = buildStudentNextAction({
             registration: {
                 id: 19,
@@ -305,8 +323,8 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
 
         expect(action).toMatchObject({
-            kind: 'PREPARE_DEFENSE',
-            target: '/student/submissions',
+            kind: 'PRE_DEFENSE',
+            target: '/student/submissions?work=PRE_DEFENSE',
             sourceStatus: 'DEFENSE_READY',
             canAct: true,
             dueAt: baseSemester.defenseDate,
@@ -315,7 +333,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
     });
 
     test.each(['DEFENSE_PASSED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'])(
-        '%s returns SUBMIT_ARCHIVE targeting /student/submissions',
+        '%s returns SUBMIT_ARCHIVE targeting /student/submissions?work=SUBMIT_ARCHIVE',
         (status) => {
             const action = buildStudentNextAction({
                 registration: { id: 20, status },
@@ -327,7 +345,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
 
             expect(action).toMatchObject({
                 kind: 'SUBMIT_ARCHIVE',
-                target: '/student/submissions',
+                target: '/student/submissions?work=SUBMIT_ARCHIVE',
                 sourceStatus: status,
                 canAct: true,
             });
@@ -378,7 +396,7 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
         });
         expect(archiveAction).toMatchObject({
             kind: 'SUBMIT_ARCHIVE',
-            target: '/student/submissions',
+            target: '/student/submissions?work=SUBMIT_ARCHIVE',
             sourceStatus: 'DEFENDED',
             canAct: true,
         });
@@ -418,6 +436,21 @@ describe('studentDashboardActionService - buildStudentNextAction', () => {
             });
         }
     );
+
+    test('always matches buildStudentWorkState nextAction exactly (single source of truth)', () => {
+        const params = {
+            registration: { id: 30, status: 'APPROVED' },
+            semester: baseSemester,
+            tasks: [],
+            allowedActions: ['SUBMIT_BM01'],
+            now,
+        };
+
+        const fromAction = buildStudentNextAction(params);
+        const fromWorkState = buildStudentWorkState(params).nextAction;
+
+        expect(fromAction).toEqual(fromWorkState);
+    });
 
     test('returns null for unknown registration status', () => {
         expect(

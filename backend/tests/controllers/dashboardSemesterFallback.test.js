@@ -186,8 +186,8 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
                             registrationId: 102,
                         }),
                         nextAction: expect.objectContaining({
-                            kind: 'SUBMIT_BM01',
-                            target: '/student/submissions',
+                            kind: 'BM01_INITIAL',
+                            target: '/student/submissions?work=BM01_INITIAL',
                             sourceStatus: 'APPROVED',
                             canAct: true,
                             dueAt: null,

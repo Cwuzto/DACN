@@ -9,6 +9,7 @@ const {
     buildAdminDashboardActions,
 } = require('../services/adminDashboardActionsService');
 const { computeAllowedActions } = require('../services/workflowActionService');
+const { buildStudentWorkState } = require('../services/studentWorkItemService');
 const { buildStudentNextAction } = require('../services/studentDashboardActionService');
 const {
     resolveReportReadScope,
@@ -628,6 +629,8 @@ const getStudentDashboard = async (req, res, next) => {
                     mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
+                    workItems: [],
+                    waitingStatus: null,
                     nextAction: null,
                 },
             });
@@ -653,6 +656,9 @@ const getStudentDashboard = async (req, res, next) => {
             },
             bm04Evaluation: true,
             defenseResult: true,
+            archive: true,
+            bm03Record: true,
+            currentBM02Submission: true,
         };
 
         let registration = await prisma.topicRegistration.findFirst({
@@ -685,6 +691,14 @@ const getStudentDashboard = async (req, res, next) => {
         }
 
         if (!registration) {
+            const workState = buildStudentWorkState({
+                registration: null,
+                semester: activeSemester,
+                tasks: [],
+                allowedActions: [],
+                now: new Date(),
+            });
+
             return res.json({
                 success: true,
                 data: {
@@ -699,13 +713,9 @@ const getStudentDashboard = async (req, res, next) => {
                     mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
-                    nextAction: buildStudentNextAction({
-                        registration: null,
-                        semester: activeSemester,
-                        tasks: [],
-                        allowedActions: [],
-                        now: new Date(),
-                    }),
+                    workItems: workState.workItems,
+                    waitingStatus: workState.waitingStatus,
+                    nextAction: workState.nextAction,
                 },
             });
         }
@@ -832,13 +842,18 @@ const getStudentDashboard = async (req, res, next) => {
             { ...registration, studentId: registration.studentId ?? studentId },
             { ...req.user, role: req.user?.role || 'STUDENT' }
         );
-        const nextAction = buildStudentNextAction({
+        const workState = buildStudentWorkState({
             registration,
             semester: activeSemester,
             tasks: formattedTasks,
+            outline: registration.outline || null,
+            bm03Record: registration.bm03Record || null,
+            bm04Record: bm04,
+            archive: registration.archive || null,
             allowedActions,
             now,
         });
+        const nextAction = workState.nextAction;
 
         res.json({
             success: true,
@@ -847,6 +862,8 @@ const getStudentDashboard = async (req, res, next) => {
                 activeSemester,
                 allowedActions,
                 nextAction,
+                workItems: workState.workItems,
+                waitingStatus: workState.waitingStatus,
                 registrationDetails: {
                     registrationId: registration.id,
                     status: registration.status,
