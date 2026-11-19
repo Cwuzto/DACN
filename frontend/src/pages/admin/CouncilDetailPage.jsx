@@ -130,12 +130,13 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     // Dynamic conflict calculation
     const conflictNames = useMemo(() => {
         if (!council?.members?.length || !effectiveRegistrations?.length) return [];
-        const memberIds = new Set((council.members || []).map((m) => m.lecturerId));
+        const activeMembers = (council.members || []).filter((m) => m.isActive !== false);
+        const memberIds = new Set(activeMembers.map((m) => m.lecturerId));
         const conflicts = new Set();
         effectiveRegistrations.forEach((reg) => {
             const mentorId = reg.mentorId || reg.topic?.mentorId;
             if (mentorId && memberIds.has(mentorId)) {
-                const m = council.members?.find((mem) => mem.lecturerId === mentorId);
+                const m = activeMembers.find((mem) => mem.lecturerId === mentorId);
                 conflicts.add(m?.lecturer?.fullName || reg.topic?.mentor?.fullName || reg.topic?.lecturer?.fullName || `GV #${mentorId}`);
             }
         });
@@ -343,8 +344,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     // Adjust Student Defense Schedule Handlers
     const openAdjustModal = (reg) => {
         setAdjustingReg(reg);
-        setNewShift(reg.defenseShift || 'MORNING');
-        setNewOrderInShift(reg.orderInShift || 1);
+        setNewShift(reg.defenseSessionShift || reg.defenseShift || 'MORNING');
+        setNewOrderInShift(reg.defenseOrderInShift || reg.orderInShift || 1);
         setAdjustReason('');
         setIsAdjustModalVisible(true);
     };
@@ -549,10 +550,11 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         return <Tag color={colorMap[status] || 'default'}>{status || 'Chưa cập nhật'}</Tag>;
     };
 
-    // Member assignments lookup
-    const chairman = council?.members?.find((m) => m.roleInCouncil === 'CHAIRMAN');
-    const secretary = council?.members?.find((m) => m.roleInCouncil === 'SECRETARY');
-    const reviewer = council?.members?.find((m) => m.roleInCouncil === 'REVIEWER');
+    // Member assignments lookup (chỉ lấy thành viên đang hoạt động isActive !== false)
+    const activeMembers = useMemo(() => (council?.members || []).filter((m) => m.isActive !== false), [council?.members]);
+    const chairman = activeMembers.find((m) => m.roleInCouncil === 'CHAIRMAN');
+    const secretary = activeMembers.find((m) => m.roleInCouncil === 'SECRETARY');
+    const reviewer = activeMembers.find((m) => m.roleInCouncil === 'REVIEWER');
 
     const columns = [
         {
@@ -607,18 +609,20 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             key: 'shift',
             width: 170,
             render: (_text, reg) => {
-                const isMorning = reg.defenseShift === 'MORNING';
-                const isAfternoon = reg.defenseShift === 'AFTERNOON';
+                const shift = reg.defenseSessionShift || reg.defenseShift;
+                const orderInShift = reg.defenseOrderInShift || reg.orderInShift;
+                const isMorning = shift === 'MORNING';
+                const isAfternoon = shift === 'AFTERNOON';
                 return (
                     <div className="space-y-1">
                         {isMorning && (
                             <Tag color="cyan" className="font-bold">
-                                Ca Sáng (07:00–11:00) #{reg.orderInShift || '--'}
+                                Ca Sáng (07:00–11:00) #{orderInShift || '--'}
                             </Tag>
                         )}
                         {isAfternoon && (
                             <Tag color="orange" className="font-bold">
-                                Ca Chiều (13:00–17:00) #{reg.orderInShift || '--'}
+                                Ca Chiều (13:00–17:00) #{orderInShift || '--'}
                             </Tag>
                         )}
                         {!isMorning && !isAfternoon && (
@@ -764,9 +768,9 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 </Tag>
                             )}
                             <span className={`text-xs px-2.5 py-1 rounded font-bold ${
-                                council.members?.length === 3 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
+                                activeMembers.length === 3 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
                             }`}>
-                                {council.members?.length === 3 ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
+                                {activeMembers.length === 3 ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
                             </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-1 font-medium">
