@@ -272,8 +272,8 @@ export default function SupervisedStudentList({
                             value={viewMode}
                             onChange={setViewMode}
                             options={[
-                                { value: 'grid', icon: <AppstoreOutlined />, label: 'Thẻ Bento' },
-                                { value: 'table', icon: <BarsOutlined />, label: 'Bảng dữ liệu' },
+                                { value: 'grid', icon: <AppstoreOutlined />, label: 'Dạng thẻ' },
+                                { value: 'table', icon: <BarsOutlined />, label: 'Dạng bảng' },
                             ]}
                             className="bg-slate-100 p-0.5"
                         />
