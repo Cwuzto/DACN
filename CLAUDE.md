@@ -3330,7 +3330,42 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ---
 
-### Phiên 14/11/2026 — Chuẩn Hóa BM03/BM04: Tích Hợp In Sổ Tiến Độ, Phiếu Nhận Xét & Triệt Tiêu Điểm Quá Trình
+### Phiên 19/11/2026 — Khắc Phục Lỗi Sập Trang Hội Đồng Xét Duyệt & Hội Đồng Bảo Vệ & Nâng Cao Độ Bền Bỉ Database
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc phục triệt để lỗi sập (crash) 2 trang Hội đồng Admin (`/admin/outline-councils` và `/admin/defense-councils`)**:
+   - **Nguyên nhân gốc rễ**: Cả hai trang đều mount component `frontend/src/pages/admin/CouncilAssignmentPage.jsx`. Tại dòng 896, thẻ `<AuthorizedAction feature={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'outline-councils' : 'defense-councils'} action="manage">` tham chiếu đến biến `effectiveCouncilType`. Tuy nhiên biến này chưa từng được định nghĩa trong component, dẫn đến runtime crash `ReferenceError: effectiveCouncilType is not defined`, làm `ErrorBoundary` kích hoạt và trang bị trắng màn hình / báo lỗi hiển thị.
+   - **Giải pháp**: Định nghĩa chuẩn hóa `const effectiveCouncilType = forcedCouncilType || (councilTypeFilter !== 'ALL' ? councilTypeFilter : 'DEFENSE_COUNCIL');` ngay tại đầu component `CouncilAssignmentPage.jsx`.
+2. **Nâng cao độ bền bỉ tầng Database Backend (`backend/src/config/database.js` & `backend/.env`)**:
+   - Tạo lớp `ResilientPgClient extends Client` chặn các unhandled `'error'` event từ socket timeout / reset gây ra `uncaughtException` làm dừng tiến trình backend.
+   - Cấu hình pool chống nghẽn: `DB_POOL_MAX=15`, `DB_POOL_IDLE_TIMEOUT_MS=20000`, `DB_POOL_CONNECTION_TIMEOUT_MS=45000`.
+   - Bổ sung process handlers cho `unhandledRejection` và `uncaughtException` trong `backend/src/app.js`.
+   - Giãn cách lịch trình chạy cron jobs nhắc việc để tránh nghẽn pool đồng thời.
+3. **Kiểm thử Headless Browser tự động (Puppeteer)**:
+   - Đăng nhập thật bằng tài khoản Quản trị viên (`admin@university.edu.vn`) và inject token/user vào `localStorage`.
+   - Xác thực cả 4 URL:
+     * `/admin/outline-councils` (Danh sách HĐ Xét duyệt Đề cương) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
+     * `/admin/defense-councils` (Danh sách HĐ Bảo vệ Khóa luận) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
+     * `/admin/outline-councils/14` (Chi tiết HĐ Đề Cương) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
+     * `/admin/defense-councils/1` (Chi tiết HĐ Bảo vệ) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
+   - Tổng số lỗi console/runtime: **0 lỗi**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database/Prisma**: `STABLE`; Tuân thủ 100% mô hình `TopicRegistration`.
+- **Backend API**: `RUNNING (Port 5000)`; Đã tích hợp client database tự phục hồi.
+- **Frontend SPA**: `RUNNING (Port 5173)`; Đã commit fix `CouncilAssignmentPage.jsx`, không còn lỗi `ReferenceError`.
+- **Quy chuẩn mã hóa & nút bấm**:
+  * UTF-8 without BOM (Rule 2.4).
+  * Tuân thủ 100% Rule 2.6 (sử dụng prop `icon`, không chèn emoji vào button label).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Thử nghiệm các thao tác tương tác trong trang hội đồng: phân công tự động, kéo thả sinh viên, mở modal gán hội đồng.
+2. Tiếp tục hoàn thiện các luồng chấm điểm hoặc báo cáo theo yêu cầu tiếp theo của người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Định danh `effectiveCouncilType` chuẩn hóa**: Đồng bộ logic xác định loại hội đồng ưu tiên prop `forcedCouncilType` (khi đi từ menu chuyên biệt) trước, sau đó mới đến `councilTypeFilter` để đảm bảo logic phân quyền `AuthorizedAction` hoạt động chính xác.
+2. **Xử lý resilient socket ở mức Client**: Socket idle drop từ PostgreSQL không được phép làm dừng toàn bộ ứng dụng Express backend.
+
 
 #### 1. Những phần đã hoàn thành
 1. **Tích hợp Tính năng In Sổ Theo Dõi Tiến Độ BM03 tại Trang Theo Dõi Tiến Độ (`ProgressTrackingPage.jsx`)**:
