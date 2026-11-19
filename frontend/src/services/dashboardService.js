@@ -81,6 +81,14 @@ const dashboardService = {
             throw wrapServiceError(error, 'Lỗi tải thống kê sinh viên');
         }
     },
+
+    getStudentDashboard: async () => {
+        try {
+            return await api.get('/dashboard/student');
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi tải tổng quan sinh viên');
+        }
+    },
 };
 
 export default dashboardService;

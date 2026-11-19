@@ -223,3 +223,24 @@ test('LecturerDashboardPage uses unified overview components and eliminates fake
     assert.match(src, /AttentionQueue/);
     assert.match(src, /SupervisedStudentList/);
 });
+
+test('Task 4: StudentDashboardPage uses useStudentDashboard + nextAction and eliminates fake decision/code/semester fallbacks', () => {
+    const studentDashSrc = read('frontend/src/pages/student/StudentDashboardPage.jsx');
+    assert.match(studentDashSrc, /useStudentDashboard/);
+    assert.match(studentDashSrc, /nextAction/);
+
+    const forbiddenFallbacks = [
+        'DA-2026-KTPM-04',
+        '458/QĐ',
+        '20/09/2026',
+        '2022 - 2026',
+        'HK1 2026–2027',
+    ];
+    for (const literal of forbiddenFallbacks) {
+        assert.equal(
+            studentDashSrc.includes(literal),
+            false,
+            `StudentDashboardPage must not contain fake fallback literal "${literal}"`
+        );
+    }
+});

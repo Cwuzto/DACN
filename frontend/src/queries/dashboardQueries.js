@@ -10,6 +10,7 @@ export const dashboardKeys = {
     overview: (scope, semesterId) => [...scope, 'dashboard', 'overview', { semesterId }],
     lecturerOverviewRoot: (scope) => [...scope, 'dashboard', 'lecturer-overview'],
     lecturerOverview: (scope, semesterId = null) => [...scope, 'dashboard', 'lecturer-overview', { semesterId: semesterId ?? null }],
+    studentDashboard: (scope) => [...scope, 'dashboard', 'student'],
 };
 export const useDashboardStats = (scope, semesterId = null, enabled = true) => useQuery({
     queryKey: dashboardKeys.stats(scope, semesterId),
@@ -39,5 +40,10 @@ export const useDashboardOverview = (scope, semesterId) => useQuery({
 export const useLecturerOverview = (scope, semesterId = null, enabled = true) => useQuery({
     queryKey: dashboardKeys.lecturerOverview(scope, semesterId),
     queryFn: async () => requireSuccess(await dashboardService.getLecturerOverview({ semesterId })).data,
+    enabled,
+});
+export const useStudentDashboard = (scope, enabled = true) => useQuery({
+    queryKey: dashboardKeys.studentDashboard(scope),
+    queryFn: async () => requireSuccess(await dashboardService.getStudentDashboard()).data,
     enabled,
 });

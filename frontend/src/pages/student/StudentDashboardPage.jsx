@@ -41,12 +41,12 @@ import outlineService from '../../services/outlineService';
 import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
 import {
-    useStudentStats,
     useAllowedActions,
     useBM04Record,
     useStudentAckBM03Mutation,
     useWithdrawRegistrationMutation,
 } from '../../queries/studentDashboardQueries';
+import { useStudentDashboard } from '../../queries/dashboardQueries';
 import { useMyOutline } from '../../queries/outlineQueries';
 import { useBM03Record } from '../../queries/meetingQueries';
 import { useDefenseDossier } from '../../queries/archiveQueries';
@@ -84,6 +84,31 @@ const ACTIVE_FLOW_STATUSES = [
 ];
 const WITHDRAWABLE_STATUSES = ['APPROVED', 'BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'BM02_SUBMITTED'];
 
+const NEXT_ACTION_CTA_LABELS = {
+    REGISTER_TOPIC: 'Đăng ký đề tài',
+    SUBMIT_BM01: 'Nộp BM01',
+    REVISE_BM01: 'Sửa & nộp lại BM01',
+    SUBMIT_BM02: 'Nộp hồ sơ BM02',
+    SIGN_BM03: 'Ký biên bản BM03',
+    APPEAL_BM03: 'Gửi giải trình BM03',
+    SUBMIT_PROGRESS_BM03: 'Cập nhật tiến độ BM03',
+    PREPARE_DEFENSE: 'Chuẩn bị bảo vệ',
+    SUBMIT_ARCHIVE: 'Nộp lưu chiểu',
+    VIEW_GRADES_CERTIFICATE: 'Xem kết quả',
+};
+
+const isValidInternalTarget = (target) => (
+    typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')
+);
+
+const getNextActionCtaLabel = (kind) => NEXT_ACTION_CTA_LABELS[kind] || 'Thực hiện ngay';
+
+const formatNextActionDueAt = (dueAt) => {
+    if (!dueAt) return null;
+    const parsed = dayjs(dueAt);
+    return parsed.isValid() ? parsed.format('DD/MM/YYYY HH:mm') : null;
+};
+
 const getProgressPercentByStatus = (status) => {
     switch (status) {
         case 'APPROVED':
@@ -120,7 +145,7 @@ export default function StudentDashboardPage() {
     const scope = queryKeys.scope(user);
     const navigate = useNavigate();
 
-    const statsQuery = useStudentStats(scope);
+    const studentDashboardQuery = useStudentDashboard(scope);
     const outlineQuery = useMyOutline(scope);
     // outlineService.getMyOutline via useMyOutline
 
@@ -135,8 +160,11 @@ export default function StudentDashboardPage() {
     const [ackSubmitting, setAckSubmitting] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
 
-    const dashboardData = statsQuery.data;
+    const dashboardData = studentDashboardQuery.data;
     const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = dashboardData || {};
+    const nextAction = dashboardData?.nextAction ?? null;
+    const nextActionDueText = formatNextActionDueAt(nextAction?.dueAt);
+    const canNavigateNextAction = Boolean(nextAction?.canAct && isValidInternalTarget(nextAction?.target));
     const hasAnyRegistration = hasRegistration ?? false;
     const currentRegistration = registrationDetails ?? null;
     const regId = currentRegistration?.registrationId || currentRegistration?.id;
@@ -174,8 +202,8 @@ export default function StudentDashboardPage() {
         ? taskStatus.progressPercent
         : getProgressPercentByStatus(currentRegistration?.status);
     const mentorDisplayName = dashboardData?.mentorFullName || currentRegistration?.topic?.mentor?.user?.fullName || currentRegistration?.topic?.mentorName || 'Chưa phân công';
-    const mentorEmail = dashboardData?.registration?.topic?.mentor?.email || currentRegistration?.topic?.mentor?.email || 'Liên hệ qua Cổng thông tin Viện';
-    const mentorDepartment = dashboardData?.registration?.topic?.mentor?.department || currentRegistration?.topic?.mentor?.department || 'Viện Công nghệ Số';
+    const mentorEmail = dashboardData?.registration?.topic?.mentor?.email || currentRegistration?.topic?.mentor?.email || 'Chưa cập nhật';
+    const mentorDepartment = dashboardData?.registration?.topic?.mentor?.department || currentRegistration?.topic?.mentor?.department || 'Chưa cập nhật';
     const activeSemester = dashboardData?.activeSemester || currentRegistration?.semester || null;
 
     const milestones = useMemo(() => {
@@ -410,11 +438,15 @@ export default function StudentDashboardPage() {
     };
 
     const handleDownloadDecision = () => {
-        message.success(`Đang chuẩn bị văn bản in quyết định số ${currentRegistration?.decisionNumber || '458/QĐ-VCS'}`);
+        if (!currentRegistration?.decisionNumber) {
+            message.info('Chưa có số quyết định để tải.');
+            return;
+        }
+        message.success(`Đang chuẩn bị văn bản in quyết định số ${currentRegistration.decisionNumber}`);
         setBm02ModalOpen(false);
     };
 
-    if (statsQuery.isPending) {
+    if (studentDashboardQuery.isPending) {
         return (
             <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
                 <ContentSkeleton rows={6} />
@@ -422,10 +454,10 @@ export default function StudentDashboardPage() {
         );
     }
 
-    if (statsQuery.isError) {
+    if (studentDashboardQuery.isError) {
         return (
             <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
-                <QueryErrorState error={statsQuery.error} onRetry={() => statsQuery.refetch()} />
+                <QueryErrorState error={studentDashboardQuery.error} onRetry={() => studentDashboardQuery.refetch()} />
             </div>
         );
     }
@@ -492,6 +524,89 @@ export default function StudentDashboardPage() {
                 />
             )}
 
+            {/* Prominent Next Academic Action Card */}
+            <section
+                aria-labelledby="student-next-action-heading"
+                className="sd-panel sd-animate-in"
+                style={{
+                    '--sd-delay': 0,
+                    marginBottom: 20,
+                    padding: '18px 20px',
+                    borderLeft: canNavigateNextAction ? '6px solid #0F766E' : '6px solid #64748B',
+                    background: canNavigateNextAction
+                        ? 'linear-gradient(90deg, #F0FDFA 0%, #FFFFFF 100%)'
+                        : '#FFFFFF',
+                }}
+            >
+                {nextAction ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                <span
+                                    id="student-next-action-heading"
+                                    className="text-xs font-bold uppercase tracking-wide text-slate-600"
+                                >
+                                    Bước tiếp theo
+                                </span>
+                                {canNavigateNextAction ? (
+                                    <span className="tag teal inline-flex items-center gap-1">
+                                        <CheckCircleOutlined />
+                                        <span>Cần thực hiện</span>
+                                    </span>
+                                ) : (
+                                    <span className="tag yellow inline-flex items-center gap-1">
+                                        <ClockCircleOutlined />
+                                        <span>Đang chờ xử lý</span>
+                                    </span>
+                                )}
+                                {nextActionDueText && (
+                                    <span className="tag blue inline-flex items-center gap-1">
+                                        <CalendarOutlined />
+                                        <span>Hạn: {nextActionDueText}</span>
+                                    </span>
+                                )}
+                            </div>
+                            <h2 className="text-base sm:text-lg font-bold text-slate-900 m-0">
+                                {nextAction.title}
+                            </h2>
+                            {nextAction.description && (
+                                <p className="text-sm text-slate-600 mt-1 mb-0 leading-relaxed">
+                                    {nextAction.description}
+                                </p>
+                            )}
+                        </div>
+                        {canNavigateNextAction && (
+                            <div className="shrink-0">
+                                <Button
+                                    type="primary"
+                                    size="large"
+                                    icon={<ArrowRightOutlined />}
+                                    onClick={() => navigate(nextAction.target)}
+                                >
+                                    {getNextActionCtaLabel(nextAction.kind)}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2
+                                id="student-next-action-heading"
+                                className="text-base font-bold text-slate-800 m-0"
+                            >
+                                Hiện chưa có bước tiếp theo cần thực hiện
+                            </h2>
+                            <p className="text-sm text-slate-500 mt-1 mb-0">
+                                {hasAnyRegistration
+                                    ? 'Theo dõi thông tin đề tài, lộ trình và thông báo học vụ bên dưới.'
+                                    : 'Bạn chưa có đăng ký đề tài trong đợt hiện tại.'}
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </section>
+
             {/* Topic Hero Banner Card */}
             {hasAnyRegistration && currentRegistration?.topic ? (
                 <div className="sd-hero-card sd-animate-in" style={{ '--sd-delay': 0 }}>
@@ -501,7 +616,7 @@ export default function StudentDashboardPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                     <span className="sd-code-badge">
                                         <span className="sd-code-dot" aria-hidden="true" />
-                                        <span>MÃ ĐỀ TÀI: {currentRegistration.topic.code || 'DA-2026-KTPM-04'}</span>
+                                        <span>MÃ ĐỀ TÀI: {currentRegistration.topic.code || 'Chưa cập nhật'}</span>
                                     </span>
                                     {renderRegistrationStatusTag()}
                                 </div>
@@ -514,7 +629,7 @@ export default function StudentDashboardPage() {
                                     </span>
                                     <span aria-hidden="true">·</span>
                                     <span>
-                                        Học kỳ: <strong>{currentRegistration.topic.semesterName || activeSemester?.name || 'HK1 2026–2027'}</strong>
+                                        Học kỳ: <strong>{currentRegistration.topic.semesterName || activeSemester?.name || 'Chưa cập nhật'}</strong>
                                     </span>
                                 </div>
                             </div>
@@ -668,7 +783,7 @@ export default function StudentDashboardPage() {
                                               ? 'Đã bảo vệ xong'
                                               : activeSemester?.defenseDate
                                                 ? dayjs(activeSemester.defenseDate).format('DD/MM/YYYY')
-                                                : 'Theo lịch Viện CNS'}
+                                                : 'Chưa cập nhật'}
                                     </div>
                                 </div>
                             </div>
@@ -1201,14 +1316,14 @@ export default function StudentDashboardPage() {
                             QUYẾT ĐỊNH GIAO ĐỀ TÀI KHÓA LUẬN TỐT NGHIỆP
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                            Số: <strong>{currentRegistration?.decisionNumber || '458/QĐ-VCS-ĐT'}</strong> · Ngày ký: {currentRegistration?.decisionDate ? dayjs(currentRegistration.decisionDate).format('DD/MM/YYYY') : '20/09/2026'}
+                            Số: <strong>{currentRegistration?.decisionNumber || 'Chưa cập nhật'}</strong> · Ngày ký: {currentRegistration?.decisionDate ? dayjs(currentRegistration.decisionDate).format('DD/MM/YYYY') : 'Chưa cập nhật'}
                         </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <p>Tên đề tài: <strong>{currentRegistration?.topic?.title}</strong></p>
                         <p>Sinh viên thực hiện: <strong>{user?.fullName} — MSSV: {user?.code}</strong></p>
                         <p>Cán bộ hướng dẫn: <strong>{mentorDisplayName}</strong></p>
-                        <p>Quy chuẩn đào tạo: Khóa {user?.studentProfile?.academicYear || '2022 - 2026'} · {currentRegistration?.semester?.name || currentRegistration?.topic?.semesterName || 'Đồ án tốt nghiệp — HK1 2026–2027'}</p>
+                        <p>Quy chuẩn đào tạo: Khóa {user?.studentProfile?.academicYear || 'Chưa cập nhật'} · {currentRegistration?.semester?.name || currentRegistration?.topic?.semesterName || activeSemester?.name || 'Chưa cập nhật'}</p>
                     </div>
                 </div>
             </Modal>
@@ -1220,7 +1335,7 @@ export default function StudentDashboardPage() {
                 registrationId={currentRegistration?.id}
                 currentTitle={currentRegistration?.adjustedTitle || currentRegistration?.topic?.title}
                 decisionDate={currentRegistration?.decisionDate}
-                onSuccess={() => statsQuery.refetch()}
+                onSuccess={() => studentDashboardQuery.refetch()}
             />
 
             {/* Withdraw Modal */}
