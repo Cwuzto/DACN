@@ -22,6 +22,7 @@ const { computeAllowedActions } = require('../services/workflowActionService');
 const { getEffectivePermissions } = require('../auth/capabilityResolver');
 const { normalizePermissionCode } = require('../auth/permissionCatalog');
 const { resolveReportReadScope, matchesReportDepartment } = require('../auth/reportReadScope');
+const { buildGuidanceWorkspace } = require('../services/guidanceWorkspaceService');
 
 const SERIALIZATION_ERROR_CODE = 'P2034';
 const MENTOR_ACTIVE_REGISTRATION_STATUSES = Array.from(new Set([
@@ -2148,7 +2149,61 @@ const getRegistrationById = async (req, res, next) => {
                 bm02Submissions: {
                     orderBy: { versionNo: 'desc' },
                 },
+                submissions: {
+                    orderBy: { submittedAt: 'desc' },
+                    select: {
+                        id: true,
+                        fileUrl: true,
+                        assetId: true,
+                        submittedAt: true,
+                        feedbackAt: true,
+                        task: { select: { taskType: true } },
+                    },
+                },
+                bm01Evaluations: {
+                    orderBy: { attemptNo: 'desc' },
+                    select: {
+                        id: true,
+                        attemptNo: true,
+                        outcome: true,
+                        revisionApprovalStatus: true,
+                        submittedAt: true,
+                        reviewedAt: true,
+                        revisionReviewedAt: true,
+                        createdAt: true,
+                    },
+                },
+                bm02aRequests: {
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        status: true,
+                        currentVersionNumber: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
                 bm03Record: true,
+                bm03MeetingEntries: {
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        meetingDate: true,
+                        createdAt: true,
+                    },
+                },
+                checkpointEvaluations: {
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        checkpointNo: true,
+                        conclusion: true,
+                        mentorSignedAt: true,
+                        studentSignedAt: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
                 bm04Evaluation: true,
                 outlineCouncil: {
                     include: {
@@ -2191,7 +2246,13 @@ const getRegistrationById = async (req, res, next) => {
 
         const sanitized = sanitizeRegistrationDetail(registration, req.user);
         const allowedActions = computeAllowedActions(sanitized, req.user);
-        return res.json({ success: true, data: { ...sanitized, allowedActions } });
+        const actorPermissions = resolveActorEffectivePermissions(req.user, registration);
+        const guidanceWorkspace = buildGuidanceWorkspace(
+            { ...sanitized, resultPublicationItems: registration.resultPublicationItems },
+            req.user,
+            { allowedActions, actorPermissions }
+        );
+        return res.json({ success: true, data: { ...sanitized, allowedActions, guidanceWorkspace } });
     } catch (error) {
         next(error);
     }
