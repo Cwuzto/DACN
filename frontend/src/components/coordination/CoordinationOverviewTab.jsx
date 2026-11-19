@@ -35,12 +35,15 @@ export function CoordinationOverviewTab({
 
     const renderSemesterStatus = (status) => {
         switch (status) {
+            case 'UPCOMING':
+                return <Tag color="orange" className="font-semibold">Sắp diễn ra</Tag>;
             case 'REGISTRATION':
                 return <Tag color="blue" className="font-semibold">Đăng ký đề tài</Tag>;
             case 'ONGOING':
                 return <Tag color="green" className="font-semibold">Đang thực hiện</Tag>;
             case 'DEFENSE':
                 return <Tag color="purple" className="font-semibold">Bảo vệ hội đồng</Tag>;
+            case 'COMPLETED':
             case 'FINISHED':
                 return <Tag color="default">Đã kết thúc</Tag>;
             default:

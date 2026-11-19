@@ -3,9 +3,14 @@ const XLSX = require('xlsx');
 /**
  * Tạo workbook và trả về Buffer .xlsx
  */
-const createExcelBuffer = (sheetName, data, columnWidths = []) => {
+const createExcelBuffer = (sheetName, data, columnWidths = [], defaultHeaders = []) => {
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
+    let ws;
+    if ((!data || data.length === 0) && Array.isArray(defaultHeaders) && defaultHeaders.length > 0) {
+        ws = XLSX.utils.aoa_to_sheet([defaultHeaders]);
+    } else {
+        ws = XLSX.utils.json_to_sheet(data || []);
+    }
 
     if (columnWidths && columnWidths.length > 0) {
         ws['!cols'] = columnWidths;

@@ -634,13 +634,29 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
             { wch: 18 },
         ];
 
-        const buffer = createExcelBuffer('KetQuaTotNghiep', rows, colWidths);
+        const defaultHeaders = [
+            'STT',
+            'Mã SV',
+            'Họ và tên',
+            'Chuyên ngành',
+            'Tên đề tài',
+            'GVHD',
+            'Đánh giá BM04',
+            'Điểm Hội đồng (BM05)',
+            'Điểm Tổng kết',
+            'Xếp loại',
+            'Trạng thái',
+        ];
+
+        const buffer = createExcelBuffer('KetQuaTotNghiep', rows, colWidths, defaultHeaders);
 
         const semesterCode = targetSemester.code || targetSemester.name || 'HocKy';
-        const safeFilename = `Bang_Tong_Hop_Ket_Qua_Tot_Nghiep_${encodeURIComponent(semesterCode)}.xlsx`;
+        const rawFilename = `Bang_Tong_Hop_Ket_Qua_Tot_Nghiep_${semesterCode}.xlsx`;
+        const safeAscii = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const utf8Filename = encodeURIComponent(rawFilename);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=${safeFilename}`);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeAscii}"; filename*=UTF-8''${utf8Filename}`);
         return res.send(buffer);
     } catch (error) {
         next(error);

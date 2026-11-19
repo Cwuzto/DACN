@@ -84,7 +84,7 @@ export default function AcademicReportsPage() {
 
     useEffect(() => {
         if (selectedSemesterId || !semesters.length) return;
-        const active = semesters.find(s => s.status === 'ACTIVE' || s.status === 'ONGOING') || semesters[0];
+        const active = semesters.find(s => ['ONGOING', 'REGISTRATION', 'DEFENSE'].includes(s.status)) || semesters[0];
         setSelectedSemesterId(active.id);
     }, [semesters, selectedSemesterId]);
 
@@ -449,7 +449,7 @@ export default function AcademicReportsPage() {
                         className="w-56"
                         options={semesters.map((s) => ({
                             value: s.id,
-                            label: `${s.name}${s.status === 'ACTIVE' || s.status === 'ONGOING' ? ' (Hiện tại)' : ''}`,
+                            label: `${s.name}${['ONGOING', 'REGISTRATION', 'DEFENSE'].includes(s.status) ? ' (Hiện tại)' : ''}`,
                         }))}
                     />
 
