@@ -12,6 +12,8 @@
 
 **Dependency:** Triển khai sau `docs/superpowers/plans/2026-11-20-bm01-automatic-reminders.md` để `Notification.dedupeKey` và lịch sử nhắc BM01 sẵn có. Admin dashboard trong `2026-11-20-admin-action-dashboard.md` độc lập.
 
+**Student follow-up:** Phần `nextAction` đã triển khai được mở rộng bởi `docs/superpowers/plans/2026-11-20-student-work-hub.md` Task 1: Tổng quan và trang “Việc của tôi” phải cùng lấy việc từ `workItems`, với deep link `?work=<kind>`. Không duy trì hai bảng ánh xạ trạng thái riêng.
+
 ## Global Constraints
 
 - `TopicRegistration` là trục; 1 SV/1 đề tài, tối đa 10 SV/GVHD; không dùng `group/groupMember`.
