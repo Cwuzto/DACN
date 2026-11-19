@@ -990,6 +990,8 @@ async function collectDefenseResultApprovalItems({ actor, semesterId, db, now })
                 },
             },
             defenseCouncil: { select: { id: true, name: true, scoreBookLocked: true } },
+            council: { select: { id: true, name: true, scoreBookLocked: true } },
+            defenseResult: { select: { id: true, scoreLocked: true } },
             resultPublicationItems: { select: { id: true } },
         },
         orderBy: { updatedAt: 'asc' },
@@ -1021,7 +1023,10 @@ async function collectDefenseResultApprovalItems({ actor, semesterId, db, now })
         });
 
         const isAlreadyPublished = Array.isArray(reg.resultPublicationItems) && reg.resultPublicationItems.length > 0;
-        const isScoreBookLocked = reg.defenseCouncil ? Boolean(reg.defenseCouncil.scoreBookLocked) : true;
+        const effectiveCouncil = reg.defenseCouncil || reg.council;
+        const isScoreBookLocked = effectiveCouncil
+            ? Boolean(effectiveCouncil.scoreBookLocked)
+            : Boolean(reg.defenseResult?.scoreLocked);
         const isEligibleForApproval =
             reg.status === 'AWAITING_FINAL_APPROVAL' &&
             isScoreBookLocked &&
@@ -1040,7 +1045,7 @@ async function collectDefenseResultApprovalItems({ actor, semesterId, db, now })
             allowedActions: canAct && isEligibleForApproval ? ['APPROVE_DEFENSE_RESULT'] : [],
             detailTarget: `/lecturer/institute?tab=decisions&kind=DEFENSE_RESULT_APPROVAL&registrationId=${reg.id}`,
             department,
-            councilName: reg.defenseCouncil?.name || null,
+            councilName: effectiveCouncil?.name || null,
         });
     }
 
@@ -1367,4 +1372,5 @@ module.exports = {
     MAX_PAGE_SIZE,
     InstituteOperationsError,
     getInstituteOperations,
+    collectDefenseResultApprovalItems,
 };

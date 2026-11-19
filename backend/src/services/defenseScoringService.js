@@ -118,42 +118,26 @@ const round2 = (value) => {
 async function resolveRubricForRegistration(registration, db = prisma) {
     if (!db?.rubricVersion?.findUnique) return null;
 
-    const effectiveMemberScore = (registration?.memberScores || []).find(
-        (row) => row?.isEffective !== false && row?.scoreRubricVersion,
-    ) || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion);
-
-    const pinnedVersion = (
-        registration?.defenseResult?.scoreRubricVersion
-        || effectiveMemberScore?.scoreRubricVersion
-        || registration?.defenseCouncil?.rubricVersion?.version
-        || registration?.council?.rubricVersion?.version
-        || null
-    );
-
-    if (pinnedVersion) {
-        const found = await db.rubricVersion.findUnique({
-            where: { version: pinnedVersion },
-            include: RUBRIC_INCLUDE,
-        });
-        if (!found) {
-            throw new WorkflowTransitionError(
-                'PINNED_RUBRIC_NOT_FOUND',
-                404,
-                `Không tìm thấy phiên bản rubric "${pinnedVersion}" đã gắn với hồ sơ.`,
-            );
+    let effectiveCouncil = registration?.defenseCouncil || registration?.council;
+    if (!effectiveCouncil && (registration?.defenseCouncilId || registration?.councilId) && typeof db.council?.findUnique === 'function') {
+        const cId = registration.defenseCouncilId || registration.councilId;
+        try {
+            effectiveCouncil = await db.council.findUnique({
+                where: { id: cId },
+                include: { rubricVersion: true, semester: true },
+            });
+        } catch (_) {
+            effectiveCouncil = null;
         }
-        return found;
     }
 
+    // 1. Kiểm tra rubricId được ghim trực tiếp trên hội đồng bảo vệ hoặc học kỳ
     const pinnedRubricId = (
-        registration?.defenseCouncil?.rubricVersionId
-        || registration?.council?.rubricVersionId
-        || registration?.defenseCouncil?.rubricVersion?.id
-        || registration?.council?.rubricVersion?.id
+        effectiveCouncil?.rubricVersionId
+        || effectiveCouncil?.rubricVersion?.id
         || registration?.semester?.lockedDefenseRubricVersionId
         || registration?.topic?.semester?.lockedDefenseRubricVersionId
-        || registration?.defenseCouncil?.semester?.lockedDefenseRubricVersionId
-        || registration?.council?.semester?.lockedDefenseRubricVersionId
+        || effectiveCouncil?.semester?.lockedDefenseRubricVersionId
         || null
     );
 
@@ -162,14 +146,49 @@ async function resolveRubricForRegistration(registration, db = prisma) {
             where: { id: Number(pinnedRubricId) },
             include: RUBRIC_INCLUDE,
         });
-        if (!foundById) {
+        if (foundById) {
+            return foundById;
+        }
+        throw new WorkflowTransitionError(
+            'PINNED_RUBRIC_NOT_FOUND',
+            404,
+            `Không tìm thấy phiên bản rubric (ID: ${pinnedRubricId}) đã gắn với hội đồng hoặc học kỳ.`,
+        );
+    }
+
+    // 2. Tìm version từ council, phiếu chấm thành viên hiệu lực, hoặc defenseResult
+    const effectiveMemberScore = (registration?.memberScores || []).find(
+        (row) => row?.isEffective !== false && row?.scoreRubricVersion && row.scoreRubricVersion !== 'v1',
+    ) || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion && row.scoreRubricVersion !== 'v1')
+      || (registration?.memberScores || []).find((row) => row?.isEffective !== false && row?.scoreRubricVersion)
+      || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion);
+
+    const councilVersionName = effectiveCouncil?.rubricVersion?.version;
+    const memberScoreVersionName = effectiveMemberScore?.scoreRubricVersion;
+    const defenseResultVersionName = registration?.defenseResult?.scoreRubricVersion;
+
+    let pinnedVersion = councilVersionName || memberScoreVersionName;
+    if (!pinnedVersion && defenseResultVersionName) {
+        pinnedVersion = defenseResultVersionName;
+    }
+
+    if (pinnedVersion) {
+        const found = await db.rubricVersion.findUnique({
+            where: { version: pinnedVersion },
+            include: RUBRIC_INCLUDE,
+        });
+        if (found) {
+            return found;
+        }
+        // Nếu pinnedVersion là 'v1' do default schema mà trong DB không có bản ghi 'v1',
+        // không ném 404 mà tiếp tục thử getActiveRubric()
+        if (pinnedVersion !== 'v1') {
             throw new WorkflowTransitionError(
                 'PINNED_RUBRIC_NOT_FOUND',
                 404,
-                `Không tìm thấy phiên bản rubric (ID: ${pinnedRubricId}) đã gắn với hội đồng hoặc học kỳ.`,
+                `Không tìm thấy phiên bản rubric "${pinnedVersion}" đã gắn với hồ sơ.`,
             );
         }
-        return foundById;
     }
 
     if (db === prisma) {
@@ -1034,6 +1053,8 @@ async function markStudentAbsentByChairman(input, options = {}) {
                     select: {
                         id: true,
                         name: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
                         members: { select: { lecturerId: true, roleInCouncil: true, isActive: true } },
                     },
                 },
@@ -1041,6 +1062,8 @@ async function markStudentAbsentByChairman(input, options = {}) {
                     select: {
                         id: true,
                         name: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
                         members: { select: { lecturerId: true, roleInCouncil: true, isActive: true } },
                     },
                 },
@@ -1096,6 +1119,14 @@ async function markStudentAbsentByChairman(input, options = {}) {
             },
         });
 
+        const resolvedRubric = await resolveRubricForRegistration(registration, tx);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+        const resolvedRubricVersion = rubricPayload?.version || (
+            effectiveCouncil?.rubricVersion?.version
+            || (effectiveCouncil?.rubricVersionId ? String(effectiveCouncil.rubricVersionId) : null)
+            || 'v1'
+        );
+
         // Ghi nhận vắng mặt vào DefenseResult: rawAverageScore = null, roundedFinalScore = null
         // TUYỆT ĐỐI KHÔNG TẠO PHIẾU CHẤM GIẢ, KHÔNG GÁN ĐIỂM 0 GIẢ
         const defenseResult = await tx.defenseResult.upsert({
@@ -1108,6 +1139,7 @@ async function markStudentAbsentByChairman(input, options = {}) {
                 rawAverageScore: null,
                 roundedFinalScore: null,
                 finalScore: null,
+                scoreRubricVersion: resolvedRubricVersion,
             },
             create: {
                 registrationId,
@@ -1119,6 +1151,7 @@ async function markStudentAbsentByChairman(input, options = {}) {
                 roundedFinalScore: null,
                 finalScore: null,
                 evaluatorId: chairmanId,
+                scoreRubricVersion: resolvedRubricVersion,
             },
         });
 
@@ -1151,6 +1184,8 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                     select: {
                         id: true,
                         name: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
                         allowFourthScoringMember: true,
                         members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
                     },
@@ -1159,6 +1194,8 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                     select: {
                         id: true,
                         name: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
                         allowFourthScoringMember: true,
                         members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
                     },
@@ -1310,6 +1347,15 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
 
         const now = new Date();
 
+        const resolvedRubric = await resolveRubricForRegistration(registration, tx);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+        const resolvedRubricVersion = rubricPayload.version || (
+            effectiveCouncil?.rubricVersion?.version
+            || (effectiveCouncil?.rubricVersionId ? String(effectiveCouncil.rubricVersionId) : null)
+            || (registration.memberScores?.find((m) => m.scoreRubricVersion)?.scoreRubricVersion)
+            || 'v1'
+        );
+
         const defenseResult = await tx.defenseResult.upsert({
             where: { registrationId },
             create: {
@@ -1318,6 +1364,7 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                 rawAverageScore: isAbsent ? null : rawAverageScore,
                 roundedFinalScore: isAbsent ? null : roundedFinalScore,
                 activeScorerCount,
+                scoreRubricVersion: resolvedRubricVersion,
                 scoreLocked: true,
                 lockedAt: now,
                 lockedBy: actorId,
@@ -1328,11 +1375,25 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                 rawAverageScore: isAbsent ? null : rawAverageScore,
                 roundedFinalScore: isAbsent ? null : roundedFinalScore,
                 activeScorerCount,
+                scoreRubricVersion: resolvedRubricVersion,
                 scoreLocked: true,
                 lockedAt: now,
                 lockedBy: actorId,
             },
         });
+
+        // Cập nhật đồng bộ cờ khóa sổ điểm của Hội đồng trong cùng transaction
+        const councilId = registration.defenseCouncilId || registration.councilId || effectiveCouncil?.id;
+        if (councilId && typeof tx.council?.update === 'function') {
+            await tx.council.update({
+                where: { id: councilId },
+                data: {
+                    scoreBookLocked: true,
+                    scoreBookLockedAt: now,
+                    scoreBookLockedById: actorId,
+                },
+            });
+        }
 
         return {
             ...defenseResult,
@@ -1465,6 +1526,19 @@ async function returnScoreBookBeforePublication(input, options = {}) {
 
         // Ghi nhận lịch sử vào bảng DefenseScoreBookReturnLog
         const councilId = registration.defenseCouncilId || registration.councilId || registration.defenseCouncil?.id || registration.council?.id;
+
+        // Mở lại trạng thái khóa sổ của Hội đồng
+        if (councilId && typeof tx.council?.update === 'function') {
+            await tx.council.update({
+                where: { id: councilId },
+                data: {
+                    scoreBookLocked: false,
+                    scoreBookLockedAt: null,
+                    scoreBookLockedById: null,
+                },
+            });
+        }
+
         const returnLog = await tx.defenseScoreBookReturnLog.create({
             data: {
                 councilId: councilId || 0,
@@ -1740,6 +1814,18 @@ async function lockDefenseScores(input, options = {}) {
                 },
             });
 
+            const councilId = registration.defenseCouncilId || registration.councilId || effectiveCouncil?.id;
+            if (councilId && typeof tx.council?.update === 'function') {
+                await tx.council.update({
+                    where: { id: councilId },
+                    data: {
+                        scoreBookLocked: true,
+                        scoreBookLockedAt: new Date(),
+                        scoreBookLockedById: actorId,
+                    },
+                });
+            }
+
             return {
                 id: registration.id,
                 status: targetStatus,
@@ -1785,6 +1871,18 @@ async function lockDefenseScores(input, options = {}) {
                     lockedBy: null,
                 },
             });
+
+            const councilId = registration.defenseCouncilId || registration.councilId || effectiveCouncil?.id;
+            if (councilId && typeof tx.council?.update === 'function') {
+                await tx.council.update({
+                    where: { id: councilId },
+                    data: {
+                        scoreBookLocked: false,
+                        scoreBookLockedAt: null,
+                        scoreBookLockedById: null,
+                    },
+                });
+            }
 
             return {
                 id: registration.id,
