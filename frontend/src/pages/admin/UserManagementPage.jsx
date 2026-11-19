@@ -55,6 +55,13 @@ const roleMap = {
     STUDENT: { label: 'Sinh viên', color: 'green', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
+const ACADEMIC_TITLE_LABELS = {
+    THAC_SI: 'Thạc sĩ',
+    TIEN_SI: 'Tiến sĩ',
+    PHO_GIAO_SU: 'Phó Giáo sư',
+};
+const getAcademicTitleLabel = (title) => ACADEMIC_TITLE_LABELS[title] || title || 'Thạc sĩ';
+
 const normalizeFormValue = (v) => {
     if (v === null || v === undefined) return '';
     if (typeof v === 'string') return v.trim();
@@ -389,7 +396,11 @@ function UserManagementPage() {
                             <p className="text-sm font-bold text-slate-900 leading-snug group-hover:text-teal-700 transition-colors truncate">
                                 {name}
                             </p>
-                            <p className="text-xs text-slate-500 font-medium truncate">{record.department || 'Chưa cập nhật khoa'}</p>
+                            <p className="text-xs text-slate-500 font-medium truncate">
+                                {record.role === 'STUDENT'
+                                    ? (record.studentProfile?.major || 'Chưa phân ngành')
+                                    : (record.department || (record.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
+                            </p>
                         </div>
                     </div>
                 );
@@ -594,7 +605,7 @@ function UserManagementPage() {
                     { label: 'Quản trị Người dùng' },
                 ]}
                 title="Quản trị Người dùng & Phân quyền Kiêm nhiệm"
-                subtitle="Quản lý tài khoản Giảng viên, Sinh viên, Quản trị viên, phân quyền RBAC và hạn mức hướng dẫn đồ án"
+                subtitle="Quản lý tài khoản Giảng viên, Sinh viên, Quản trị viên, phân quyền kiêm nhiệm và hạn mức hướng dẫn đồ án"
                 actions={
                     <Space>
                         <AuthorizedAction feature="users" action="import">
@@ -860,7 +871,11 @@ function UserManagementPage() {
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <BankOutlined className="text-slate-500" />
-                                    <span>{drawerUser.department || (drawerUser.role === 'STUDENT' ? (drawerUser.studentProfile?.major || 'Sinh viên') : 'Chưa phân Khoa/Bộ môn')}</span>
+                                    <span>
+                                        {drawerUser.role === 'STUDENT'
+                                            ? (drawerUser.studentProfile?.major ? `Ngành: ${drawerUser.studentProfile.major}` : 'Sinh viên')
+                                            : (drawerUser.department || (drawerUser.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
+                                    </span>
                                 </p>
                             </div>
                         </div>
@@ -891,7 +906,7 @@ function UserManagementPage() {
                                     <div className="bg-teal-700 h-full rounded-full" style={{ width: '40%' }}></div>
                                 </div>
                                 <p className="text-[11px] text-teal-700">
-                                    Học vị: <strong>{drawerUser.academicTitle || 'Thạc sĩ'}</strong> · Tối đa 1 SV / 1 Đề tài
+                                    Học vị: <strong>{getAcademicTitleLabel(drawerUser.academicTitle)}</strong> · Tối đa 1 SV / 1 Đề tài
                                 </p>
                             </div>
                         )}
@@ -920,7 +935,7 @@ function UserManagementPage() {
 
                         {/* Permission Groups */}
                         <div className="space-y-2">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nhóm quyền RBAC</h4>
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nhóm quyền kiêm nhiệm</h4>
                             {drawerUser.permissionGroups?.length ? (
                                 <div className="flex flex-wrap gap-2">
                                     {drawerUser.permissionGroups.map((g) => (
@@ -954,7 +969,7 @@ function UserManagementPage() {
                                         onClick={() => handleOpenPermModal(drawerUser)}
                                         className="text-xs"
                                     >
-                                        Phân quyền RBAC
+                                        Phân quyền kiêm nhiệm
                                     </Button>
                                     <Button
                                         icon={<KeyOutlined />}
@@ -1213,7 +1228,7 @@ function UserManagementPage() {
                 </Form>
             </Modal>
 
-            {/* Modal phân quyền RBAC */}
+            {/* Modal phân quyền kiêm nhiệm */}
             <Modal
                 title={
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900">
