@@ -34,7 +34,7 @@ const typeIconMap = {
 
 const resolveNotificationTarget = (notification, role) => {
     const rawRef = typeof notification?.referenceUrl === 'string' ? notification.referenceUrl.trim() : '';
-    if (rawRef.startsWith('/')) {
+    if (rawRef.startsWith('/') && rawRef !== '/student/submissions' && rawRef !== '/student/submissions/') {
         return rawRef;
     }
 
@@ -43,8 +43,26 @@ const resolveNotificationTarget = (notification, role) => {
 
     if (role === 'STUDENT') {
         if (text.includes('đề xuất đề tài')) return '/student/topics';
-        if (text.includes('đề cương') || text.includes('bm01') || text.includes('bm02') || text.includes('bm03') || text.includes('lưu chiểu')) {
-            return '/student/submissions';
+        if (text.includes('lưu chiểu') || text.includes('hồ sơ lưu chiểu')) {
+            return '/student/submissions?work=SUBMIT_ARCHIVE';
+        }
+        if (text.includes('bm03') || text.includes('checkpoint') || text.includes('tiến độ')) {
+            if (text.includes('khiếu nại') || text.includes('giải trình')) {
+                return '/student/submissions?work=BM03_APPEAL';
+            }
+            return '/student/submissions?work=BM03_ACK';
+        }
+        if (text.includes('bm02') || text.includes('đơn đăng ký chính thức')) {
+            return '/student/submissions?work=BM02';
+        }
+        if (text.includes('bm01') || text.includes('đề cương')) {
+            if (text.includes('nộp lại') || text.includes('chỉnh sửa') || text.includes('sửa')) {
+                return '/student/submissions?work=BM01_RESUBMIT';
+            }
+            return '/student/submissions?work=BM01_INITIAL';
+        }
+        if (text.includes('trước bảo vệ') || text.includes('sơ bộ')) {
+            return '/student/submissions?work=PRE_DEFENSE';
         }
         if (text.includes('điểm') || text.includes('bảo vệ')) return '/student/grades';
         switch (type) {
@@ -53,7 +71,7 @@ const resolveNotificationTarget = (notification, role) => {
                 return '/student/topics';
             case 'TASK_REMINDER':
             case 'SUBMISSION':
-                return '/student/submissions';
+                return '/student/submissions?work=BM01_INITIAL';
             case 'DEFENSE':
             case 'DEFENSE_SCHEDULE_PUBLISHED':
             case 'DEFENSE_SCHEDULE_ADJUSTED':

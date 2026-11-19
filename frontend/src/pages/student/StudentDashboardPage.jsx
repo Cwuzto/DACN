@@ -262,7 +262,7 @@ export default function StudentDashboardPage() {
                     'Theo lịch Viện',
                 state: step2State,
                 icon: <FileTextOutlined />,
-                onClick: () => navigate('/student/submissions'),
+                onClick: () => navigate('/student/submissions?work=BM01_INITIAL'),
                 styleVars: {
                     '--step-color': '#0284C7',
                     '--step-soft': '#F0F9FF',
@@ -303,7 +303,7 @@ export default function StudentDashboardPage() {
                     'Trong học kỳ',
                 state: step4State,
                 icon: <ScheduleOutlined />,
-                onClick: () => navigate('/student/submissions'),
+                onClick: () => navigate('/student/submissions?work=BM03_ACK'),
                 styleVars: {
                     '--step-color': '#7C3AED',
                     '--step-soft': '#F5F3FF',
@@ -323,7 +323,7 @@ export default function StudentDashboardPage() {
                     'Trước bảo vệ',
                 state: step5State,
                 icon: <CommentOutlined />,
-                onClick: () => navigate('/student/submissions'),
+                onClick: () => navigate('/student/submissions?work=BM04'),
                 styleVars: {
                     '--step-color': '#D97706',
                     '--step-soft': '#FFFBEB',
@@ -681,7 +681,7 @@ export default function StudentDashboardPage() {
                                         type="primary"
                                         size="small"
                                         icon={currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? <ExclamationCircleOutlined /> : <FileDoneOutlined />}
-                                        onClick={() => navigate('/student/submissions')}
+                                        onClick={() => navigate(currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '/student/submissions?work=BM03_APPEAL' : '/student/submissions?work=BM03_ACK')}
                                         style={{
                                             background: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
                                             borderColor: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
@@ -882,7 +882,7 @@ export default function StudentDashboardPage() {
                             )}
                             <Button
                                 size="small"
-                                onClick={() => navigate('/student/submissions')}
+                                onClick={() => navigate('/student/submissions?work=BM01_INITIAL')}
                             >
                                 Chi tiết đề cương
                             </Button>
@@ -968,7 +968,7 @@ export default function StudentDashboardPage() {
                                     type="primary"
                                     size="small"
                                     icon={<CloudUploadOutlined />}
-                                    onClick={() => navigate('/student/submissions')}
+                                    onClick={() => navigate('/student/submissions?work=SUBMIT_ARCHIVE')}
                                 >
                                     Vào Kho Lưu Chiểu 4 Tài Liệu
                                 </Button>
@@ -1151,7 +1151,7 @@ export default function StudentDashboardPage() {
                                 <Button
                                     size="small"
                                     icon={<FileDoneOutlined />}
-                                    onClick={() => navigate('/student/submissions')}
+                                    onClick={() => navigate('/student/submissions?work=BM03_ACK')}
                                 >
                                     Xem sổ theo dõi tiến độ BM03
                                 </Button>

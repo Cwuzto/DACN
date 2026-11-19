@@ -129,7 +129,7 @@ const InstituteOperationsPage = lazy(() => import('./pages/lecturer/InstituteOpe
 // Student pages
 const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage'));
 const TopicListPage = lazy(() => import('./pages/student/TopicListPage'));
-const SubmissionPage = lazy(() => import('./pages/student/SubmissionPage'));
+const StudentWorkHubPage = lazy(() => import('./pages/student/StudentWorkHubPage'));
 const GradeViewPage = lazy(() => import('./pages/student/GradeViewPage'));
 
 // Common pages
@@ -292,8 +292,8 @@ function App() {
                                     <Route element={<ProtectedRoute featureKey="my-registration" requiredAnyPermissions={['VIEW_MY_REGISTRATION', 'REGISTER_TOPIC']} />}>
                                         <Route path="topics" element={<TopicListPage />} />
                                     </Route>
-                                    <Route element={<ProtectedRoute featureKey="my-submissions" requiredAnyPermissions={['VIEW_MY_SUBMISSIONS', 'VIEW_MY_ARCHIVE', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK']} />}>
-                                        <Route path="submissions" element={<SubmissionPage />} />
+                                    <Route element={<ProtectedRoute featureKey="my-submissions" requiredAnyPermissions={['VIEW_MY_SUBMISSIONS', 'VIEW_MY_ARCHIVE', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK', 'SUBMIT_PRE_DEFENSE_ARCHIVE', 'SUBMIT_FINAL_ARCHIVE']} />}>
+                                        <Route path="submissions" element={<StudentWorkHubPage />} />
                                     </Route>
                                     <Route element={<ProtectedRoute featureKey="my-grades" requiredAnyPermissions={['VIEW_MY_GRADES']} />}>
                                         <Route path="grades" element={<GradeViewPage />} />

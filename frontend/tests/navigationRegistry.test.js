@@ -18,7 +18,7 @@ test('NAVIGATION_REGISTRY is derived from FEATURE_POLICY_LIST without a second m
 
     const expectedMenuPolicies = FEATURE_POLICY_LIST.filter((p) => Boolean(p.menu));
     assert.equal(NAVIGATION_REGISTRY.length, expectedMenuPolicies.length);
-    assert.equal(NAVIGATION_REGISTRY.length, 27, 'Registry must contain exactly 27 workflow menu entries');
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must contain exactly 26 workflow menu entries');
 
     const expectedKeys = new Set(expectedMenuPolicies.map((p) => p.key));
     const seenKeys = new Set();
@@ -42,7 +42,7 @@ test('NAVIGATION_REGISTRY is derived from FEATURE_POLICY_LIST without a second m
         seenKeys.add(item.key);
     }
 
-    assert.equal(seenKeys.size, 27);
+    assert.equal(seenKeys.size, 26);
 });
 
 test('NAVIGATION_GROUPS defines the 9 workflow domain groups in strict business order', () => {
@@ -88,9 +88,8 @@ test('Student with SYSTEM_STUDENT_BASE sees workflow-grouped items with updated 
         nav.flatMap((g) => g.items).map((i) => ({ key: i.key, label: i.label, route: i.route })),
         [
             { key: 'my-registration', label: 'Tìm & đăng ký đề tài', route: '/student/topics' },
-            { key: 'my-submissions', label: 'Hồ sơ & nộp bài', route: '/student/submissions' },
+            { key: 'my-submissions', label: 'Việc của tôi', route: '/student/submissions' },
             { key: 'my-grades', label: 'Kết quả & điểm đồ án', route: '/student/grades' },
-            { key: 'my-archive', label: 'Nộp hồ sơ lưu chiểu', route: '/student/submissions?tab=archive' },
         ]
     );
 });

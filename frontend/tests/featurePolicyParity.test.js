@@ -59,7 +59,7 @@ test('FEATURE_POLICIES manifest defines valid entries with required schema', () 
 });
 
 test('Parity: Every item in NAVIGATION_REGISTRY maps exactly to one FEATURE_POLICIES entry', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 27, 'NAVIGATION_REGISTRY must have exactly 27 items');
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'NAVIGATION_REGISTRY must have exactly 26 items');
 
     const policyMap = new Map();
     const policies = Array.isArray(FEATURE_POLICIES)
@@ -100,7 +100,7 @@ test('Parity: Every protected application route in App.jsx maps to a feature pol
     }
 });
 
-test('Archive menu and route agreement: VIEW_MY_ARCHIVE allows both menu and /student/submissions route', () => {
+test('Archive menu and route agreement: VIEW_MY_ARCHIVE allows /student/submissions route while archive menu is integrated into Việc của tôi', () => {
     const archiveUser = {
         role: 'STUDENT',
         permissions: ['VIEW_MY_ARCHIVE'],
@@ -111,7 +111,11 @@ test('Archive menu and route agreement: VIEW_MY_ARCHIVE allows both menu and /st
 
     const nav = getVisibleNavigation(archiveUser);
     const archiveItem = nav.flatMap(g => g.items).find(i => i.key === 'my-archive');
-    assert.ok(archiveItem, 'my-archive menu item must be visible for user with VIEW_MY_ARCHIVE');
+    assert.equal(archiveItem, undefined, 'my-archive menu item must NOT be in visible navigation');
+
+    const submissionsItem = nav.flatMap(g => g.items).find(i => i.key === 'my-submissions');
+    assert.ok(submissionsItem, 'my-submissions must be visible for user with VIEW_MY_ARCHIVE');
+    assert.equal(submissionsItem.label, 'Việc của tôi');
 });
 
 test('REPORT_VIEW: User with only REPORT_VIEW can view academic-reports and route /admin/reports', () => {

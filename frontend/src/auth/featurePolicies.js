@@ -98,7 +98,7 @@ export const FEATURE_POLICIES = Object.freeze({
         workspace: 'student',
         route: '/student/submissions',
         menu: {
-            label: 'Hồ sơ & nộp bài',
+            label: 'Việc của tôi',
             icon: 'cloud_upload',
             group: 'Thực hiện đồ án',
             order: 1,
@@ -119,6 +119,8 @@ export const FEATURE_POLICIES = Object.freeze({
             submitTask: 'SUBMIT_TASK',
             signCheckpoint: 'CHECKPOINT_SIGN',
             appealSignature: 'SIGNATURE_APPEAL_SUBMIT',
+            submitPreDefense: 'SUBMIT_PRE_DEFENSE_ARCHIVE',
+            submitFinal: 'SUBMIT_FINAL_ARCHIVE',
         },
     },
 
@@ -326,13 +328,6 @@ export const FEATURE_POLICIES = Object.freeze({
         key: 'my-archive',
         workspace: 'student',
         route: '/student/submissions?tab=archive',
-        menu: {
-            label: 'Nộp hồ sơ lưu chiểu',
-            icon: 'inventory_2',
-            group: 'Bảo vệ & hoàn tất',
-            order: 2,
-            requiredPermission: 'VIEW_MY_ARCHIVE',
-        },
         viewAnyOf: ['VIEW_MY_ARCHIVE', 'SUBMIT_PRE_DEFENSE_ARCHIVE', 'SUBMIT_FINAL_ARCHIVE'],
         actions: {
             submitPreDefense: 'SUBMIT_PRE_DEFENSE_ARCHIVE',

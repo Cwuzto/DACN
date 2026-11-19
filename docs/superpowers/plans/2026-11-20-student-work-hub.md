@@ -92,17 +92,17 @@ expect(state.nextAction?.kind).toBe(state.workItems.find(x => x.bucket === 'READ
 
 **Interfaces:** `StudentWorkHubPage` đọc `data.workItems`/`waitingStatus` từ `useStudentDashboard(scope)` hiện có; `StudentWorkActions` Tasks 2–3 gắn với READY item đang chọn. UPCOMING không có mutation; DONE chỉ xem nộp/feedback/PDF. Thứ tự READY: quá hạn, hạn gần, việc xác nhận 48h/sửa nộp lại, rồi việc thường; cùng mức ưu tiên theo dueAt thực.
 
-- [ ] **Step 1: Viết test thất bại.** Không có việc hiện “Hiện chưa có việc cần làm”; waitingStatus nói rõ đang chờ ai; READY/UPCOMING/DONE xếp đúng; một item không lặp; nút nộp chỉ ở READY; hoàn thành làm mục chuyển vùng; lỗi API có retry, nguồn phụ lỗi không che CTA. Kiểm text trạng thái không chỉ theo màu, focus/heading và reduced motion.
+- [x] **Step 1: Viết test thất bại.** Không có việc hiện “Hiện chưa có việc cần làm”; waitingStatus nói rõ đang chờ ai; READY/UPCOMING/DONE xếp đúng; một item không lặp; nút nộp chỉ ở READY; hoàn thành làm mục chuyển vùng; lỗi API có retry, nguồn phụ lỗi không che CTA. Kiểm text trạng thái không chỉ theo màu, focus/heading và reduced motion.
 
 ```js
 assert.equal(screen.queryByRole('button', { name: /nộp/i }) !== null, readyItems.length > 0);
 assert.equal(screen.getByText('Sắp tới').closest('section').querySelectorAll('button[disabled]').length, 0);
 ```
 
-- [ ] **Step 2: Chạy focused test để thấy FAIL.** `npm --prefix frontend test -- tests/studentWorkHub.test.js`.
-- [ ] **Step 3: Thực hiện bố cục.** Header đề tài/đợt thật; hero teal Cần làm ngay và trạng thái cạnh bên desktop, Sắp tới lam/hổ phách, Đã hoàn thành thu gọn. CSS fade + dịch 8–12px trong 250–350ms, hover 150–200ms; không pulse vô hạn hoặc animation lặp khi refetch. `prefers-reduced-motion` tắt motion. Dùng icon Ant Design, token hiện có, không thêm thư viện animation.
-- [ ] **Step 4: Chạy lại focused test và build; PASS.** Dùng Playwright kiểm 375px, tablet, desktop, keyboard và reduced motion; ảnh chụp chỉ để QA, không làm artifact sản phẩm.
-- [ ] **Step 5: Commit đúng tệp Task 4.** `git commit -m "feat: add contextual student work hub"`.
+- [x] **Step 2: Chạy focused test để thấy FAIL.** `npm --prefix frontend test -- tests/studentWorkHub.test.js`.
+- [x] **Step 3: Thực hiện bố cục.** Header đề tài/đợt thật; hero teal Cần làm ngay và trạng thái cạnh bên desktop, Sắp tới lam/hổ phách, Đã hoàn thành thu gọn. CSS fade + dịch 8–12px trong 250–350ms, hover 150–200ms; không pulse vô hạn hoặc animation lặp khi refetch. `prefers-reduced-motion` tắt motion. Dùng icon Ant Design, token hiện có, không thêm thư viện animation.
+- [x] **Step 4: Chạy lại focused test và build; PASS.** Dùng Playwright kiểm 375px, tablet, desktop, keyboard và reduced motion; ảnh chụp chỉ để QA, không làm artifact sản phẩm.
+- [x] **Step 5: Commit đúng tệp Task 4.** `git commit -m "feat: add contextual student work hub"`.
 
 ### Task 5: Chuyển route, menu và deep links
 
@@ -110,11 +110,11 @@ assert.equal(screen.getByText('Sắp tới').closest('section').querySelectorAll
 
 **Interfaces:** `/student/submissions?work=<kind>` mở READY item hoặc DONE record tương ứng; `?tab=archive` cũ ánh xạ tới `SUBMIT_ARCHIVE`/lịch sử archive; route không param mở đầu trang. `my-submissions` label thành “Việc của tôi”; bỏ entry `my-archive` khỏi menu nhưng giữ quyền lưu chiểu ở route. Dashboard `nextAction.target` chứa `work=<kind>` khi action đi qua hub; notification link cũ vẫn hợp lệ.
 
-- [ ] **Step 1: Viết test thất bại.** Menu chỉ còn “Việc của tôi”; dashboard BM01 dẫn `?work=BM01_INITIAL`; notification BM03/archival dẫn đúng việc; `?tab=archive` mở archive hoặc lịch sử; `?work=` không còn hợp lệ hiện hướng dẫn và việc hiện tại; link không param hoạt động. Các quyền `VIEW_MY_ARCHIVE`/`SUBMIT_FINAL_ARCHIVE` vẫn mở được route.
-- [ ] **Step 2: Chạy focused tests để thấy FAIL.** `npm --prefix frontend test -- tests/studentWorkNavigation.test.js tests/navigationRegistry.test.js tests/featurePolicyParity.test.js tests/studentNextActionDashboard.test.js`.
-- [ ] **Step 3: Thực hiện route/menu/link.** Dùng `StudentWorkHubPage` cho route cũ, đồng bộ target backend Task 1, cập nhật link Dashboard/Notifications, bỏ entry archive riêng. Chỉ xóa `SubmissionPage` cũ khi test xác nhận mọi API nghiệp vụ còn được dùng từ component mới.
-- [ ] **Step 4: Chạy lại focused tests, backend Task 1 tests và frontend build; PASS.** Kiểm deep link sau refresh trình duyệt và khi việc đã hoàn thành.
-- [ ] **Step 5: Commit đúng tệp Task 5.** `git commit -m "feat: route student submissions to work hub"`.
+- [x] **Step 1: Viết test thất bại.** Menu chỉ còn “Việc của tôi”; dashboard BM01 dẫn `?work=BM01_INITIAL`; notification BM03/archival dẫn đúng việc; `?tab=archive` mở archive hoặc lịch sử; `?work=` không còn hợp lệ hiện hướng dẫn và việc hiện tại; link không param hoạt động. Các quyền `VIEW_MY_ARCHIVE`/`SUBMIT_FINAL_ARCHIVE` vẫn mở được route.
+- [x] **Step 2: Chạy focused tests để thấy FAIL.** `npm --prefix frontend test -- tests/studentWorkNavigation.test.js tests/navigationRegistry.test.js tests/featurePolicyParity.test.js tests/studentNextActionDashboard.test.js`.
+- [x] **Step 3: Thực hiện route/menu/link.** Dùng `StudentWorkHubPage` cho route cũ, đồng bộ target backend Task 1, cập nhật link Dashboard/Notifications, bỏ entry archive riêng. Chỉ xóa `SubmissionPage` cũ khi test xác nhận mọi API nghiệp vụ còn được dùng từ component mới.
+- [x] **Step 4: Chạy lại focused tests, backend Task 1 tests và frontend build; PASS.** Kiểm deep link sau refresh trình duyệt và khi việc đã hoàn thành.
+- [x] **Step 5: Commit đúng tệp Task 5.** `git commit -m "feat: route student submissions to work hub"`.
 
 ## Final verification
 
