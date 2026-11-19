@@ -185,6 +185,13 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
                         registrationDetails: expect.objectContaining({
                             registrationId: 102,
                         }),
+                        nextAction: expect.objectContaining({
+                            kind: 'SUBMIT_BM01',
+                            target: '/student/submissions',
+                            sourceStatus: 'APPROVED',
+                            canAct: true,
+                            dueAt: null,
+                        }),
                     }),
                 })
             );
@@ -212,6 +219,10 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
                         hasRegistration: false,
                         activeSemester: expect.objectContaining({ id: semester2.id }),
                         registrationDetails: null,
+                        nextAction: expect.objectContaining({
+                            kind: 'REGISTER_TOPIC',
+                            sourceStatus: null,
+                        }),
                     }),
                 })
             );

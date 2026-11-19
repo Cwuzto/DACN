@@ -8,6 +8,8 @@ const {
 const {
     buildAdminDashboardActions,
 } = require('../services/adminDashboardActionsService');
+const { computeAllowedActions } = require('../services/workflowActionService');
+const { buildStudentNextAction } = require('../services/studentDashboardActionService');
 const {
     resolveReportReadScope,
     buildTopicDepartmentWhere,
@@ -598,6 +600,8 @@ const getStudentDashboard = async (req, res, next) => {
             id: true,
             code: true,
             name: true,
+            status: true,
+            registrationOpen: true,
             startDate: true,
             registrationDeadline: true,
             outlineSubmissionOpenAt: true,
@@ -624,6 +628,7 @@ const getStudentDashboard = async (req, res, next) => {
                     mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
+                    nextAction: null,
                 },
             });
         }
@@ -694,6 +699,13 @@ const getStudentDashboard = async (req, res, next) => {
                     mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
+                    nextAction: buildStudentNextAction({
+                        registration: null,
+                        semester: activeSemester,
+                        tasks: [],
+                        allowedActions: [],
+                        now: new Date(),
+                    }),
                 },
             });
         }
@@ -816,11 +828,25 @@ const getStudentDashboard = async (req, res, next) => {
             registration.defenseResult = null;
         }
 
+        const allowedActions = computeAllowedActions(
+            { ...registration, studentId: registration.studentId ?? studentId },
+            { ...req.user, role: req.user?.role || 'STUDENT' }
+        );
+        const nextAction = buildStudentNextAction({
+            registration,
+            semester: activeSemester,
+            tasks: formattedTasks,
+            allowedActions,
+            now,
+        });
+
         res.json({
             success: true,
             data: {
                 hasRegistration: true,
                 activeSemester,
+                allowedActions,
+                nextAction,
                 registrationDetails: {
                     registrationId: registration.id,
                     status: registration.status,

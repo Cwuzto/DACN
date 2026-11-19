@@ -264,6 +264,68 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
             expect(data.meetingLogsCount).toBe(0);
             expect(data.mentorScore).toBeNull();
             expect(data.mentorFullName).toBe('ThS. Trần Thị C');
+            expect(data.allowedActions).toEqual(expect.arrayContaining(['SUBMIT_BM01']));
+            expect(data.nextAction).toMatchObject({
+                kind: 'SUBMIT_BM01',
+                target: '/student/submissions',
+                sourceStatus: 'APPROVED',
+                canAct: true,
+                dueAt: null,
+            });
+        });
+
+        test('Test 1.3: Trả về nextAction đúng cho trạng thái PENDING (chờ GVHD, canAct: false) và chưa đăng ký (REGISTER_TOPIC)', async () => {
+            mockPrisma.topicRegistration.findFirst.mockResolvedValueOnce({
+                id: 503,
+                studentId: 101,
+                semesterId: 1,
+                status: 'PENDING',
+                student: { id: 101, fullName: 'Nguyễn Văn Sinh Viên', code: 'SV101' },
+                topic: {
+                    id: 12,
+                    title: 'Đề tài Chờ Duyệt',
+                    mentor: { fullName: 'TS. Lê Văn D' },
+                },
+                tasks: [],
+                meetingLogs: [],
+                bm04Evaluation: null,
+                defenseResult: null,
+            });
+
+            const pendingRes = await request(app)
+                .get('/api/dashboard/student')
+                .set('Authorization', `Bearer ${studentToken}`);
+
+            expect(pendingRes.status).toBe(200);
+            expect(pendingRes.body.data.nextAction).toMatchObject({
+                kind: 'WAIT_MENTOR_APPROVAL',
+                target: null,
+                sourceStatus: 'PENDING',
+                canAct: false,
+                dueAt: null,
+            });
+
+            mockPrisma.semester.findFirst.mockResolvedValueOnce({
+                ...activeSemester,
+                status: 'REGISTRATION',
+                registrationOpen: true,
+                registrationDeadline: new Date(Date.now() + 86400000).toISOString(),
+            });
+            mockPrisma.topicRegistration.findFirst.mockResolvedValueOnce(null);
+            mockPrisma.topicRegistration.findFirst.mockResolvedValueOnce(null);
+
+            const noRegRes = await request(app)
+                .get('/api/dashboard/student')
+                .set('Authorization', `Bearer ${studentToken}`);
+
+            expect(noRegRes.status).toBe(200);
+            expect(noRegRes.body.data.hasRegistration).toBe(false);
+            expect(noRegRes.body.data.nextAction).toMatchObject({
+                kind: 'REGISTER_TOPIC',
+                target: '/student/topics',
+                sourceStatus: null,
+                canAct: true,
+            });
         });
     });
 
