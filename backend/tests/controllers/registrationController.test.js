@@ -32,6 +32,8 @@ jest.mock('../../src/config/database', () => ({
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
     getMentorMaxSlots: jest.fn(),
+    assertMentorCapacity: jest.fn().mockResolvedValue(true),
+    countActiveOccupiedMentoredTopics: jest.fn().mockResolvedValue(0),
 }));
 jest.mock('../../src/services/auditLogService', () => ({
     auditLog: jest.fn().mockResolvedValue(undefined),

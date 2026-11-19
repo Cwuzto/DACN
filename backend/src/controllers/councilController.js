@@ -402,20 +402,21 @@ const getCouncilById = async (req, res, next) => {
             });
         }
 
-        const enrichedRegistrations = await Promise.all((effectiveRegistrations || []).map(async (reg) => {
+        const enrichedRegistrations = [];
+        for (const reg of (effectiveRegistrations || [])) {
             try {
                 const resolved = await resolveEffectiveTopicTitle(reg.id);
-                return {
+                enrichedRegistrations.push({
                     ...reg,
                     effectiveTitle: resolved?.title || reg.topic?.title || 'Chưa có tên đề tài',
-                };
+                });
             } catch {
-                return {
+                enrichedRegistrations.push({
                     ...reg,
                     effectiveTitle: reg.topic?.title || 'Chưa có tên đề tài',
-                };
+                });
             }
-        }));
+        }
 
         res.json({
             success: true,

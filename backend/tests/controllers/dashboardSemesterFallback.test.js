@@ -22,6 +22,14 @@ jest.mock('../../src/utils/semesterResolver', () => ({
     getDefaultSemester: jest.fn(),
 }));
 
+jest.mock('../../src/services/lecturerOverviewService', () => {
+    const actual = jest.requireActual('../../src/services/lecturerOverviewService');
+    return {
+        ...actual,
+        buildUnifiedLecturerOverview: jest.fn().mockResolvedValue({}),
+    };
+});
+
 const prisma = require('../../src/config/database');
 const { getDefaultSemester } = require('../../src/utils/semesterResolver');
 const dashboardController = require('../../src/controllers/dashboardController');
@@ -232,14 +240,9 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
         test('falls back to active semester where lecturer has registrations when default semester has 0 topics and 0 registrations', async () => {
             getDefaultSemester.mockResolvedValue(semester2);
 
-            // Semester 2 stats: 0 topics, 0 registrations, 0 completed, 0 submissions, 0 tasks, 0 stale
+            // resolveLecturerSemester checks semester 2: 0 topics, 0 registrations
             prisma.topic.count.mockResolvedValueOnce(0);
-            prisma.topicRegistration.count
-                .mockResolvedValueOnce(0) // activeRegistrations
-                .mockResolvedValueOnce(0) // completedRegistrations
-                .mockResolvedValueOnce(0); // stalePendingRegistrations
-            prisma.submission.findMany.mockResolvedValueOnce([]);
-            prisma.task.findMany.mockResolvedValueOnce([]);
+            prisma.topicRegistration.count.mockResolvedValueOnce(0);
 
             // Fallback find: lecturer has registration in semester 1
             prisma.topicRegistration.findFirst.mockResolvedValueOnce({
@@ -292,14 +295,9 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
         test('falls back to active semester via topics when lecturer has topics but 0 registrations in another semester', async () => {
             getDefaultSemester.mockResolvedValue(semester2);
 
-            // Semester 2: 0 topics, 0 registrations
+            // resolveLecturerSemester checks semester 2: 0 topics, 0 registrations
             prisma.topic.count.mockResolvedValueOnce(0);
-            prisma.topicRegistration.count
-                .mockResolvedValueOnce(0)
-                .mockResolvedValueOnce(0)
-                .mockResolvedValueOnce(0);
-            prisma.submission.findMany.mockResolvedValueOnce([]);
-            prisma.task.findMany.mockResolvedValueOnce([]);
+            prisma.topicRegistration.count.mockResolvedValueOnce(0);
 
             // Fallback registration check returns null
             prisma.topicRegistration.findFirst.mockResolvedValueOnce(null);
@@ -354,7 +352,11 @@ describe('Dashboard Controller - User-Scoped Semester Fallback', () => {
         test('does not fall back if lecturer already has topics in default semester', async () => {
             getDefaultSemester.mockResolvedValue(semester2);
 
-            // Semester 2: 2 topics, 0 registrations
+            // resolveLecturerSemester checks semester 2: 2 topics, 0 registrations
+            prisma.topic.count.mockResolvedValueOnce(2);
+            prisma.topicRegistration.count.mockResolvedValueOnce(0);
+
+            // Semester 2 stats: 2 topics, 0 registrations
             prisma.topic.count.mockResolvedValueOnce(2);
             prisma.topicRegistration.count
                 .mockResolvedValueOnce(0)

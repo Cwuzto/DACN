@@ -5,7 +5,8 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool, Client } = require('pg');
 
 const DEFAULT_DB_POOL_MAX = 8;
-const DEFAULT_DB_POOL_CONNECTION_TIMEOUT = 15000;
+const DEFAULT_DB_POOL_IDLE_TIMEOUT = 10000;
+const DEFAULT_DB_POOL_CONNECTION_TIMEOUT = 20000;
 
 function readPositiveInt(value, fallback) {
     const parsed = Number.parseInt(value, 10);
@@ -21,7 +22,7 @@ function readBoolean(value, fallback) {
 }
 
 const dbPoolMax = readPositiveInt(process.env.DB_POOL_MAX, DEFAULT_DB_POOL_MAX);
-const dbPoolIdleTimeout = readPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30000);
+const dbPoolIdleTimeout = readPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, DEFAULT_DB_POOL_IDLE_TIMEOUT);
 const dbPoolConnectionTimeout = readPositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, DEFAULT_DB_POOL_CONNECTION_TIMEOUT);
 const dbUseSsl = readBoolean(process.env.DB_USE_SSL, true);
 const dbSslRejectUnauthorized = readBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false);
@@ -40,6 +41,20 @@ function sanitizeConnectionString(connectionString) {
 
 const connectionString = sanitizeConnectionString(rawConnectionString);
 
+function isTransientDisconnect(err) {
+    if (!err) return false;
+    const msg = String(err.message || err);
+    const code = String(err.code || '');
+    return (
+        msg.includes('Connection terminated') ||
+        msg.includes('connection terminated') ||
+        msg.includes('timeout') ||
+        code === 'ECONNRESET' ||
+        code === 'EPIPE' ||
+        code === 'ETIMEDOUT'
+    );
+}
+
 /**
  * ResilientPgClient ensures that any unhandled socket error emitted on a client
  * (e.g. timeout termination before connect callback) does not crash the Node process as an uncaught exception.
@@ -48,12 +63,16 @@ class ResilientPgClient extends Client {
     constructor(...args) {
         super(...args);
         this.on('error', (err) => {
+            if (isTransientDisconnect(err)) {
+                // Benign: cloud pooler or server terminated an idle connection; pg-pool handles recycling
+                return;
+            }
             console.warn('Postgres client background warning:', err?.message || err);
         });
     }
 }
 
-// Keep pool small by default for Supabase Session Pooler to avoid "max clients reached".
+// Keep pool small by default for Supabase Session/Transaction Pooler to avoid "max clients reached".
 const pool = new Pool({
     Client: ResilientPgClient,
     connectionString,
@@ -64,15 +83,21 @@ const pool = new Pool({
         ? { rejectUnauthorized: dbSslRejectUnauthorized }
         : false,
     keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
+    keepAliveInitialDelayMillis: 3000,
 });
 
 pool.on('error', (err) => {
+    if (isTransientDisconnect(err)) {
+        return;
+    }
     console.error('Postgres pool background client error:', err.message);
 });
 
 const adapter = new PrismaPg(pool, {
     onPoolError: (err) => {
+        if (isTransientDisconnect(err)) {
+            return;
+        }
         console.warn('Prisma adapter background pool error:', err?.message || err);
     },
 });

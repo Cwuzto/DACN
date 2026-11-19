@@ -3,6 +3,20 @@
  * Mọi lỗi throw ra từ controller/service đều chạy vào đây
  */
 const errorHandler = (err, req, res, next) => {
+    const isConnTerminated =
+        err?.message?.includes('Connection terminated unexpectedly') ||
+        err?.code === 'P2025' ||
+        err?.code === 'ECONNRESET';
+
+    if (isConnTerminated) {
+        console.warn('⚠️ [DB Warning] Database connection reset by pooler. Returning 503.');
+        return res.status(503).json({
+            success: false,
+            error: 'DATABASE_TRANSIENT_DISCONNECT',
+            message: 'Kết nối cơ sở dữ liệu bị gián đoạn tạm thời. Hệ thống đang tự động tái kết nối, vui lòng thử lại sau giây lát.',
+        });
+    }
+
     console.error('❌ Error:', err);
 
     const statusCode = err.statusCode || 500;

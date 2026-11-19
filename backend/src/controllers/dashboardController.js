@@ -570,7 +570,7 @@ const getLecturerDashboard = async (req, res, next) => {
                     activeTopics,
                     studentGroups: activeRegistrations,
                     completedRegistrations,
-                    pendingFeedback: mentorOverview.mentorSummary.pendingFeedbackCount,
+                    pendingFeedback: mentorOverview?.mentorSummary?.pendingFeedbackCount ?? 0,
                     stalePendingRegistrations,
                 },
                 recentSubmissions,

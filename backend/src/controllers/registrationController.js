@@ -523,7 +523,7 @@ const getMyRegistration = async (req, res, next) => {
                 },
                 bm04Evaluation: {
                     include: {
-                        evaluator: { select: { id: true, fullName: true, code: true, academicTitle: true } },
+                        lecturer: { select: { id: true, fullName: true, code: true, academicTitle: true } },
                     },
                 },
             },
@@ -532,6 +532,10 @@ const getMyRegistration = async (req, res, next) => {
 
         if (!registration) {
             return res.json({ success: true, data: null, message: 'Bạn chưa đăng ký đề tài nào.' });
+        }
+
+        if (registration.bm04Evaluation && registration.bm04Evaluation.lecturer && !registration.bm04Evaluation.evaluator) {
+            registration.bm04Evaluation.evaluator = registration.bm04Evaluation.lecturer;
         }
 
         if (registration.student?.studentProfile) {
