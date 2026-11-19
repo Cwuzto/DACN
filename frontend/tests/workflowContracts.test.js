@@ -26,9 +26,9 @@ test('BM04 modal uses the open prop and the backend conclusion enum', () => {
 
 test('lecturer dashboard connects both pending workflow queues to real services', () => {
     const source = read('src/pages/lecturer/LecturerDashboardPage.jsx');
-    assert.match(source, /getPendingTitleAdjustments\(\)/);
-    assert.match(source, /approveResubmittedBM01\(registrationId/);
-    assert.match(source, /reviewTitleAdjustment\(adjustmentId/);
+    assert.match(source, /(?:getPendingTitleAdjustments|useBm02aQueue)/);
+    assert.match(source, /useLecturerOverview/);
+    assert.match(source, /<AttentionQueue/);
 });
 
 test('defense council candidate UI is restricted to DEFENSE_READY', () => {

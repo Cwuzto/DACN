@@ -128,7 +128,6 @@ export default function TopicManagementPage() {
     // New Topic Form State
     const [title, setTitle] = useState('');
     const [englishTitle, setEnglishTitle] = useState('');
-    const [targetMajor, setTargetMajor] = useState('Kỹ thuật Phần mềm');
     const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
     const [tags, setTags] = useState('');
     const [description, setDescription] = useState('');
@@ -260,7 +259,6 @@ export default function TopicManagementPage() {
                 (t.title && t.title.toLowerCase().includes(q)) ||
                 (t.code && t.code.toLowerCase().includes(q)) ||
                 (t.englishTitle && t.englishTitle.toLowerCase().includes(q)) ||
-                (t.targetMajor && t.targetMajor.toLowerCase().includes(q)) ||
                 (t.registrations?.[0]?.student?.fullName && t.registrations[0].student.fullName.toLowerCase().includes(q)) ||
                 (t.registrations?.[0]?.student?.code && t.registrations[0].student.code.toLowerCase().includes(q))
             );
@@ -308,7 +306,6 @@ export default function TopicManagementPage() {
                 args: [{
                     title: title.trim(),
                     englishTitle: englishTitle.trim() || undefined,
-                    targetMajor,
                     description: description.trim() || undefined,
                     requirements: requirements.trim() || undefined,
                     semesterId: selectedSemesterId,
@@ -631,7 +628,6 @@ export default function TopicManagementPage() {
                                 <th>Tên Đề tài Nghiên cứu</th>
                                 <th>Loại đồ án</th>
                                 <th>Đợt đồ án</th>
-                                <th>Lĩnh vực / Công nghệ</th>
                                 <th>Sinh viên thực hiện</th>
                                 <th>Chỉ tiêu hướng dẫn</th>
                                 <th>Trạng thái Học vụ</th>
@@ -641,7 +637,7 @@ export default function TopicManagementPage() {
                         <tbody>
                             {filteredTopics.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
+                                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
                                         Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
                                     </td>
                                 </tr>
@@ -680,11 +676,6 @@ export default function TopicManagementPage() {
                                             <td>
                                                 <span className="tag blue text-[11px]">
                                                     {topic.semester?.name || 'Học kỳ'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className="tag gray">
-                                                    {topic.targetMajor || 'Kỹ thuật Phần mềm'}
                                                 </span>
                                             </td>
                                             <td>
@@ -864,31 +855,15 @@ export default function TopicManagementPage() {
                                     onChange={(e) => setEnglishTitle(e.target.value)}
                                 />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Chuyên ngành:</label>
-                                    <select
-                                        className="input-field"
-                                        style={{ width: '100%' }}
-                                        value={targetMajor}
-                                        onChange={(e) => setTargetMajor(e.target.value)}
-                                    >
-                                        <option value="Kỹ thuật Phần mềm">Kỹ thuật Phần mềm</option>
-                                        <option value="Khoa học Dữ liệu & AI">Khoa học Dữ liệu & AI</option>
-                                        <option value="Mạng Máy tính & ATTT">Mạng Máy tính & ATTT</option>
-                                        <option value="Hệ thống Thông tin">Hệ thống Thông tin</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Định mức sinh viên:</label>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        value="1 Sinh viên / 1 Đề tài — Cố định theo quy định"
-                                        disabled
-                                        style={{ width: '100%', background: '#F1F5F9', color: '#334155', fontWeight: 600 }}
-                                    />
-                                </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Định mức sinh viên:</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    value="1 Sinh viên / 1 Đề tài — Cố định theo quy định"
+                                    disabled
+                                    style={{ width: '100%', background: '#F1F5F9', color: '#334155', fontWeight: 600 }}
+                                />
                             </div>
                             <div>
                                 <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Mục tiêu & Phạm vi nghiên cứu:</label>
