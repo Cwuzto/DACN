@@ -54,14 +54,29 @@ test('AcademicDossierDrawer: Composes all 6 print sheets and provides tabbed dos
     assert.match(src, /In toàn bộ hồ sơ/, 'Must have button to print all forms');
 });
 
-test('AcademicDossierDrawer: Integration into GradingDefensePage, ProjectOversightPage, and LecturerDashboardPage', () => {
+test('AcademicDossierDrawer: Retained for GradingDefensePage and ProjectOversightPage; lecturer pages use guidance navigation', () => {
     const gradingSrc = read('frontend/src/pages/admin/GradingDefensePage.jsx');
     const oversightSrc = read('frontend/src/pages/admin/ProjectOversightPage.jsx');
-    const lecturerSrc = read('frontend/src/pages/lecturer/LecturerDashboardPage.jsx');
+    const lecturerDashboardSrc = read('frontend/src/pages/lecturer/LecturerDashboardPage.jsx');
+    const lecturerStudentsSrc = read('frontend/src/pages/lecturer/LecturerStudentsPage.jsx');
 
     assert.match(gradingSrc, /AcademicDossierDrawer/, 'GradingDefensePage must import AcademicDossierDrawer');
     assert.match(oversightSrc, /AcademicDossierDrawer/, 'ProjectOversightPage must import AcademicDossierDrawer');
-    assert.match(lecturerSrc, /AcademicDossierDrawer/, 'LecturerDashboardPage must import AcademicDossierDrawer');
+
+    assert.equal(
+        lecturerDashboardSrc.includes('AcademicDossierDrawer'),
+        false,
+        'LecturerDashboardPage must no longer use AcademicDossierDrawer'
+    );
+    assert.equal(
+        lecturerStudentsSrc.includes('AcademicDossierDrawer'),
+        false,
+        'LecturerStudentsPage must no longer use AcademicDossierDrawer'
+    );
+    assert.match(lecturerDashboardSrc, /onOpenGuidance/, 'LecturerDashboardPage must pass onOpenGuidance');
+    assert.match(lecturerStudentsSrc, /onOpenGuidance/, 'LecturerStudentsPage must pass onOpenGuidance');
+    assert.match(lecturerDashboardSrc, /\/lecturer\/students\//, 'LecturerDashboardPage must navigate to /lecturer/students/');
+    assert.match(lecturerStudentsSrc, /\/lecturer\/students\//, 'LecturerStudentsPage must navigate to /lecturer/students/');
 });
 
 test('AcademicDossierDrawer: Safe ID and topic code formatting without numeric slice crash', () => {

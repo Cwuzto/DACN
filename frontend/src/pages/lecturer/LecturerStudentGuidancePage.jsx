@@ -7,6 +7,7 @@ import {
     CheckCircleOutlined,
     ClockCircleOutlined,
     FileTextOutlined,
+    PrinterOutlined,
     ScheduleOutlined,
     UserOutlined,
 } from '@ant-design/icons';
@@ -41,6 +42,40 @@ const MILESTONE_ORDER = [
     { key: 'BM05', label: 'Bảo vệ / Kết quả' },
 ];
 
+const PRINTABLE_BUNDLE_ORDER = ['BM02', 'BM02-A', 'BM03', 'BM04', 'BM05'];
+
+const hasPrintableData = (formCode, registration, isBm05Published) => {
+    if (!registration) return false;
+    switch (formCode) {
+        case 'BM01':
+            return Boolean(
+                registration.bm01AssetId ||
+                registration.bm01PdfUrl ||
+                (Array.isArray(registration.submissions) &&
+                    registration.submissions.some((s) => s?.fileUrl || s?.assetId))
+            );
+        case 'BM02':
+            return Boolean(registration.currentBM02Submission || registration.bm02Submissions?.[0]);
+        case 'BM02-A':
+            return Boolean(
+                (Array.isArray(registration.bm02aRequests) && registration.bm02aRequests.length > 0) ||
+                registration.latestBm02aRequest
+            );
+        case 'BM03':
+            return Boolean(
+                registration.bm03Record ||
+                (Array.isArray(registration.bm03MeetingEntries) && registration.bm03MeetingEntries.length > 0) ||
+                (Array.isArray(registration.meetingLogs) && registration.meetingLogs.length > 0)
+            );
+        case 'BM04':
+            return Boolean(registration.bm04Evaluation && registration.bm04Evaluation.status !== 'DRAFT');
+        case 'BM05':
+            return Boolean(isBm05Published);
+        default:
+            return false;
+    }
+};
+
 const formatDateValue = (value) => {
     if (!value) return FALLBACK_TEXT;
     const parsed = dayjs(value);
@@ -60,20 +95,26 @@ export default function LecturerStudentGuidancePage() {
     // On-demand A4 print modal state — never mounted on initial render
     const [printModal, setPrintModal] = useState({
         open: false,
+        mode: 'single',
         formCode: '',
         title: '',
     });
 
     const printDataEnabled = Boolean(printModal.open && registration?.id);
-    const meetingLogsQuery = useRegistrationMeetingLogs(scope, registration?.id, printDataEnabled && printModal.formCode === 'BM03');
-    const checkpointsQuery = useRegistrationCheckpoints(scope, registration?.id, printDataEnabled && printModal.formCode === 'BM03');
-    const bm03Query = useBM03Record(scope, registration?.id, printDataEnabled && printModal.formCode === 'BM03');
-    const bm04Query = useBM04Record(scope, registration?.id, printDataEnabled && printModal.formCode === 'BM04');
-    const bm02aQuery = useRegistrationBm02aRequests(scope, registration?.id, printDataEnabled && printModal.formCode === 'BM02-A');
+    const isBundlePrint = printModal.mode === 'all';
+    const meetingLogsQuery = useRegistrationMeetingLogs(scope, registration?.id, printDataEnabled && (isBundlePrint || printModal.formCode === 'BM03'));
+    const checkpointsQuery = useRegistrationCheckpoints(scope, registration?.id, printDataEnabled && (isBundlePrint || printModal.formCode === 'BM03'));
+    const bm03Query = useBM03Record(scope, registration?.id, printDataEnabled && (isBundlePrint || printModal.formCode === 'BM03'));
+    const bm04Query = useBM04Record(scope, registration?.id, printDataEnabled && (isBundlePrint || printModal.formCode === 'BM04'));
+    const bm02aQuery = useRegistrationBm02aRequests(scope, registration?.id, printDataEnabled && (isBundlePrint || printModal.formCode === 'BM02-A'));
 
     const handleBack = () => {
         if (location.state?.from) {
-            navigate(location.state.from, { state: location.state });
+            navigate(location.state.from, {
+                state: {
+                    semesterId: location.state?.semesterId ?? null,
+                },
+            });
             return;
         }
         navigate('/lecturer/students');
@@ -84,6 +125,7 @@ export default function LecturerStudentGuidancePage() {
         () => (Array.isArray(workspace?.forms) ? workspace.forms : []),
         [workspace]
     );
+    const formMap = useMemo(() => new Map(forms.map((item) => [item.code, item])), [forms]);
     const nextAction = workspace?.nextAction || null;
 
     const isBm05Published = useMemo(() => {
@@ -127,6 +169,14 @@ export default function LecturerStudentGuidancePage() {
         };
     }, [registration, isBm05Published]);
 
+    const eligiblePrintCodes = useMemo(() => {
+        return PRINTABLE_BUNDLE_ORDER.filter((code) => {
+            const matched = formMap.get(code);
+            const hasServerPrintAction = Boolean(matched?.actions?.some((a) => a.code === 'VIEW_PRINT'));
+            return hasServerPrintAction && hasPrintableData(code, registration, isBm05Published);
+        });
+    }, [formMap, registration, isBm05Published]);
+
     const handleOpenBm01Pdf = async (action) => {
         const assetId = action?.params?.assetId || registration?.bm01AssetId || null;
         const directUrl = action?.params?.fileUrl || registration?.bm01PdfUrl || null;
@@ -154,23 +204,47 @@ export default function LecturerStudentGuidancePage() {
 
         if (action.code === 'VIEW_PRINT') {
             if (formCode === 'BM01') {
+                const hasBm01 = hasPrintableData('BM01', registration, isBm05Published)
+                    || Boolean(action?.params?.assetId || action?.params?.fileUrl);
+                if (!hasBm01) {
+                    message.warning('Chưa có tệp PDF BM01 để hiển thị.');
+                    return;
+                }
                 await handleOpenBm01Pdf(action);
                 return;
             }
-            if (formCode === 'BM05' && !isBm05Published) {
-                message.warning('Kết quả BM05 chưa được công bố chính thức.');
+            if (!hasPrintableData(formCode, registration, isBm05Published)) {
+                message.warning(
+                    formCode === 'BM05'
+                        ? 'Kết quả BM05 chưa được công bố chính thức.'
+                        : `Biểu mẫu ${formCode} chưa có dữ liệu để xem hoặc in.`
+                );
                 return;
             }
             setPrintModal({
                 open: true,
+                mode: 'single',
                 formCode,
                 title: form?.title ? `${formCode} · ${form.title}` : `Biểu mẫu ${formCode}`,
             });
             return;
         }
 
-        if (action.code === 'OPEN_PROGRESS' || formCode === 'BM03' || formCode === 'BM04') {
-            navigate(`/lecturer/progress?registrationId=${regId}`);
+        if (formCode === 'BM02') {
+            if (action.code === 'REVIEW') {
+                navigate(`/lecturer/dashboard?registrationId=${regId}`);
+                return;
+            }
+            if (!hasPrintableData('BM02', registration, isBm05Published)) {
+                message.warning('Chưa có dữ liệu BM02 để xem.');
+                return;
+            }
+            setPrintModal({
+                open: true,
+                mode: 'single',
+                formCode: 'BM02',
+                title: form?.title ? `BM02 · ${form.title}` : 'Biểu mẫu BM02',
+            });
             return;
         }
 
@@ -182,18 +256,28 @@ export default function LecturerStudentGuidancePage() {
             return;
         }
 
-        if (formCode === 'BM01' || action.code === 'REVIEW') {
-            navigate(`/lecturer/approvals?registrationId=${regId}`);
+        if (formCode === 'BM01') {
+            navigate(`/lecturer/approvals?tab=outline&registrationId=${regId}`);
+            return;
+        }
+
+        if (action.code === 'OPEN_PROGRESS' || formCode === 'BM03' || formCode === 'BM04') {
+            navigate(`/lecturer/progress?registrationId=${regId}`);
+            return;
+        }
+
+        if (action.code === 'REVIEW') {
+            navigate(`/lecturer/approvals?tab=outline&registrationId=${regId}`);
             return;
         }
 
         navigate(`/lecturer/progress?registrationId=${regId}`);
     };
 
-    const renderPrintSheet = () => {
-        if (!printModal.open || !registration) return null;
+    const renderSheetByCode = (code) => {
+        if (!registration) return null;
 
-        switch (printModal.formCode) {
+        switch (code) {
             case 'BM02': {
                 const submission = registration.currentBM02Submission || registration.bm02Submissions?.[0] || null;
                 return (
@@ -240,6 +324,23 @@ export default function LecturerStudentGuidancePage() {
             default:
                 return null;
         }
+    };
+
+    const renderPrintSheet = () => {
+        if (!printModal.open || !registration) return null;
+        if (printModal.mode === 'all') {
+            return (
+                <div className="space-y-8">
+                    {eligiblePrintCodes.map((code, idx) => (
+                        <React.Fragment key={code}>
+                            {idx > 0 && <div className="print-page-break" />}
+                            {renderSheetByCode(code)}
+                        </React.Fragment>
+                    ))}
+                </div>
+            );
+        }
+        return renderSheetByCode(printModal.formCode);
     };
 
     if (detailQuery.isLoading) {
@@ -308,8 +409,6 @@ export default function LecturerStudentGuidancePage() {
     const semesterName = registration.semester?.name || registration.topic?.semester?.name || FALLBACK_TEXT;
     const statusTag = getStatusTagConfig(registration.status);
     const classMajor = [profile.className, profile.major].filter(Boolean).join(' · ') || FALLBACK_TEXT;
-
-    const formMap = new Map(forms.map((item) => [item.code, item]));
 
     return (
         <div className="mx-auto max-w-6xl space-y-6 pb-10">
@@ -409,10 +508,28 @@ export default function LecturerStudentGuidancePage() {
 
             {/* Biểu mẫu */}
             <section aria-labelledby="forms-heading" className="space-y-3">
-                <h2 id="forms-heading" className="m-0 flex items-center gap-2 text-base font-semibold text-slate-900">
-                    <FileTextOutlined aria-hidden="true" />
-                    Biểu mẫu
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id="forms-heading" className="m-0 flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <FileTextOutlined aria-hidden="true" />
+                        Biểu mẫu
+                    </h2>
+                    {eligiblePrintCodes.length > 0 && (
+                        <Button
+                            size="small"
+                            icon={<PrinterOutlined aria-hidden="true" />}
+                            onClick={() =>
+                                setPrintModal({
+                                    open: true,
+                                    mode: 'all',
+                                    formCode: 'DOSSIER_FULL',
+                                    title: 'In toàn bộ biểu mẫu đủ điều kiện',
+                                })
+                            }
+                        >
+                            In toàn bộ
+                        </Button>
+                    )}
+                </div>
                 <GuidanceFormList forms={forms} onAction={handleAction} />
             </section>
 
@@ -441,7 +558,7 @@ export default function LecturerStudentGuidancePage() {
             {printModal.open && (
                 <AcademicFormPrintModal
                     open={printModal.open}
-                    onClose={() => setPrintModal({ open: false, formCode: '', title: '' })}
+                    onClose={() => setPrintModal({ open: false, mode: 'single', formCode: '', title: '' })}
                     title={printModal.title}
                     documentCode={printModal.formCode}
                 >

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Card, Input, Select, Spin, Tag, message } from 'antd';
 import {
     BellOutlined,
@@ -27,7 +27,6 @@ import { useMeetingMutation } from '../../queries/meetingQueries';
 import { dashboardKeys, useLecturerOverview } from '../../queries/dashboardQueries';
 import { useBm02AdvisorSignMutation, useBm02Verification } from '../../queries/bm02VerificationQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
-import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 import OverviewKpis from '../../components/lecturer/OverviewKpis';
 import AttentionQueue from '../../components/lecturer/AttentionQueue';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
@@ -121,21 +120,25 @@ function Bm02AdvisorRow({ registration, scope, advisorSignMutation }) {
 
 export default function LecturerDashboardPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
     const queryClient = useQueryClient();
 
-    const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+    const [selectedSemesterId, setSelectedSemesterId] = useState(() => {
+        const fromQuery = searchParams.get('semesterId');
+        if (fromQuery && !Number.isNaN(Number(fromQuery))) return Number(fromQuery);
+        return location.state?.semesterId ?? null;
+    });
 
     const semestersQuery = useSemesters(scope);
     const overviewQuery = useLecturerOverview(scope, selectedSemesterId);
     const titleAdjustmentsQuery = useBm02aQueue(scope);
 
-    // Modals & Drawer
+    // Modals
     const [meetingModalOpen, setMeetingModalOpen] = useState(false);
     const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
-    const [dossierDrawerOpen, setDossierDrawerOpen] = useState(false);
-    const [selectedRegForDossier, setSelectedRegForDossier] = useState(null);
 
     // Meeting Log Form State
     const [meetingStudentId, setMeetingStudentId] = useState('');
@@ -187,21 +190,16 @@ export default function LecturerDashboardPage() {
         setMeetingModalOpen(true);
     };
 
-    const handleOpenDossier = (student) => {
-        if (!student) return;
-        setSelectedRegForDossier({
-            id: student.registrationId,
-            status: student.status,
-            student: {
-                id: student.studentId,
-                fullName: student.studentName,
-                code: student.studentCode,
-            },
-            topic: {
-                title: student.topicTitle,
+    const handleOpenGuidance = (student) => {
+        if (!student?.registrationId) return;
+        const currentSemesterId = selectedSemesterId ?? activeSemester?.id ?? null;
+        const returnSearch = currentSemesterId ? `?semesterId=${currentSemesterId}` : '';
+        navigate(`/lecturer/students/${student.registrationId}`, {
+            state: {
+                from: `/lecturer/dashboard${returnSearch}`,
+                semesterId: currentSemesterId,
             },
         });
-        setDossierDrawerOpen(true);
     };
 
     const handleCreateMeetingLog = async () => {
@@ -323,7 +321,16 @@ export default function LecturerDashboardPage() {
                         <Select
                             aria-label="Chọn đợt đồ án"
                             value={effectiveSemesterId}
-                            onChange={(val) => setSelectedSemesterId(val)}
+                            onChange={(val) => {
+                                setSelectedSemesterId(val);
+                                const nextParams = new URLSearchParams(searchParams);
+                                if (val) {
+                                    nextParams.set('semesterId', String(val));
+                                } else {
+                                    nextParams.delete('semesterId');
+                                }
+                                setSearchParams(nextParams, { replace: true });
+                            }}
                             options={semesterOptions}
                             style={{ minWidth: 210 }}
                             placeholder="Chọn đợt đồ án"
@@ -381,7 +388,7 @@ export default function LecturerDashboardPage() {
                         <div className="min-w-0">
                             <SupervisedStudentList
                                 students={students}
-                                onOpenDossier={handleOpenDossier}
+                                onOpenGuidance={handleOpenGuidance}
                                 onOpenMeetingModal={handleOpenMeetingForStudent}
                             />
                         </div>
@@ -616,14 +623,6 @@ export default function LecturerDashboardPage() {
                 </div>
             )}
 
-            <AcademicDossierDrawer
-                open={dossierDrawerOpen}
-                onClose={() => {
-                    setDossierDrawerOpen(false);
-                    setSelectedRegForDossier(null);
-                }}
-                registration={selectedRegForDossier}
-            />
         </section>
     );
 }

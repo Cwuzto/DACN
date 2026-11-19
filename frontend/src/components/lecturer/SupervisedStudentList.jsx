@@ -90,7 +90,7 @@ const getStudentInitials = (name) => {
  */
 export default function SupervisedStudentList({
     students = [],
-    onOpenDossier,
+    onOpenGuidance,
     onOpenMeetingModal,
     onOpenTitleAdjustment,
     bm02aByRegistrationId,
@@ -208,9 +208,9 @@ export default function SupervisedStudentList({
                         <Button
                             size="small"
                             icon={<FolderOpenOutlined />}
-                            onClick={() => onOpenDossier?.(student)}
+                            onClick={() => onOpenGuidance?.(student)}
                         >
-                            Hồ sơ
+                            Xem quá trình
                         </Button>
                         <Button
                             size="small"
@@ -240,7 +240,7 @@ export default function SupervisedStudentList({
                 );
             },
         },
-    ], [bm02aByRegistrationId, onOpenDossier, onOpenMeetingModal, onOpenTitleAdjustment]);
+    ], [bm02aByRegistrationId, onOpenGuidance, onOpenMeetingModal, onOpenTitleAdjustment]);
 
     return (
         <Card
@@ -488,10 +488,10 @@ export default function SupervisedStudentList({
                                     <Button
                                         size="small"
                                         icon={<FolderOpenOutlined />}
-                                        onClick={() => onOpenDossier?.(student)}
+                                        onClick={() => onOpenGuidance?.(student)}
                                         className="text-xs border-slate-300 text-slate-700 hover:text-teal-700 hover:border-teal-500"
                                     >
-                                        Hồ sơ
+                                        Xem quá trình
                                     </Button>
                                     <Button
                                         size="small"

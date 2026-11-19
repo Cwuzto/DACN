@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Progress, Select, Tag } from 'antd';
 import {
     ApartmentOutlined,
@@ -19,7 +19,6 @@ import { useBm02aQueue } from '../../queries/bm02aQueries';
 import { canViewFeature, getEffectivePermissions } from '../../auth/policyEvaluator';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
-import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 
 const getAcademicStep = (status) => {
     switch (status) {
@@ -61,11 +60,15 @@ const getAcademicStep = (status) => {
  */
 export default function LecturerStudentsPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
-    const [selectedSemesterId, setSelectedSemesterId] = useState(null);
-    const [dossierOpen, setDossierOpen] = useState(false);
-    const [selectedRegistration, setSelectedRegistration] = useState(null);
+    const [selectedSemesterId, setSelectedSemesterId] = useState(() => {
+        const fromQuery = searchParams.get('semesterId');
+        if (fromQuery && !Number.isNaN(Number(fromQuery))) return Number(fromQuery);
+        return location.state?.semesterId ?? null;
+    });
 
     const overviewQuery = useLecturerOverview(scope, selectedSemesterId);
     const overview = overviewQuery.data;
@@ -133,22 +136,15 @@ export default function LecturerStudentsPage() {
         };
     }, [students, bm02aByRegistrationId]);
 
-    const handleOpenDossier = (student) => {
+    const handleOpenGuidance = (student) => {
         if (!student?.registrationId) return;
-        setSelectedRegistration({
-            id: student.registrationId,
-            status: student.status,
-            student: {
-                id: student.studentId,
-                fullName: student.studentName,
-                code: student.studentCode,
-            },
-            topic: {
-                id: student.topicId,
-                title: student.topicTitle,
+        const returnSearch = effectiveSemesterId ? `?semesterId=${effectiveSemesterId}` : '';
+        navigate(`/lecturer/students/${student.registrationId}`, {
+            state: {
+                from: `/lecturer/students${returnSearch}`,
+                semesterId: effectiveSemesterId ?? null,
             },
         });
-        setDossierOpen(true);
     };
 
     const handleOpenMeeting = (student) => {
@@ -208,7 +204,16 @@ export default function LecturerStudentsPage() {
                             <Select
                                 aria-label="Chọn đợt đồ án"
                                 value={effectiveSemesterId}
-                                onChange={(value) => setSelectedSemesterId(value)}
+                                onChange={(value) => {
+                                    setSelectedSemesterId(value);
+                                    const nextParams = new URLSearchParams(searchParams);
+                                    if (value) {
+                                        nextParams.set('semesterId', String(value));
+                                    } else {
+                                        nextParams.delete('semesterId');
+                                    }
+                                    setSearchParams(nextParams, { replace: true });
+                                }}
                                 options={semesterOptions}
                                 style={{ minWidth: 220 }}
                                 placeholder="Chọn đợt đồ án"
@@ -364,20 +369,11 @@ export default function LecturerStudentsPage() {
                 <SupervisedStudentList
                     students={students}
                     bm02aByRegistrationId={bm02aByRegistrationId}
-                    onOpenDossier={handleOpenDossier}
+                    onOpenGuidance={handleOpenGuidance}
                     onOpenMeetingModal={handleOpenMeeting}
                     onOpenTitleAdjustment={handleOpenTitleAdjustment}
                 />
             )}
-
-            <AcademicDossierDrawer
-                open={dossierOpen}
-                onClose={() => {
-                    setDossierOpen(false);
-                    setSelectedRegistration(null);
-                }}
-                registration={selectedRegistration}
-            />
         </section>
     );
 }

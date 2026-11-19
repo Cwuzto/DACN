@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { message, Button, Modal, Input, Space } from 'antd';
 import {
@@ -30,6 +30,7 @@ export default function TopicApprovalPage() {
     const scope = queryKeys.scope(currentUser);
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
+    const targetRegistrationId = searchParams.get('registrationId');
 
     const resolveTabKey = (tab) => {
         if (tab === 'bm01' || tab === 'outline') return 'outline';
@@ -70,6 +71,20 @@ export default function TopicApprovalPage() {
     // Registration Timeline Drawer State
     const [timelineOpen, setTimelineOpen] = useState(false);
     const [timelineRegistration, setTimelineRegistration] = useState(null);
+    const autoOpenedRegIdRef = useRef(null);
+
+    useEffect(() => {
+        if (activeTab !== 'outline' || !targetRegistrationId) return;
+        if (autoOpenedRegIdRef.current === String(targetRegistrationId)) return;
+        const matched = councilOutlineRegistrations.find(
+            (r) => String(r.id) === String(targetRegistrationId)
+        );
+        if (matched) {
+            autoOpenedRegIdRef.current = String(targetRegistrationId);
+            setSelectedOutlineRecord(matched);
+            setOutlineModalOpen(true);
+        }
+    }, [activeTab, targetRegistrationId, councilOutlineRegistrations]);
 
     const pendingOutlineCount = useMemo(() => {
         return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED' || r.status === 'BM01_RESUBMITTED').length;
@@ -202,10 +217,14 @@ export default function TopicApprovalPage() {
                             const topicCode = topic?.code || `DT-${topic?.id || record.topicId}`;
                             const registrationTime = record.createdAt ? new Date(record.createdAt).toLocaleString('vi-VN') : '—';
 
+                            const isTargetRegistration = Boolean(
+                                targetRegistrationId && String(record.id) === String(targetRegistrationId)
+                            );
+
                             return (
                                 <div
                                     key={record.id}
-                                    className="card"
+                                    className={`card ${isTargetRegistration ? 'ring-2 ring-teal-500' : ''}`}
                                     style={{ borderLeft: '4px solid var(--warning)', marginBottom: 0 }}
                                 >
                                     <div style={{ padding: '18px 20px' }}>
@@ -314,11 +333,14 @@ export default function TopicApprovalPage() {
                             const submissions = record.bm01Submissions || record.submissions || [];
                             const latestSub = submissions[0];
                             const isPendingReview = record.status === 'BM01_SUBMITTED' || record.status === 'BM01_RESUBMITTED';
+                            const isTargetRegistration = Boolean(
+                                targetRegistrationId && String(record.id) === String(targetRegistrationId)
+                            );
 
                             return (
                                 <div
                                     key={record.id}
-                                    className="card"
+                                    className={`card ${isTargetRegistration ? 'ring-2 ring-teal-500' : ''}`}
                                     style={{
                                         borderLeft: isPendingReview ? '4px solid var(--primary)' : '4px solid var(--border)',
                                         marginBottom: 0,
