@@ -228,7 +228,7 @@ function UserManagementPage() {
             email: record.email || '',
             code: record.code || '',
             role: record.role,
-            department: record.department || undefined,
+            department: record.department ? record.department.replace(/^Bộ môn\s+/i, '').trim() : undefined,
             phone: record.phone || '',
             academicTitle: record.academicTitle || undefined,
             maxStudents: record.maxStudents !== undefined && record.maxStudents !== null ? record.maxStudents : undefined,
@@ -399,7 +399,7 @@ function UserManagementPage() {
                             <p className="text-xs text-slate-500 font-medium truncate">
                                 {record.role === 'STUDENT'
                                     ? (record.studentProfile?.major || 'Chưa phân ngành')
-                                    : (record.department || (record.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
+                                    : (record.department ? record.department.replace(/^Bộ môn\s+/i, '').trim() : (record.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
                             </p>
                         </div>
                     </div>
@@ -752,10 +752,10 @@ function UserManagementPage() {
                             onChange={(value) => { resetPage(); setDepartmentFilter(value || null); }}
                             options={[
                                 { label: 'Tất cả Bộ môn', value: null },
-                                { label: 'Bộ môn Công nghệ Phần mềm', value: 'Bộ môn Công nghệ Phần mềm' },
-                                { label: 'Bộ môn Hệ thống Thông tin', value: 'Bộ môn Hệ thống Thông tin' },
-                                { label: 'Bộ môn Mạng Máy tính', value: 'Bộ môn Mạng Máy tính' },
-                                { label: 'Bộ môn Khoa học Máy tính', value: 'Bộ môn Khoa học Máy tính' },
+                                { label: 'Công nghệ Phần mềm', value: 'Công nghệ Phần mềm' },
+                                { label: 'Hệ thống Thông tin', value: 'Hệ thống Thông tin' },
+                                { label: 'Mạng Máy tính', value: 'Mạng Máy tính' },
+                                { label: 'Khoa học Máy tính', value: 'Khoa học Máy tính' },
                             ]}
                         />
                         <Select
@@ -874,7 +874,7 @@ function UserManagementPage() {
                                     <span>
                                         {drawerUser.role === 'STUDENT'
                                             ? (drawerUser.studentProfile?.major ? `Ngành: ${drawerUser.studentProfile.major}` : 'Sinh viên')
-                                            : (drawerUser.department || (drawerUser.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
+                                            : (drawerUser.department ? drawerUser.department.replace(/^Bộ môn\s+/i, '').trim() : (drawerUser.role === 'ADMIN' ? 'Quản trị hệ thống' : 'Chưa phân Bộ môn'))}
                                     </span>
                                 </p>
                             </div>
@@ -1145,10 +1145,10 @@ function UserManagementPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Form.Item label="Bộ môn" name="department">
                                     <Select placeholder="Chọn Bộ môn" allowClear>
-                                        <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn Công nghệ Phần mềm</Select.Option>
-                                        <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn Hệ thống Thông tin</Select.Option>
-                                        <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn Mạng Máy tính</Select.Option>
-                                        <Select.Option value="Bộ môn Khoa học Máy tính">Bộ môn Khoa học Máy tính</Select.Option>
+                                        <Select.Option value="Công nghệ Phần mềm">Công nghệ Phần mềm</Select.Option>
+                                        <Select.Option value="Hệ thống Thông tin">Hệ thống Thông tin</Select.Option>
+                                        <Select.Option value="Mạng Máy tính">Mạng Máy tính</Select.Option>
+                                        <Select.Option value="Khoa học Máy tính">Khoa học Máy tính</Select.Option>
                                     </Select>
                                 </Form.Item>
 

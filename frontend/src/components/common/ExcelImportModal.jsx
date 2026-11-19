@@ -370,7 +370,9 @@ export default function ExcelImportModal({
                 ).trim().toLowerCase();
 
                 const phone = String(row['Số điện thoại'] || row['SĐT'] || row.phone || '').trim();
-                const department = String(row['Bộ môn / Khoa'] || row['Bộ môn'] || row['Khoa'] || row.department || '').trim();
+                const department = String(row['Bộ môn / Khoa'] || row['Bộ môn'] || row['Khoa'] || row.department || '')
+                    .replace(/^Bộ môn\s+/i, '')
+                    .trim();
                 const rawTitle = String(row['Học vị (*)'] || row['Học vị'] || row['Học hàm'] || row.academicTitle || '').trim();
                 let academicTitle = rawTitle;
                 const upperTitle = rawTitle.toUpperCase();

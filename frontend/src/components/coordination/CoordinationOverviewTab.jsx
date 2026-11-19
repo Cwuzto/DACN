@@ -292,7 +292,7 @@ export function CoordinationOverviewTab({
                                                 {lecturer.lecturerName}
                                             </div>
                                             <div className="text-[11px] text-slate-500">
-                                                {lecturer.lecturerCode} • {lecturer.department || 'Bộ môn chưa cập nhật'}
+                                                {lecturer.lecturerCode} • {lecturer.department ? lecturer.department.replace(/^Bộ môn\s+/i, '').trim() : 'Bộ môn chưa cập nhật'}
                                             </div>
                                         </div>
                                     </div>

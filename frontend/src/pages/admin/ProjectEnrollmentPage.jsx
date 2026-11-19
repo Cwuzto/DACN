@@ -158,6 +158,28 @@ export function ProjectEnrollmentPage() {
         form.setFieldsValue({ semesterId: selectedId });
     }, [filterSemesterId, semesters, roundId, form]);
 
+    useEffect(() => {
+        if (!catalogs.length) return;
+        const defaultCatId = filterCatalogId || catalogs[0]?.id;
+        if (catalogs.length === 1 && !filterCatalogId) {
+            setFilterCatalogId(defaultCatId);
+        }
+        if (defaultCatId && !form.getFieldValue('projectCatalogId')) {
+            form.setFieldsValue({ projectCatalogId: defaultCatId });
+        }
+    }, [catalogs, filterCatalogId, form]);
+
+    useEffect(() => {
+        if (showAssignPanel) {
+            const semId = form.getFieldValue('semesterId') || filterSemesterId || semesters[0]?.id;
+            const catId = form.getFieldValue('projectCatalogId') || filterCatalogId || catalogs[0]?.id;
+            form.setFieldsValue({
+                semesterId: semId,
+                projectCatalogId: catId,
+            });
+        }
+    }, [showAssignPanel, filterSemesterId, filterCatalogId, semesters, catalogs, form]);
+
     // Student Operations
     const handleExport = async () => {
         try {
@@ -184,7 +206,7 @@ export function ProjectEnrollmentPage() {
         try {
             const res = await enrollmentMutation.mutateAsync({ action: 'createEnrollment', args: [{
                 semesterId: values.semesterId || filterSemesterId,
-                projectCatalogId: values.projectCatalogId || filterCatalogId,
+                projectCatalogId: values.projectCatalogId || filterCatalogId || catalogs[0]?.id,
                 studentId: values.studentId,
             }] });
             if (res.success) {
@@ -200,7 +222,7 @@ export function ProjectEnrollmentPage() {
 
     const handleAssignBulk = async () => {
         const targetSemesterId = form.getFieldValue('semesterId') || filterSemesterId;
-        const targetCatalogId = form.getFieldValue('projectCatalogId') || filterCatalogId;
+        const targetCatalogId = form.getFieldValue('projectCatalogId') || filterCatalogId || catalogs[0]?.id;
 
         if (!targetSemesterId || !targetCatalogId) {
             message.warning('Vui lòng chọn đợt đồ án và loại đồ án');
@@ -328,18 +350,6 @@ export function ProjectEnrollmentPage() {
                     : <Tag color="default" className="text-[11px] px-2.5 py-0.5 rounded-full">Đã hủy</Tag>
             ),
         },
-        {
-            title: 'Nguồn gán',
-            dataIndex: 'source',
-            key: 'source',
-            width: 110,
-            align: 'center',
-            render: (source) => {
-                if (source === 'MANUAL') return <Tag color="blue" className="text-[11px] font-semibold">Thủ công</Tag>;
-                if (source === 'EXCEL') return <Tag color="purple" className="text-[11px] font-semibold">Excel</Tag>;
-                return <Tag className="text-[11px]">{source || 'Khác'}</Tag>;
-            },
-        },
         ...(canPerformFeatureAction(user, 'project-enrollments', 'manageEnrollment')
             ? [
                 {
@@ -449,11 +459,13 @@ export function ProjectEnrollmentPage() {
                                             onChange={updateFilterSemester}
                                         />
                                     </Form.Item>
-                                    <Form.Item name="projectCatalogId" label="Loại đồ án" rules={[{ required: true }]}>
+                                    <Form.Item name="projectCatalogId" label="Loại đồ án" rules={[{ required: true, message: 'Vui lòng chọn loại đồ án' }]}>
                                         <Select
                                             options={catalogOptions}
-                                            value={filterCatalogId}
+                                            value={form.getFieldValue('projectCatalogId') || filterCatalogId || catalogs[0]?.id}
                                             onChange={updateFilterCatalog}
+                                            disabled={catalogOptions.length <= 1}
+                                            placeholder="Chọn loại đồ án"
                                         />
                                     </Form.Item>
                                     <Form.Item name="studentId" label="Sinh viên (gán lẻ 1 bạn)">

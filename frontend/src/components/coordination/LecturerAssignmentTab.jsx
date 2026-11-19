@@ -37,6 +37,8 @@ import * as XLSX from 'xlsx';
 
 const EMPTY_LIST = [];
 
+const cleanDepartment = (dept) => String(dept || '').replace(/^Bộ môn\s+/i, '').trim() || '—';
+
 const ACADEMIC_TITLE_LABELS = {
     THAC_SI: 'Thạc sĩ',
     TIEN_SI: 'Tiến sĩ',
@@ -289,7 +291,7 @@ export function LecturerAssignmentTab({
             width: 140,
             render: (_, row) => (
                 <span className="text-xs text-slate-700">
-                    {row.lecturer?.department || '—'}
+                    {cleanDepartment(row.lecturer?.department)}
                 </span>
             ),
         },
@@ -565,10 +567,13 @@ export function LecturerAssignmentTab({
                             loading={loadingAvailable}
                             placeholder="Tìm theo tên hoặc mã GV khả dụng..."
                             optionFilterProp="label"
-                            options={availableLecturers.map((l) => ({
-                                value: l.id,
-                                label: `${l.fullName} (${l.code || 'Chưa có mã'}) - ${l.department || 'Bộ môn'}${l.availableQuota !== undefined ? ` (Tối đa ${l.availableQuota} chỉ tiêu)` : ''}`,
-                            }))}
+                            options={availableLecturers.map((l) => {
+                                const deptName = cleanDepartment(l.department);
+                                return {
+                                    value: l.id,
+                                    label: `${l.fullName} (${l.code || 'Chưa có mã'}) - ${deptName !== '—' ? deptName : 'Bộ môn'}${l.availableQuota !== undefined ? ` (Tối đa ${l.availableQuota} chỉ tiêu)` : ''}`,
+                                };
+                            })}
                             notFoundContent={
                                 <div className="py-2 text-center text-xs text-slate-500">
                                     Không có giảng viên khả dụng (đã được phân công hoặc đã hết chỉ tiêu trong đợt này)
