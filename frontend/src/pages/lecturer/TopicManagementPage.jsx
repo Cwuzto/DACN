@@ -798,7 +798,8 @@ export default function TopicManagementPage() {
                                     value={selectedSemesterId || ''}
                                     onChange={(e) => setSelectedSemesterId(parseInt(e.target.value, 10))}
                                 >
-                                    {semesters.length === 0 && <option value="">Đang tải đợt đồ án...</option>}
+                                    {semestersQuery.isPending && <option value="">Đang tải đợt đồ án...</option>}
+                                    {!semestersQuery.isPending && semesters.length === 0 && <option value="">Chưa có đợt đồ án</option>}
                                     {semesters.map((s) => (
                                         <option key={s.id} value={s.id}>
                                             {s.name} ({s.academicYear || ''}) {s.isActive || s.status === 'ACTIVE' ? '· [Đang diễn ra]' : ''}
@@ -816,7 +817,8 @@ export default function TopicManagementPage() {
                                     value={selectedProjectCatalogId || ''}
                                     onChange={(e) => setSelectedProjectCatalogId(parseInt(e.target.value, 10))}
                                 >
-                                    {catalogs.length === 0 && <option value="">Đang tải loại đồ án...</option>}
+                                    {catalogsQuery.isPending && <option value="">Đang tải loại đồ án...</option>}
+                                    {!catalogsQuery.isPending && catalogs.length === 0 && <option value="">Chưa có loại đồ án</option>}
                                     {catalogs.map((c) => (
                                         <option key={c.id} value={c.id}>
                                             {c.code} · {c.name}

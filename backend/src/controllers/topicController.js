@@ -27,10 +27,18 @@ const resolveProjectCatalogId = async (projectCatalogIdInput) => {
         return found.id;
     }
 
-    const fallback = await prisma.projectCatalog.findFirst({
+    let fallback = await prisma.projectCatalog.findFirst({
         where: { code: DEFAULT_PROJECT_CATALOG_CODE, isActive: true },
         select: { id: true },
     });
+    if (!fallback) {
+        fallback = await prisma.projectCatalog.upsert({
+            where: { code: DEFAULT_PROJECT_CATALOG_CODE },
+            update: { name: 'Đồ án tốt nghiệp', isActive: true },
+            create: { code: DEFAULT_PROJECT_CATALOG_CODE, name: 'Đồ án tốt nghiệp', isActive: true },
+            select: { id: true },
+        });
+    }
     return fallback?.id || null;
 };
 
@@ -992,10 +1000,20 @@ const cloneTopics = async (req, res, next) => {
 
 const getTopicCatalogs = async (req, res, next) => {
     try {
-        const catalogs = await prisma.projectCatalog.findMany({
+        let catalogs = await prisma.projectCatalog.findMany({
             where: { isActive: true },
             orderBy: { code: 'asc' },
         });
+
+        if (catalogs.length === 0) {
+            const defaultCatalog = await prisma.projectCatalog.upsert({
+                where: { code: DEFAULT_PROJECT_CATALOG_CODE },
+                update: { name: 'Đồ án tốt nghiệp', isActive: true },
+                create: { code: DEFAULT_PROJECT_CATALOG_CODE, name: 'Đồ án tốt nghiệp', isActive: true },
+            });
+            catalogs = [defaultCatalog];
+        }
+
         return res.status(200).json({
             success: true,
             data: catalogs,

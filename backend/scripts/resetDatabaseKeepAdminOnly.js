@@ -154,6 +154,14 @@ async function resetKeepAdmin() {
     console.log(`Assigned Admin ${finalAdmin.code} to QUAN_TRI_VIEN group.`);
   }
 
+  // 7b. Seed default Project Catalog (DATN)
+  await prisma.projectCatalog.upsert({
+    where: { code: 'DATN' },
+    update: { name: 'Đồ án tốt nghiệp', isActive: true },
+    create: { code: 'DATN', name: 'Đồ án tốt nghiệp', isActive: true },
+  });
+  console.log('Seeded default project catalog (DATN - Đồ án tốt nghiệp).');
+
   // 8. Verify final database state
   const remainingUsers = await prisma.user.findMany({
     select: { id: true, code: true, email: true, fullName: true, role: true },
