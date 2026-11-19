@@ -2,7 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
-const { Pool } = require('pg');
+const { Pool, Client } = require('pg');
 
 const DEFAULT_DB_POOL_MAX = 8;
 const DEFAULT_DB_POOL_CONNECTION_TIMEOUT = 15000;
@@ -40,8 +40,22 @@ function sanitizeConnectionString(connectionString) {
 
 const connectionString = sanitizeConnectionString(rawConnectionString);
 
+/**
+ * ResilientPgClient ensures that any unhandled socket error emitted on a client
+ * (e.g. timeout termination before connect callback) does not crash the Node process as an uncaught exception.
+ */
+class ResilientPgClient extends Client {
+    constructor(...args) {
+        super(...args);
+        this.on('error', (err) => {
+            console.warn('Postgres client background warning:', err?.message || err);
+        });
+    }
+}
+
 // Keep pool small by default for Supabase Session Pooler to avoid "max clients reached".
 const pool = new Pool({
+    Client: ResilientPgClient,
     connectionString,
     max: dbPoolMax,
     idleTimeoutMillis: dbPoolIdleTimeout,
@@ -57,7 +71,11 @@ pool.on('error', (err) => {
     console.error('Postgres pool background client error:', err.message);
 });
 
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaPg(pool, {
+    onPoolError: (err) => {
+        console.warn('Prisma adapter background pool error:', err?.message || err);
+    },
+});
 
 const prisma = new PrismaClient({
     adapter,

@@ -238,10 +238,8 @@ const startPendingRegistrationReminderScheduler = () => {
         if (isRunning) return;
         isRunning = true;
         try {
-            const [reminderResult, autoRejectResult] = await Promise.all([
-                runPendingRegistrationReminderJob(),
-                runPendingRegistrationAutoRejectJob(),
-            ]);
+            const reminderResult = await runPendingRegistrationReminderJob();
+            const autoRejectResult = await runPendingRegistrationAutoRejectJob();
 
             if (reminderResult.sent > 0 || reminderResult.processed > 0) {
                 console.log(`[jobs] Pending reminder tick: processed=${reminderResult.processed}, sent=${reminderResult.sent}, skipped=${reminderResult.skipped}`);

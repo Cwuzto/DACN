@@ -76,6 +76,24 @@ app.use(errorHandler);
 // KHỞI ĐỘNG SERVER
 // ============================
 if (require.main === module) {
+    // Resilience handlers to prevent transient database/network disconnects from crashing nodemon/node
+    process.on('unhandledRejection', (reason) => {
+        console.error('⚠️ [App Resilience] Unhandled Promise Rejection:', reason);
+    });
+
+    process.on('uncaughtException', (err) => {
+        console.error('⚠️ [App Resilience] Uncaught Exception:', err);
+        if (
+            err?.message?.includes('Connection terminated') ||
+            err?.message?.includes('connection timeout') ||
+            err?.code === 'ECONNRESET' ||
+            err?.code === 'EPIPE'
+        ) {
+            console.warn('⚠️ [App Resilience] Recovered from transient socket disconnect.');
+            return;
+        }
+    });
+
     app.listen(PORT, () => {
         console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
         console.log(`📋 API Health: http://localhost:${PORT}/api/health`);

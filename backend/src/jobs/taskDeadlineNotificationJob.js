@@ -205,12 +205,15 @@ const startTaskDeadlineNotificationScheduler = () => {
         }
     };
 
-    run();
+    const initialTimer = setTimeout(run, 5000);
     const timer = setInterval(run, intervalMs());
     if (typeof timer.unref === 'function') timer.unref();
 
     console.log(`[jobs] Task deadline scheduler started (every ${Math.round(intervalMs() / 60000)} minutes, upcoming=${upcomingHours()}h)`);
-    return () => clearInterval(timer);
+    return () => {
+        clearTimeout(initialTimer);
+        clearInterval(timer);
+    };
 };
 
 module.exports = {
