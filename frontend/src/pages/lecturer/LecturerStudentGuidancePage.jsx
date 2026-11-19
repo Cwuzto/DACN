@@ -641,17 +641,8 @@ export default function LecturerStudentGuidancePage() {
                 </ol>
             </section>
 
-            {/* Biểu mẫu */}
-            <section aria-labelledby="forms-heading" className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-700 text-white shadow-xs">
-                            <FileTextOutlined className="text-xs" aria-hidden="true" />
-                        </span>
-                        <h2 id="forms-heading" className="m-0 text-base font-bold text-slate-900">
-                            Biểu mẫu
-                        </h2>
-                    </div>
+            <section aria-label="Danh sách biểu mẫu học vụ" className="space-y-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                     {eligiblePrintCodes.length > 0 && (
                         <Button
                             size="small"

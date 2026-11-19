@@ -1,6 +1,6 @@
 import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Badge } from 'antd';
+import { Badge, Button } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import authService from '../../services/authService';
@@ -302,16 +302,6 @@ function AppLayout({ role }) {
                 {/* Topbar Header */}
                 <header className="topbar">
                     <div className="topbar-left">
-                        <button
-                            ref={mobileMenuButtonRef}
-                            type="button"
-                            className="lg:hidden btn btn-secondary btn-sm"
-                            onClick={() => setMobileDrawerOpen(true)}
-                            aria-label="Mở menu điều hướng"
-                            aria-expanded={mobileDrawerOpen}
-                        >
-                            <MenuOutlined />
-                        </button>
                         {/* Institutional Period Badge */}
                         <div className="period-badge">
                             <span className="period-dot"></span>
@@ -356,7 +346,7 @@ function AppLayout({ role }) {
                 </header>
 
                 {/* Main Content Area */}
-                <main className="main-area">
+                <main className="main-area pb-16 lg:pb-0">
                     <div className="content-container">
                         <RouteContentBoundary>
                             {/* A new pathname reveals its local fallback during router transitions. */}
@@ -367,6 +357,19 @@ function AppLayout({ role }) {
                     </div>
                 </main>
             </div>
+
+            <Button
+                ref={mobileMenuButtonRef}
+                type="primary"
+                shape="circle"
+                size="large"
+                icon={<MenuOutlined aria-hidden="true" />}
+                className="!fixed !left-4 !z-50 !bg-teal-700 hover:!bg-teal-800 lg:!hidden"
+                style={{ bottom: 'max(16px, env(safe-area-inset-bottom))' }}
+                onClick={() => setMobileDrawerOpen(true)}
+                aria-label="Mở menu điều hướng"
+                aria-expanded={mobileDrawerOpen}
+            />
 
             {/* Academic Regulation AI Assistant Floating Widget */}
             <AcademicChatWidget />
