@@ -449,14 +449,6 @@ export default function TopicManagementPage() {
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
                     <AuthorizedAction feature="my-topics" action="create">
                         <Button
-                            icon={<CopyOutlined />}
-                            onClick={() => setCloneModalOpen(true)}
-                        >
-                            Sao chép từ kỳ trước
-                        </Button>
-                    </AuthorizedAction>
-                    <AuthorizedAction feature="my-topics" action="create">
-                        <Button
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => setNewTopicModalOpen(true)}
