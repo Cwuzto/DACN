@@ -117,7 +117,7 @@
     - Ủy viên Hội đồng: Hiển thị nút `<Button icon={<EyeOutlined />}>Xem & Góp ý</Button>` (chế độ chỉ xem và đóng góp ý kiến).
   - Hiệu ứng chuyển động vi mô: `fadeSlideIn`, nâng nhẹ khi rê chuột, hỗ trợ `@media (prefers-reduced-motion)`.
 
-- [ ] **Bước 1: Viết bài kiểm thử thất bại**
+- [x] **Bước 1: Viết bài kiểm thử thất bại**
   Tạo `frontend/tests/outlineReviewPage.test.js`:
   - Kiểm tra tồn tại tệp và chuẩn UTF-8 không BOM (Quy tắc 2.4).
   - Kiểm tra không dùng kiến trúc nhóm cũ (Quy tắc 2.1).
@@ -125,20 +125,20 @@
   - Kiểm tra phân quyền: Chủ tịch và Thư ký có nút thẩm định; Ủy viên chỉ có nút xem & góp ý.
   - Kiểm tra kết nối modal xem bản in BM01 và rà soát AI Copilot.
 
-- [ ] **Bước 2: Chạy kiểm thử để xác nhận thất bại**
+- [x] **Bước 2: Chạy kiểm thử để xác nhận thất bại**
   Chạy lệnh: `npm --prefix frontend test -- tests/outlineReviewPage.test.js`
   Kết quả dự kiến: Thất bại do chưa tạo trang và css.
 
-- [ ] **Bước 3: Xây dựng `OutlineReviewPage.jsx` và `outline-review.css`**
+- [x] **Bước 3: Xây dựng `OutlineReviewPage.jsx` và `outline-review.css`**
   - Xây dựng giao diện Bento Grid + Data-Dense hiện đại theo chuẩn `ui-ux-pro-max`.
   - Kết nối `useRegistrations(scope, { asCouncilMember: 'true' })`.
   - Tích hợp `OutlineReviewModal`, `BM01PrintSheet`, `AcademicFormPrintModal`, `BM01CopilotDrawer`.
 
-- [ ] **Bước 4: Chạy lại kiểm thử xác nhận thành công**
+- [x] **Bước 4: Chạy lại kiểm thử xác nhận thành công**
   Chạy lệnh: `npm --prefix frontend test -- tests/outlineReviewPage.test.js`
   Kết quả dự kiến: ĐẠT 100%.
 
-- [ ] **Bước 5: Tạo commit git Tác vụ 3**
+- [x] **Bước 5: Tạo commit git Tác vụ 3**
   `git commit -m "feat(lecturer): build dedicated outline review council page"`
 
 ---
@@ -193,3 +193,4 @@
 - [ ] Chạy kiểm thử đóng gói production:
   `npm --prefix frontend run build`
 - [ ] Kiểm tra chuẩn mã hóa UTF-8 không BOM và trạng thái git sạch sẽ.
+

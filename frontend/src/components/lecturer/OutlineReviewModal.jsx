@@ -28,6 +28,8 @@ export default function OutlineReviewModal({
     onClose,
     onSuccess,
     registration,
+    currentRoleInCouncil = 'CHAIRMAN',
+    readOnly = false,
 }) {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
@@ -143,12 +145,33 @@ export default function OutlineReviewModal({
         }
     };
 
+    const isSecretary = currentRoleInCouncil === 'SECRETARY';
+    const isMember = readOnly || currentRoleInCouncil === 'MEMBER';
+
+    const modalTitle = isMember
+        ? 'Hội Đồng Thẩm Định Đề Cương — Xem & Góp Ý Hồ Sơ'
+        : (isSecretary
+            ? 'Hội Đồng Thẩm Định Đề Cương — Quyết Định Thẩm Định (Thư Ký)'
+            : 'Hội Đồng Thẩm Định Đề Cương — Quyết Định Thẩm Định (Chủ Tịch)');
+
+    const alertMessage = isMember
+        ? 'Vai trò Ủy viên Hội đồng Thẩm định'
+        : (isSecretary
+            ? 'Thẩm quyền Thư ký Hội đồng Thẩm định Đề cương'
+            : 'Thẩm quyền Chủ tịch Hội đồng Thẩm định Đề cương');
+
+    const alertDescription = isMember
+        ? 'Với vai trò Ủy viên Hội đồng, bạn có quyền tra cứu toàn văn đề cương và hồ sơ để chuẩn bị đóng góp ý kiến chuyên môn. Quyết định thẩm định chính thức sẽ do Chủ tịch hoặc Thư ký đại diện Hội đồng ban hành.'
+        : (isSecretary
+            ? 'Với vai trò Thư ký Hội đồng, bạn có quyền đại diện Hội đồng ghi nhận nội dung cuộc họp thẩm định và bấm ban hành kết luận chính thức cho đề cương.'
+            : 'Với vai trò Chủ tịch Hội đồng, quyết định của bạn sẽ trực tiếp chốt kết quả đề cương chi tiết. Nếu ĐẠT, đề cương được thông qua và sinh viên được phép nộp đơn đăng ký đề tài chính thức. Nếu CẦN CHỈNH SỬA, sinh viên sẽ được thông báo để chỉnh sửa và nộp lại cho GVHD.');
+
     return (
         <Modal
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <FileTextOutlined className="text-blue-600 text-lg" />
-                    <span>Hội Đồng Thẩm Định Đề Cương — Kết Luận Của Chủ Tịch</span>
+                    <span>{modalTitle}</span>
                 </div>
             }
             open={open}
@@ -161,8 +184,8 @@ export default function OutlineReviewModal({
                 <Alert
                     type="info"
                     showIcon
-                    message="Thẩm quyền Chủ tịch Hội đồng Thẩm định Đề cương"
-                    description="Với vai trò Chủ tịch Hội đồng, quyết định của bạn sẽ trực tiếp chốt kết quả đề cương chi tiết. Nếu ĐẠT, đề cương được thông qua và sinh viên được phép nộp đơn đăng ký đề tài chính thức. Nếu CẦN CHỈNH SỬA, sinh viên sẽ được thông báo để chỉnh sửa và nộp lại cho GVHD."
+                    message={alertMessage}
+                    description={alertDescription}
                 />
 
                 {/* THÔNG TIN ĐỀ TÀI & HỘI ĐỒNG */}
@@ -214,142 +237,167 @@ export default function OutlineReviewModal({
                     )}
                 </div>
 
-                {/* FORM ĐÁNH GIÁ CỦA CHỦ TỊCH */}
-                <Form
-                    form={form}
-                    layout="vertical"
-                    onFinish={handleSubmit}
-                    initialValues={{ decision: 'PASSED' }}
-                >
-                    <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
-                        Kết Luận Thẩm Định
-                    </Divider>
-
-                    <Form.Item
-                        name="decision"
-                        label="Kết luận của Hội đồng"
-                        rules={[{ required: true, message: 'Vui lòng chọn kết luận thẩm định' }]}
-                    >
-                        <Radio.Group
-                            onChange={(e) => setSelectedDecision(e.target.value)}
-                            className="w-full flex flex-col gap-2.5"
-                        >
-                            <Radio
-                                value="PASSED"
-                                className="p-3 rounded-lg border border-slate-200 hover:border-emerald-400 bg-emerald-50/20"
-                            >
-                                <div className="ml-1">
-                                    <div className="font-semibold text-emerald-700 flex items-center gap-1.5">
-                                        <CheckCircleOutlined /> ĐẠT — Thông qua Đề cương
-                                    </div>
-                                    <div className="text-xs text-slate-500 mt-0.5">
-                                        Đề cương đáp ứng đầy đủ yêu cầu khoa học và mục tiêu đồ án. Cho phép sinh viên tiến hành nộp đơn đăng ký đề tài chính thức.
-                                    </div>
+                {/* FORM ĐÁNH GIÁ CỦA CHỦ TỊCH / THƯ KÝ HOẶC CHẾ ĐỘ XEM CỦA ỦY VIÊN */}
+                {isMember ? (
+                    <div className="space-y-4 pt-2 border-t border-slate-200">
+                        <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                                Góp Ý Chuyên Môn Của Ủy Viên Hội Đồng
+                            </h4>
+                            <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                                Ủy viên Hội đồng tham gia xem xét toàn bộ tài liệu đề cương và đóng góp ý kiến trong các phiên họp thẩm định.
+                                Ý kiến của bạn sẽ được Thư ký Hội đồng tổng hợp vào biên bản thẩm định chính thức.
+                            </p>
+                            {registration?.reviewComment || registration?.feedback ? (
+                                <div className="p-3 bg-white rounded border border-slate-200 text-xs">
+                                    <span className="font-semibold text-slate-700">Ý kiến ghi nhận gần nhất:</span>{' '}
+                                    <span className="text-slate-800">{registration?.reviewComment || registration?.feedback}</span>
                                 </div>
-                            </Radio>
-
-                            <Radio
-                                value="REVISION_REQUIRED"
-                                className="p-3 rounded-lg border border-slate-200 hover:border-amber-400 bg-amber-50/20"
-                            >
-                                <div className="ml-1">
-                                    <div className="font-semibold text-amber-700 flex items-center gap-1.5">
-                                        <ExclamationCircleOutlined /> CẦN CHỈNH SỬA — Yêu Cầu Chỉnh Sửa Đề Cương
-                                    </div>
-                                    <div className="text-xs text-slate-500 mt-0.5">
-                                        Đề cương cần bổ sung, chỉnh sửa nội dung theo góp ý chuyên môn của Hội đồng.
-                                    </div>
-                                </div>
-                            </Radio>
-
-                            <Radio
-                                value="FAIL"
-                                className="p-3 rounded-lg border border-slate-200 hover:border-rose-400 bg-rose-50/20"
-                            >
-                                <div className="ml-1">
-                                    <div className="font-semibold text-rose-700 flex items-center gap-1.5">
-                                        <CloseCircleOutlined /> KHÔNG ĐẠT — Dừng đề tài
-                                    </div>
-                                    <div className="text-xs text-slate-500 mt-0.5">
-                                        Đề cương không đáp ứng yêu cầu nghiên cứu khoa học. Đề tài sẽ bị dừng (TERMINATED_BM01).
-                                    </div>
-                                </div>
-                            </Radio>
-                        </Radio.Group>
-                    </Form.Item>
-
-                    <Form.Item
-                        name="feedback"
-                        label={
-                            <div className="flex items-center justify-between w-full">
-                                <span className="text-xs font-semibold text-slate-700">
-                                    Ý kiến nhận xét & Hướng dẫn chỉnh sửa của Hội đồng:
-                                    {(selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL') && (
-                                        <span className="text-rose-600 ml-1">(*) Bắt buộc</span>
-                                    )}
-                                </span>
-                                <Button
-                                    type="dashed"
-                                    size="small"
-                                    icon={<BulbOutlined />}
-                                    onClick={handleAIGenerateFeedback}
-                                    loading={aiFeedbackLoading}
-                                    className="text-amber-700 border-amber-400 hover:border-amber-600"
-                                >
-                                    AI Gợi ý nhận xét
-                                </Button>
-                            </div>
-                        }
-                        rules={[
-                            {
-                                required: selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL',
-                                message: selectedDecision === 'FAIL'
-                                    ? 'Vui lòng nhập lý do cụ thể khi kết luận không đạt.'
-                                    : 'Vui lòng nhập ý kiến góp ý chỉnh sửa cho sinh viên.',
-                            },
-                        ]}
-                    >
-                        <TextArea
-                            rows={4}
-                            placeholder={
-                                selectedDecision === 'PASSED'
-                                    ? 'Nhập nhận xét tích cực hoặc dặn dò thêm cho sinh viên khi triển khai đồ án (tùy chọn)...'
-                                    : (selectedDecision === 'FAIL'
-                                        ? 'Nêu rõ lý do không đạt yêu cầu nghiên cứu/học thuật của đề tài...'
-                                        : 'Nêu rõ các nội dung cần sửa đổi (phương pháp nghiên cứu, công nghệ áp dụng, kế hoạch tiến độ, tài liệu tham khảo)...')
-                            }
-                            className="text-xs"
-                        />
-                    </Form.Item>
-
-                    <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-                        <Button onClick={onClose} disabled={submitting}>
-                            Đóng
-                        </Button>
-                        <Popconfirm
-                            title="Xác nhận kết luận thẩm định đề cương"
-                            description={`Bạn chắc chắn muốn kết luận ${selectedDecision === 'PASSED' ? 'ĐẠT' : (selectedDecision === 'FAIL' ? 'KHÔNG ĐẠT (DỪNG ĐỀ TÀI)' : 'YÊU CẦU CHỈNH SỬA')} cho đề tài này?`}
-                            onConfirm={() => form.submit()}
-                            okText="Đồng ý"
-                            cancelText="Hủy"
-                        >
-                            <Button
-                                type="primary"
-                                loading={submitting}
-                                icon={selectedDecision === 'PASSED' ? <CheckOutlined /> : <ExclamationCircleOutlined />}
-                                className={
-                                    selectedDecision === 'PASSED'
-                                        ? '!bg-emerald-600 hover:!bg-emerald-500'
-                                        : (selectedDecision === 'FAIL'
-                                            ? '!bg-rose-600 hover:!bg-rose-500'
-                                            : '!bg-amber-600 hover:!bg-amber-500')
-                                }
-                            >
-                                {selectedDecision === 'PASSED' ? 'Xác nhận duyệt Đạt' : 'Gửi yêu cầu chỉnh sửa'}
+                            ) : null}
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button onClick={onClose}>
+                                Đóng
                             </Button>
-                        </Popconfirm>
+                        </div>
                     </div>
-                </Form>
+                ) : (
+                    <Form
+                        form={form}
+                        layout="vertical"
+                        onFinish={handleSubmit}
+                        initialValues={{ decision: 'PASSED' }}
+                    >
+                        <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
+                            Kết Luận Thẩm Định
+                        </Divider>
+
+                        <Form.Item
+                            name="decision"
+                            label="Kết luận của Hội đồng"
+                            rules={[{ required: true, message: 'Vui lòng chọn kết luận thẩm định' }]}
+                        >
+                            <Radio.Group
+                                onChange={(e) => setSelectedDecision(e.target.value)}
+                                className="w-full flex flex-col gap-2.5"
+                            >
+                                <Radio
+                                    value="PASSED"
+                                    className="p-3 rounded-lg border border-slate-200 hover:border-emerald-400 bg-emerald-50/20"
+                                >
+                                    <div className="ml-1">
+                                        <div className="font-semibold text-emerald-700 flex items-center gap-1.5">
+                                            <CheckCircleOutlined /> ĐẠT — Thông qua Đề cương
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-0.5">
+                                            Đề cương đáp ứng đầy đủ yêu cầu khoa học và mục tiêu đồ án. Cho phép sinh viên tiến hành nộp đơn đăng ký đề tài chính thức.
+                                        </div>
+                                    </div>
+                                </Radio>
+
+                                <Radio
+                                    value="REVISION_REQUIRED"
+                                    className="p-3 rounded-lg border border-slate-200 hover:border-amber-400 bg-amber-50/20"
+                                >
+                                    <div className="ml-1">
+                                        <div className="font-semibold text-amber-700 flex items-center gap-1.5">
+                                            <ExclamationCircleOutlined /> CẦN CHỈNH SỬA — Yêu Cầu Chỉnh Sửa Đề Cương
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-0.5">
+                                            Đề cương cần bổ sung, chỉnh sửa nội dung theo góp ý chuyên môn của Hội đồng.
+                                        </div>
+                                    </div>
+                                </Radio>
+
+                                <Radio
+                                    value="FAIL"
+                                    className="p-3 rounded-lg border border-slate-200 hover:border-rose-400 bg-rose-50/20"
+                                >
+                                    <div className="ml-1">
+                                        <div className="font-semibold text-rose-700 flex items-center gap-1.5">
+                                            <CloseCircleOutlined /> KHÔNG ĐẠT — Dừng đề tài
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-0.5">
+                                            Đề cương không đáp ứng yêu cầu nghiên cứu khoa học. Đề tài sẽ bị dừng (TERMINATED_BM01).
+                                        </div>
+                                    </div>
+                                </Radio>
+                            </Radio.Group>
+                        </Form.Item>
+
+                        <Form.Item
+                            name="feedback"
+                            label={
+                                <div className="flex items-center justify-between w-full">
+                                    <span className="text-xs font-semibold text-slate-700">
+                                        Ý kiến nhận xét & Hướng dẫn chỉnh sửa của Hội đồng:
+                                        {(selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL') && (
+                                            <span className="text-rose-600 ml-1">(*) Bắt buộc</span>
+                                        )}
+                                    </span>
+                                    <Button
+                                        type="dashed"
+                                        size="small"
+                                        icon={<BulbOutlined />}
+                                        onClick={handleAIGenerateFeedback}
+                                        loading={aiFeedbackLoading}
+                                        className="text-amber-700 border-amber-400 hover:border-amber-600"
+                                    >
+                                        AI Gợi ý nhận xét
+                                    </Button>
+                                </div>
+                            }
+                            rules={[
+                                {
+                                    required: selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL',
+                                    message: selectedDecision === 'FAIL'
+                                        ? 'Vui lòng nhập lý do cụ thể khi kết luận không đạt.'
+                                        : 'Vui lòng nhập ý kiến góp ý chỉnh sửa cho sinh viên.',
+                                },
+                            ]}
+                        >
+                            <TextArea
+                                rows={4}
+                                placeholder={
+                                    selectedDecision === 'PASSED'
+                                        ? 'Nhập nhận xét tích cực hoặc dặn dò thêm cho sinh viên khi triển khai đồ án (tùy chọn)...'
+                                        : (selectedDecision === 'FAIL'
+                                            ? 'Nêu rõ lý do không đạt yêu cầu nghiên cứu/học thuật của đề tài...'
+                                            : 'Nêu rõ các nội dung cần sửa đổi (phương pháp nghiên cứu, công nghệ áp dụng, kế hoạch tiến độ, tài liệu tham khảo)...')
+                                }
+                                className="text-xs"
+                            />
+                        </Form.Item>
+
+                        <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                            <Button onClick={onClose} disabled={submitting}>
+                                Đóng
+                            </Button>
+                            <Popconfirm
+                                title="Xác nhận kết luận thẩm định đề cương"
+                                description={`Bạn chắc chắn muốn kết luận ${selectedDecision === 'PASSED' ? 'ĐẠT' : (selectedDecision === 'FAIL' ? 'KHÔNG ĐẠT (DỪNG ĐỀ TÀI)' : 'YÊU CẦU CHỈNH SỬA')} cho đề tài này?`}
+                                onConfirm={() => form.submit()}
+                                okText="Đồng ý"
+                                cancelText="Hủy"
+                            >
+                                <Button
+                                    type="primary"
+                                    loading={submitting}
+                                    icon={selectedDecision === 'PASSED' ? <CheckOutlined /> : <ExclamationCircleOutlined />}
+                                    className={
+                                        selectedDecision === 'PASSED'
+                                            ? '!bg-emerald-600 hover:!bg-emerald-500'
+                                            : (selectedDecision === 'FAIL'
+                                                ? '!bg-rose-600 hover:!bg-rose-500'
+                                                : '!bg-amber-600 hover:!bg-amber-500')
+                                    }
+                                >
+                                    {selectedDecision === 'PASSED' ? 'Xác nhận duyệt Đạt' : 'Gửi yêu cầu chỉnh sửa'}
+                                </Button>
+                            </Popconfirm>
+                        </div>
+                    </Form>
+                )}
             </div>
         </Modal>
     );
