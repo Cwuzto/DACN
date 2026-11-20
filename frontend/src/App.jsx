@@ -120,6 +120,7 @@ const LecturerStudentsPage = lazy(() => import('./pages/lecturer/LecturerStudent
 const LecturerStudentGuidancePage = lazy(() => import('./pages/lecturer/LecturerStudentGuidancePage'));
 const LecturerTopicManagementPage = lazy(() => import('./pages/lecturer/TopicManagementPage'));
 const TopicApprovalPage = lazy(() => import('./pages/lecturer/TopicApprovalPage'));
+const OutlineReviewPage = lazy(() => import('./pages/lecturer/OutlineReviewPage'));
 const TitleAdjustmentPage = lazy(() => import('./pages/lecturer/TitleAdjustmentPage'));
 const ProgressTrackingPage = lazy(() => import('./pages/lecturer/ProgressTrackingPage'));
 const GradingPage = lazy(() => import('./pages/lecturer/GradingPage'));
@@ -240,6 +241,9 @@ function App() {
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS', 'MENTOR_REQUEST_REVIEW', 'VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW']} />}>
                                     <Route path="approvals" element={<TopicApprovalPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute featureKey="outline-reviews" requiredAnyPermissions={['VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW', 'OUTLINE_APPROVE']} />}>
+                                    <Route path="outline-evaluations" element={<OutlineReviewPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['BM02A_ADVISOR_SIGN', 'BM02A_FINAL_APPROVE', 'TITLE_ADJUSTMENT_APPENDIX_ISSUE', 'DECISION_AMENDMENT_SIGN']} />}>
                                     <Route path="title-adjustments" element={<TitleAdjustmentPage />} />

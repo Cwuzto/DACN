@@ -9,6 +9,7 @@ import {
     CheckOutlined,
     ClockCircleOutlined,
     CloseOutlined,
+    FileSearchOutlined,
     PlusOutlined,
     ReloadOutlined,
     SafetyCertificateOutlined,
@@ -19,7 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import notificationService from '../../services/notificationService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
-import { getEffectivePermissions } from '../../auth/policyEvaluator';
+import { getEffectivePermissions, canViewFeature } from '../../auth/policyEvaluator';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
 import { useBm02aQueue } from '../../queries/bm02aQueries';
@@ -268,6 +269,7 @@ export default function LecturerDashboardPage() {
     };
 
     const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id ?? undefined;
+    const canViewOutlineReviews = useMemo(() => canViewFeature(user, 'outline-reviews'), [user]);
     const effectivePermissions = useMemo(
         () => getEffectivePermissions(user, { semesterId: effectiveSemesterId }),
         [user, effectiveSemesterId],
@@ -439,7 +441,16 @@ export default function LecturerDashboardPage() {
 
                     {/* 4. Tác vụ phụ sau nội dung chính */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-                        
+                        <div className="flex flex-wrap items-center gap-2">
+                            {canViewOutlineReviews && (
+                                <Button
+                                    icon={<FileSearchOutlined />}
+                                    onClick={() => navigate('/lecturer/outline-evaluations')}
+                                >
+                                    Thẩm định đề cương
+                                </Button>
+                            )}
+                        </div>
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
                                 icon={<BellOutlined />}

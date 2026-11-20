@@ -76,7 +76,7 @@ export const FEATURE_POLICIES = Object.freeze({
     'outline-reviews': {
         key: 'outline-reviews',
         workspace: 'lecturer',
-        route: '/lecturer/approvals?tab=bm01',
+        route: '/lecturer/outline-evaluations',
         menu: {
             label: 'Thẩm định đề cương',
             icon: 'rate_review',

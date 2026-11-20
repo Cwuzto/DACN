@@ -86,7 +86,7 @@ const resolveNotificationTarget = (notification, role) => {
             return '/lecturer/title-adjustments';
         }
         if (text.includes('đề xuất đề tài')) return '/lecturer/topics';
-        if (text.includes('đề cương') || text.includes('bm01')) return '/lecturer/approvals?tab=outline';
+        if (text.includes('đề cương') || text.includes('bm01')) return '/lecturer/outline-evaluations';
         if (text.includes('tiến độ') || text.includes('bm03') || text.includes('bm04')) return '/lecturer/progress';
         switch (type) {
             case 'REGISTRATION':
