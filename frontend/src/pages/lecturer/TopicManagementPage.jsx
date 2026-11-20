@@ -720,7 +720,7 @@ export default function TopicManagementPage() {
                                                 ) : isInProgress ? (
                                                     <span className="tag green font-semibold">Đang làm đồ án (BM03)</span>
                                                 ) : hasStudent ? (
-                                                    <span className="tag green">Đã tiếp nhận sinh viên</span>
+                                                    <span className="tag green">Đã tiếp nhận</span>
                                                 ) : isApproved ? (
                                                     <span className="tag teal">Sẵn sàng</span>
                                                 ) : isPending ? (

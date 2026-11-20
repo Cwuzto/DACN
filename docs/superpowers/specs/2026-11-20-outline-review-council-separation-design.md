@@ -130,3 +130,4 @@ Bốn thẻ chỉ số được xếp ngang với màu sắc phân định trự
    - Kiểm tra liên kết từ bảng điều khiển giảng viên và danh sách thông báo khi bấm vào thông báo đề cương chuyển đúng sang trang `/lecturer/outline-evaluations`.
    - Kiểm tra trang `/lecturer/approvals` hoạt động trơn tru không còn thẻ lồng nhau.
 3. **Kiểm thử biên dịch**: Chạy toàn bộ bộ kiểm thử tự động và đảm bảo quá trình đóng gói ứng dụng hoàn thành không có lỗi.
+
