@@ -105,8 +105,8 @@ test('LecturerStudentGuidancePage wires BM actions to exact routes and guards VI
     assert.match(src, /In toàn bộ/, 'Must provide "In toàn bộ" button in document section when eligible forms exist');
 });
 
-test('TopicApprovalPage supports ?registrationId= query param to highlight/open target registration', () => {
+test('TopicApprovalPage supports ?registrationId= query param to highlight target registration', () => {
     const src = read('src/pages/lecturer/TopicApprovalPage.jsx');
     assert.match(src, /searchParams\.get\(['"]registrationId['"]\)/, 'TopicApprovalPage must read registrationId from searchParams');
-    assert.match(src, /setSelectedOutlineRecord/, 'TopicApprovalPage must select matching outline record when registrationId is provided');
+    assert.match(src, /isTargetRegistration/, 'TopicApprovalPage must highlight target registration when registrationId is provided');
 });

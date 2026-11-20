@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test('TopicApprovalPage: Synchronizes activeTab with ?tab=bm01 or ?tab=bm02a query params', () => {
+test('TopicApprovalPage: Redirects legacy ?tab=bm01 and ?tab=bm02a query params', () => {
     const src = read('frontend/src/pages/lecturer/TopicApprovalPage.jsx');
     assert.match(src, /useSearchParams/, 'TopicApprovalPage must import and use useSearchParams');
     assert.match(src, /bm01/, 'Must handle bm01 tab');
     assert.match(src, /bm02a/, 'Must handle bm02a tab');
-    assert.match(src, /setSearchParams/, 'Must update search params when tab changes');
-    assert.match(src, /handleTabChange/, 'Must have tab switch handler');
+    assert.match(src, /\/lecturer\/outline-evaluations/, 'Must redirect bm01/outline to /lecturer/outline-evaluations');
+    assert.match(src, /\/lecturer\/title-adjustments/, 'Must redirect bm02a to /lecturer/title-adjustments');
 });
 
 test('ProgressTrackingPage: Synchronizes activeTab with ?tab=bm04 query param', () => {

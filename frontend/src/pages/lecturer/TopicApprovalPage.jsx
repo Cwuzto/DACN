@@ -1,15 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { message, Button, Modal, Input, Space } from 'antd';
 import {
     CheckOutlined,
     CloseOutlined,
-    EditOutlined,
-    SearchOutlined,
     HistoryOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
-import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import { getStatusTagConfig } from '../../components/common/statusMap';
 import useAuthStore from '../../stores/authStore';
@@ -22,73 +19,25 @@ const { TextArea } = Input;
 
 /**
  * TopicApprovalPage
- * - Tab 1: Phê duyệt nguyện vọng sinh viên đăng ký đề tài (GVHD)
- * - Tab 2: Hội đồng thẩm định đề cương (BM01) lần đầu (Chủ tịch Hội đồng)
+ * Không gian làm việc thuần túy của Giảng viên hướng dẫn:
+ * - Tiếp nhận và phê duyệt nguyện vọng sinh viên đăng ký đề tài (1 SV / 1 Đề tài, tối đa 10 SV/đợt)
+ * - Tương thích ngược: Chuyển hướng các liên kết cũ ?tab=bm01 / ?tab=outline sang /lecturer/outline-evaluations
+ *   và ?tab=bm02a sang /lecturer/title-adjustments
  */
 export default function TopicApprovalPage() {
     const { user: currentUser } = useAuthStore();
     const scope = queryKeys.scope(currentUser);
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const targetRegistrationId = searchParams.get('registrationId');
 
-    const resolveTabKey = (tab) => {
-        if (tab === 'bm01' || tab === 'outline') return 'outline';
-        if (tab === 'mentor') return 'mentor';
-        return null;
-    };
-
-    const activeTab = resolveTabKey(tabParam) || 'mentor';
-
-    const handleTabChange = (key) => {
-        const nextParams = new URLSearchParams(searchParams);
-        if (key === 'outline') {
-            nextParams.set('tab', 'bm01');
-        } else {
-            nextParams.set('tab', 'mentor');
-        }
-        setSearchParams(nextParams);
-    };
-
-    const mentorRegistrationsQuery = useRegistrations(scope, { status: 'PENDING' });
-    const councilOutlineQuery = useRegistrations(scope, { asCouncilChairman: 'true' });
-
-    const registrationMutation = useRegistrationMutation(scope);
-
-    const pendingRegistrations = mentorRegistrationsQuery.data || [];
-    const councilOutlineRegistrations = councilOutlineQuery.data || [];
-
-    // Modals for Mentor Approval
-    const [rejectModalOpen, setRejectModalOpen] = useState(false);
-    const [rejectingRecord, setRejectingRecord] = useState(null);
-    const [rejectReason, setRejectReason] = useState('');
-    const [submitting, setSubmitting] = useState(false);
-
-    // Modal for Council Chairman Outline Review
-    const [outlineModalOpen, setOutlineModalOpen] = useState(false);
-    const [selectedOutlineRecord, setSelectedOutlineRecord] = useState(null);
-
-    // Registration Timeline Drawer State
-    const [timelineOpen, setTimelineOpen] = useState(false);
-    const [timelineRegistration, setTimelineRegistration] = useState(null);
-    const autoOpenedRegIdRef = useRef(null);
-
-    useEffect(() => {
-        if (activeTab !== 'outline' || !targetRegistrationId) return;
-        if (autoOpenedRegIdRef.current === String(targetRegistrationId)) return;
-        const matched = councilOutlineRegistrations.find(
-            (r) => String(r.id) === String(targetRegistrationId)
-        );
-        if (matched) {
-            autoOpenedRegIdRef.current = String(targetRegistrationId);
-            setSelectedOutlineRecord(matched);
-            setOutlineModalOpen(true);
-        }
-    }, [activeTab, targetRegistrationId, councilOutlineRegistrations]);
-
-    const pendingOutlineCount = useMemo(() => {
-        return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED' || r.status === 'BM01_RESUBMITTED').length;
-    }, [councilOutlineRegistrations]);
+    // Chuyển hướng tương thích ngược cho các liên kết cũ
+    if (tabParam === 'bm01' || tabParam === 'outline') {
+        const targetParams = new URLSearchParams();
+        if (targetRegistrationId) targetParams.set('registrationId', targetRegistrationId);
+        const targetSearch = targetParams.toString();
+        return <Navigate to={`/lecturer/outline-evaluations${targetSearch ? `?${targetSearch}` : ''}`} replace />;
+    }
 
     if (tabParam === 'bm02a') {
         const targetParams = new URLSearchParams();
@@ -99,6 +48,20 @@ export default function TopicApprovalPage() {
         const targetSearch = targetParams.toString();
         return <Navigate to={`/lecturer/title-adjustments${targetSearch ? `?${targetSearch}` : ''}`} replace />;
     }
+
+    const mentorRegistrationsQuery = useRegistrations(scope, { status: 'PENDING' });
+    const registrationMutation = useRegistrationMutation(scope);
+    const pendingRegistrations = mentorRegistrationsQuery.data || [];
+
+    // Modals for Mentor Approval
+    const [rejectModalOpen, setRejectModalOpen] = useState(false);
+    const [rejectingRecord, setRejectingRecord] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    // Registration Timeline Drawer State
+    const [timelineOpen, setTimelineOpen] = useState(false);
+    const [timelineRegistration, setTimelineRegistration] = useState(null);
 
     const handleApprove = async (record) => {
         try {
@@ -143,8 +106,7 @@ export default function TopicApprovalPage() {
         }
     };
 
-    const isInitialPending = mentorRegistrationsQuery.isPending && !mentorRegistrationsQuery.data &&
-        councilOutlineQuery.isPending && !councilOutlineQuery.data;
+    const isInitialPending = mentorRegistrationsQuery.isPending && !mentorRegistrationsQuery.data;
 
     if (isInitialPending) {
         return <ContentSkeleton variant="table" />;
@@ -156,10 +118,10 @@ export default function TopicApprovalPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }} className="flex-wrap gap-4">
                 <div>
                     <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
-                        Phê Duyệt Nghiệp Vụ Giảng Viên
+                        Phê Duyệt Nguyện Vọng Hướng Dẫn
                     </h1>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Quản lý tiếp nhận hướng dẫn sinh viên và thẩm định đề cương nghiên cứu chi tiết.
+                        Quản lý và tiếp nhận sinh viên đăng ký đề tài của giảng viên hướng dẫn.
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -168,37 +130,17 @@ export default function TopicApprovalPage() {
                     </span>
                     <Button
                         icon={<ReloadOutlined />}
-                        loading={mentorRegistrationsQuery.isFetching || councilOutlineQuery.isFetching}
-                        onClick={() => {
-                            mentorRegistrationsQuery.refetch();
-                            councilOutlineQuery.refetch();
-                        }}
+                        loading={mentorRegistrationsQuery.isFetching}
+                        onClick={() => mentorRegistrationsQuery.refetch()}
                     >
                         Làm mới
                     </Button>
                 </div>
             </div>
 
-            {/* Segmented Navigation Tabs */}
-            <div className="segmented-tabs" style={{ marginBottom: 20 }}>
-                <div
-                    className={`seg-tab ${activeTab === 'mentor' ? 'active' : ''}`}
-                    onClick={() => handleTabChange('mentor')}
-                >
-                    Nguyện Vọng Đăng Ký Hướng Dẫn ({pendingRegistrations.length})
-                </div>
-                <div
-                    className={`seg-tab ${activeTab === 'outline' ? 'active' : ''}`}
-                    onClick={() => handleTabChange('outline')}
-                >
-                    Hội Đồng Thẩm Định Đề Cương Chi Tiết ({pendingOutlineCount})
-                </div>
-            </div>
-
-            {/* TAB 1: NGHIỆP VỤ GVHD TIẾP NHẬN HƯỚNG DẪN */}
-            {activeTab === 'mentor' && (
-                <QueryPanel query={mentorRegistrationsQuery}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Danh sách nguyện vọng đăng ký hướng dẫn */}
+            <QueryPanel query={mentorRegistrationsQuery}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {pendingRegistrations.length === 0 ? (
                         <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
@@ -244,7 +186,9 @@ export default function TopicApprovalPage() {
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: 'right' }}>
-                                                <span className="tag yellow">Đang chờ bạn duyệt</span>
+                                                <span className="tag yellow">
+                                                    {getStatusTagConfig(record.status).label || 'Đang chờ bạn duyệt'}
+                                                </span>
                                                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
                                                     Gửi lúc: {registrationTime}
                                                 </div>
@@ -305,96 +249,8 @@ export default function TopicApprovalPage() {
                             );
                         })
                     )}
-                    </div>
-                </QueryPanel>
-            )}
-
-            {/* TAB 2: HỘI ĐỒNG THẨM ĐỊNH ĐỀ CƯƠNG BM01 (CHỦ TỊCH HỘI ĐỒNG) */}
-            {activeTab === 'outline' && (
-                <QueryPanel query={councilOutlineQuery}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div style={{ padding: '14px 18px', background: '#EFF6FF', borderRadius: 'var(--radius)', border: '1px solid #BFDBFE', fontSize: 13, color: '#1E40AF' }}>
-                        <strong>Quyền hạn Chủ tịch Hội đồng:</strong> Bạn đang xem danh sách đề cương nghiên cứu chi tiết được phân công cho Hội đồng mà bạn là Chủ tịch. Quyết định thẩm định của Chủ tịch sẽ chốt trạng thái đề cương: Đạt hoặc Yêu cầu chỉnh sửa.
-                    </div>
-
-                    {councilOutlineRegistrations.length === 0 ? (
-                        <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
-                                Chưa có đề cương nào cần thẩm định
-                            </h3>
-                            <p style={{ fontSize: 13, marginTop: 4 }}>
-                                Hiện không có đề cương nào được nộp hoặc phân công cho Hội đồng của bạn.
-                            </p>
-                        </div>
-                    ) : (
-                        councilOutlineRegistrations.map((record) => {
-                            const student = record.student;
-                            const topic = record.topic;
-                            const submissions = record.bm01Submissions || record.submissions || [];
-                            const latestSub = submissions[0];
-                            const isPendingReview = record.status === 'BM01_SUBMITTED' || record.status === 'BM01_RESUBMITTED';
-                            const isTargetRegistration = Boolean(
-                                targetRegistrationId && String(record.id) === String(targetRegistrationId)
-                            );
-
-                            return (
-                                <div
-                                    key={record.id}
-                                    className={`card ${isTargetRegistration ? 'ring-2 ring-teal-500' : ''}`}
-                                    style={{
-                                        borderLeft: isPendingReview ? '4px solid var(--primary)' : '4px solid var(--border)',
-                                        marginBottom: 0,
-                                    }}
-                                >
-                                    <div style={{ padding: '18px 20px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }} className="flex-wrap gap-2">
-                                            <div>
-                                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
-                                                    {student?.fullName || 'Sinh viên'}{' '}
-                                                    <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
-                                                        · MSSV: {student?.code || '-'} · Lớp: {student?.studentProfile?.className || '-'}
-                                                    </span>
-                                                </div>
-                                                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 3 }}>
-                                                    Đề tài: <strong>"{topic?.title}"</strong>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <span className={`tag ${isPendingReview ? 'blue' : 'green'}`}>
-                                                    {isPendingReview ? 'Chờ thẩm định' : getStatusTagConfig(record.status).label}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, gap: 8 }}>
-                                            <Button
-                                                icon={<HistoryOutlined />}
-                                                onClick={() => {
-                                                    setTimelineRegistration(record);
-                                                    setTimelineOpen(true);
-                                                }}
-                                            >
-                                                Lịch sử tiến trình
-                                            </Button>
-                                            <Button
-                                                type={isPendingReview ? 'primary' : 'default'}
-                                                icon={isPendingReview ? <EditOutlined /> : <SearchOutlined />}
-                                                onClick={() => {
-                                                    setSelectedOutlineRecord(record);
-                                                    setOutlineModalOpen(true);
-                                                }}
-                                            >
-                                                {isPendingReview ? 'Thẩm định đề cương' : 'Xem và cập nhật đánh giá'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                    </div>
-                </QueryPanel>
-            )}
+                </div>
+            </QueryPanel>
 
             {/* MODAL: TỪ CHỐI ĐĂNG KÝ HƯỚNG DẪN */}
             <Modal
@@ -435,19 +291,6 @@ export default function TopicApprovalPage() {
                     </div>
                 </div>
             </Modal>
-
-            {/* MODAL: THẨM ĐỊNH ĐỀ CƯƠNG BM01 */}
-            <OutlineReviewModal
-                open={outlineModalOpen}
-                onClose={() => {
-                    setOutlineModalOpen(false);
-                    setSelectedOutlineRecord(null);
-                }}
-                onSuccess={() => {
-                    councilOutlineQuery.refetch();
-                }}
-                registration={selectedOutlineRecord}
-            />
 
             <RegistrationTimelineDrawer
                 open={timelineOpen}
