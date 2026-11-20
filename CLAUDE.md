@@ -70,6 +70,55 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 20/11/2026: Tách Riêng Hội Đồng Thẩm Định Đề Cương & Chuẩn Hóa Lộ Trình 6 Mốc Quy Trình Dùng Chung Cho Cả 3 Phân Hệ (Sinh Viên, Giảng Viên, Quản Trị Viên)
+
+#### 1. Những phần đã hoàn thành
+1. **Tách Riêng Hội Đồng Thẩm Định Đề Cương Khỏi Trang Duyệt Nguyện Vọng (`c1ce064`, `2e4f422`)**:
+   - Tách biệt hoàn toàn trang tiếp nhận & phê duyệt nguyện vọng đề tài của GVHD ([TopicApprovalPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/TopicApprovalPage.jsx) - `/lecturer/approvals`) với trang đánh giá của Hội đồng xét duyệt đề cương ([OutlineReviewPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/OutlineReviewPage.jsx) - `/lecturer/outline-evaluations`).
+   - Cung cấp giao diện thẩm định đề cương chuyên nghiệp theo chuẩn `ui-ux-pro-max`: Chủ tịch Hội đồng và Thư ký có quyền kết luận kết quả thẩm định đề cương (Đạt / Cần chỉnh sửa), chấm điểm và gửi nhận xét.
+   - Cơ chế điều hướng tương thích ngược: tự động chuyển hướng (redirect) các URL cũ `?tab=bm01` / `?tab=outline` sang `/lecturer/outline-evaluations` và `?tab=bm02a` sang `/lecturer/title-adjustments`.
+2. **Thiết Kế & Xây Dựng Component Lộ Trình 6 Mốc Dùng Chung (`AcademicRoadmapStepper.jsx`) (`6b9ec00`, `fcb97ea`)**:
+   - Xây dựng component dùng chung [AcademicRoadmapStepper.jsx](file:///d:/DACN/frontend/src/components/common/AcademicRoadmapStepper.jsx) và bộ CSS [academic-roadmap.css](file:///d:/DACN/frontend/src/components/common/academic-roadmap.css).
+   - Thiết kế chuẩn Bento layout cao cấp: thanh ray tiến độ shimmer gradient động, 6 nút mốc phát sáng halo pulsate, icon chính quy `@ant-design/icons`, hỗ trợ chế độ accessibility `@media (prefers-reduced-motion: reduce)`.
+   - Viết bộ kiểm thử độc lập [academicRoadmapStepper.test.js](file:///d:/DACN/frontend/tests/academicRoadmapStepper.test.js) (6/6 tests PASS).
+3. **Tái Cấu Trúc Trang Tổng Quan Sinh Viên (`StudentDashboardPage.jsx`) (`eb10456`)**:
+   - Thay thế toàn bộ khối HTML/JSX thẻ lộ trình trùng lặp thủ công cũ bằng component `<AcademicRoadmapStepper role="STUDENT" ... />`.
+   - Kết nối trực tiếp với hook tính toán trạng thái 6 mốc cá nhân của sinh viên và tỷ lệ hoàn thành đồ án.
+4. **Tích Hợp Lộ Trình 6 Mốc Cho Giảng Viên (`LecturerDashboardPage.jsx`) (`76a8aeb`)**:
+   - Nhúng `<AcademicRoadmapStepper role="LECTURER" ... />` vào giữa `OverviewKpis` và `AttentionQueue`.
+   - Phân loại số lượng sinh viên hướng dẫn không trùng lặp theo 6 mốc quy trình (1: Đăng ký đề tài -> 2: Đề cương BM01 -> 3: Đơn BM02 & QĐ -> 4: Nhật ký BM03 -> 5: Đánh giá GVHD BM04 -> 6: Bảo vệ & Điểm số).
+   - Tính toán tỷ lệ tiến độ trung bình của nhóm sinh viên hướng dẫn (`progressPercent`).
+   - Hỗ trợ tương tác mượt mà: click Mốc 3 cuộn mượt xuống `#supervised-students-section`, các mốc còn lại điều hướng thẳng đến trang tác vụ tương ứng của giảng viên.
+   - Bộ test [lecturerRoadmapIntegration.test.js](file:///d:/DACN/frontend/tests/lecturerRoadmapIntegration.test.js) (6/6 tests PASS).
+5. **Hiện Đại Hóa Lộ Trình Đợt Cho Quản Trị Viên (`DashboardPage.jsx`) (`fc70006`, `2d41dcc`)**:
+   - Thay thế khối lộ trình thẻ cũ của Admin bằng `<AcademicRoadmapStepper role="ADMIN" ... />`.
+   - Tích hợp styleVars gradient đồng bộ, giữ nguyên cơ chế điều hướng động `stage.target` từ API máy chủ (`adminDashboardActionsService.js`).
+   - Bộ test [adminRoadmapIntegration.test.js](file:///d:/DACN/frontend/tests/adminRoadmapIntegration.test.js) (6/6 tests PASS).
+6. **Đồng Bộ & Chuẩn Hóa Bộ Test Suite Toàn Hệ Thống (`2d41dcc`)**:
+   - Giải quyết xung đột action kind `DEFENSE_COUNCIL_ALLOCATION` loại bỏ cảnh báo vi phạm contract test `permissionUsage.contract.test.js`.
+   - Chuẩn hóa mock controller trong `platformAuthorization.routes.test.js`.
+   - Cập nhật các test suite frontend phản ánh đúng kiến trúc mới: 445/445 tests frontend PASS 100%, bản dựng Vite production hoàn tất không lỗi.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Frontend SPA**:
+  * Shared component `AcademicRoadmapStepper` hoạt động mượt mà trên cả 3 vai trò: Sinh viên, Giảng viên, Quản trị viên.
+  * Toàn bộ 445/445 unit/contract tests PASS (`npm --prefix frontend test`).
+  * Bản dựng Vite production (`npm --prefix frontend run build`) hoàn thành thành công trong 15.67s.
+  * Tuân thủ 100% Rule 2.1 (`TopicRegistration`), Rule 2.4 (UTF-8 no BOM), Rule 2.6 (chuẩn nút bấm không emoji thô).
+- **Backend API & Database**:
+  * Hoạt động ổn định với mô hình `TopicRegistration`.
+  * Các unit & contract tests backend đạt 100% PASS.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Thử nghiệm trên trình duyệt thực tế giao diện lộ trình 6 mốc trên cả 3 vai trò để đánh giá trải nghiệm thị giác và độ mượt mà.
+2. Kiểm tra tương tác giữa các vai trò khi một sinh viên chuyển trạng thái từ mốc này sang mốc tiếp theo.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Tách Riêng Trang Hội Đồng Thẩm Định Đề Cương**: Trang duyệt nguyện vọng đề tài của GVHD là tác vụ cá nhân hướng dẫn, trong khi thẩm định đề cương là nhiệm vụ của Hội đồng thẩm định độc lập theo quyết định của Viện. Việc tách riêng giúp phân định rạch ròi trách nhiệm, giữ sạch luồng thao tác và tuân thủ chặt chẽ mô hình thẩm quyền chức vụ.
+- **Dùng Chung Component `AcademicRoadmapStepper` (Single Component, Role-Adaptive)**: Thay vì mỗi trang tự code một kiểu hiển thị lộ trình dẫn đến phân mảnh giao diện và khó bảo trì, việc thống nhất một component dùng chung cho cả Sinh viên (theo dõi cá nhân), Giảng viên (theo dõi phân bố sinh viên) và Quản trị viên (theo dõi tổng quan đợt) tạo nên ngôn ngữ thiết kế nhất quán toàn Viện Công nghệ Số, đồng thời tối ưu hóa dung lượng bundle frontend.
+
+---
+
 ### Phiên 19/11/2026 (Phần 2: Quản Lý Người Dùng, Cấu Hình Hội Đồng Linh Hoạt, Tự Phục Hồi Catalog & Đồng Bộ Điều Phối GVHD)
 
 #### 1. Những phần đã hoàn thành
