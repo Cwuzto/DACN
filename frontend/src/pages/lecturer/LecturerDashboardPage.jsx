@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Card, Input, Select, Spin, Tag, message } from 'antd';
 import {
+    AuditOutlined,
     BellOutlined,
     BookOutlined,
     CalendarOutlined,
@@ -10,9 +11,13 @@ import {
     ClockCircleOutlined,
     CloseOutlined,
     FileSearchOutlined,
+    FileTextOutlined,
+    FormOutlined,
     PlusOutlined,
     ReloadOutlined,
     SafetyCertificateOutlined,
+    ScheduleOutlined,
+    TrophyOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,11 +33,22 @@ import { useMeetingMutation } from '../../queries/meetingQueries';
 import { dashboardKeys, useLecturerOverview } from '../../queries/dashboardQueries';
 import { useBm02AdvisorSignMutation, useBm02Verification } from '../../queries/bm02VerificationQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
+import AcademicRoadmapStepper from '../../components/common/AcademicRoadmapStepper';
 import OverviewKpis from '../../components/lecturer/OverviewKpis';
 import AttentionQueue from '../../components/lecturer/AttentionQueue';
 import BM01WatchList from '../../components/lecturer/BM01WatchList';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
 import './lecturer-opendesign.css';
+
+const getMilestoneWeight = (status) => {
+    if (status === 'PENDING' || status === 'REGISTERED') return 16;
+    if (['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'TERMINATED_BM01'].includes(status)) return 33;
+    if (['BM01_PASSED', 'BM02_OPEN', 'BM02_SUBMITTED', 'BM02_NEEDS_REVISION', 'BM02_RESUBMITTED', 'BM02_APPROVED', 'TERMINATED_BM02'].includes(status)) return 50;
+    if (['DECISION_ISSUED', 'IN_PROGRESS', 'IN_PROGRESS_BM03', 'BM03_SIGNATURE_PENDING', 'TERMINATED_FAILED_PROGRESS'].includes(status)) return 66;
+    if (['BM03_PASSED', 'BM04_REVIEW', 'TERMINATED_BM04'].includes(status)) return 83;
+    if (['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'DEFENDED', 'DEFENSE_PASSED', 'COMPLETED'].includes(status)) return 100;
+    return 0;
+};
 
 function Bm02AdvisorRow({ registration, scope, advisorSignMutation }) {
     const submission = registration.currentBM02Submission;
@@ -185,6 +201,176 @@ export default function LecturerDashboardPage() {
         () => semesters.map((s) => ({ value: s.id, label: s.name || s.code || `Đợt #${s.id}` })),
         [semesters],
     );
+
+    const progressPercent = useMemo(() => {
+        if (!students || students.length === 0) return 0;
+        const total = students.reduce((sum, s) => sum + getMilestoneWeight(s?.status), 0);
+        return Math.min(100, Math.round(total / students.length));
+    }, [students]);
+
+    const lecturerMilestones = useMemo(() => {
+        const fmt = (dateValue, prefix) => {
+            if (!dateValue) return null;
+            const parsed = dayjs(dateValue);
+            return parsed.isValid() ? `${prefix ? `${prefix}: ` : ''}${parsed.format('DD/MM/YYYY')}` : null;
+        };
+
+        const buckets = [[], [], [], [], [], []];
+        (students || []).forEach((s) => {
+            const status = s?.status;
+            if (status === 'PENDING' || status === 'REGISTERED') {
+                buckets[0].push(s);
+            } else if (['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'TERMINATED_BM01'].includes(status)) {
+                buckets[1].push(s);
+            } else if (['BM01_PASSED', 'BM02_OPEN', 'BM02_SUBMITTED', 'BM02_NEEDS_REVISION', 'BM02_RESUBMITTED', 'BM02_APPROVED', 'TERMINATED_BM02'].includes(status)) {
+                buckets[2].push(s);
+            } else if (['DECISION_ISSUED', 'IN_PROGRESS', 'IN_PROGRESS_BM03', 'BM03_SIGNATURE_PENDING', 'TERMINATED_FAILED_PROGRESS'].includes(status)) {
+                buckets[3].push(s);
+            } else if (['BM03_PASSED', 'BM04_REVIEW', 'TERMINATED_BM04'].includes(status)) {
+                buckets[4].push(s);
+            } else if (['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'DEFENDED', 'DEFENSE_PASSED', 'COMPLETED'].includes(status)) {
+                buckets[5].push(s);
+            }
+        });
+
+        const getMilestoneState = (idx) => {
+            if (!students || students.length === 0) return 'pending';
+            const count = buckets[idx].length;
+            const afterCount = buckets.slice(idx + 1).reduce((acc, b) => acc + b.length, 0);
+            if (count > 0) return 'active';
+            if (afterCount > 0) return 'completed';
+            return 'pending';
+        };
+
+        return [
+            {
+                key: 'step-1',
+                stepNumber: 1,
+                title: '1. Đăng ký đề tài',
+                subText: `${buckets[0].length} Sinh viên`,
+                count: buckets[0].length,
+                dateText:
+                    fmt(activeSemester?.registrationDeadline, 'Hạn ĐK') ||
+                    fmt(activeSemester?.startDate, 'Bắt đầu') ||
+                    'Theo lịch đợt',
+                state: getMilestoneState(0),
+                icon: <FormOutlined />,
+                onClick: () => navigate('/lecturer/approvals'),
+                styleVars: {
+                    '--step-color': '#0F766E',
+                    '--step-soft': '#F0FDFA',
+                    '--step-border': '#99F6E4',
+                    '--step-glow': 'rgba(15, 118, 110, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #0F766E, #14B8A6)',
+                },
+            },
+            {
+                key: 'step-2',
+                stepNumber: 2,
+                title: '2. Đề cương chi tiết',
+                subText: `${buckets[1].length} Sinh viên`,
+                count: buckets[1].length,
+                dateText:
+                    fmt(activeSemester?.outlineSubmissionDeadline, 'Hạn nộp') ||
+                    fmt(activeSemester?.outlineSubmissionOpenAt, 'Mở nộp') ||
+                    'Theo lịch Viện',
+                state: getMilestoneState(1),
+                icon: <FileTextOutlined />,
+                onClick: () => navigate('/lecturer/outline-evaluations'),
+                styleVars: {
+                    '--step-color': '#0284C7',
+                    '--step-soft': '#F0F9FF',
+                    '--step-border': '#BAE6FD',
+                    '--step-glow': 'rgba(2, 132, 199, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #0284C7, #38BDF8)',
+                },
+            },
+            {
+                key: 'step-3',
+                stepNumber: 3,
+                title: '3. Đơn ĐK chính thức',
+                subText: `${buckets[2].length} Sinh viên`,
+                count: buckets[2].length,
+                dateText:
+                    fmt(activeSemester?.outlineSubmissionDeadline, 'Sau BM01') ||
+                    'Theo tiến độ',
+                state: getMilestoneState(2),
+                icon: <AuditOutlined />,
+                onClick: () => {
+                    const el = document.getElementById('supervised-students-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                },
+                styleVars: {
+                    '--step-color': '#4F46E5',
+                    '--step-soft': '#EEF2FF',
+                    '--step-border': '#C7D2FE',
+                    '--step-glow': 'rgba(79, 70, 229, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #4F46E5, #818CF8)',
+                },
+            },
+            {
+                key: 'step-4',
+                stepNumber: 4,
+                title: '4. Nhật ký tiến độ',
+                subText: `${buckets[3].length} Sinh viên`,
+                count: buckets[3].length,
+                dateText:
+                    fmt(activeSemester?.bm03MidtermEvaluationOpenAt, 'Giữa kỳ') ||
+                    fmt(activeSemester?.midtermReportDate, 'Mốc') ||
+                    'Trong học kỳ',
+                state: getMilestoneState(3),
+                icon: <ScheduleOutlined />,
+                onClick: () => navigate('/lecturer/progress?tab=meeting-logs'),
+                styleVars: {
+                    '--step-color': '#7C3AED',
+                    '--step-soft': '#F5F3FF',
+                    '--step-border': '#DDD6FE',
+                    '--step-glow': 'rgba(124, 58, 237, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+                },
+            },
+            {
+                key: 'step-5',
+                stepNumber: 5,
+                title: '5. Đánh giá GVHD',
+                subText: `${buckets[4].length} Sinh viên`,
+                count: buckets[4].length,
+                dateText:
+                    fmt(activeSemester?.defenseDate, 'Bảo vệ') ||
+                    'Cuối kỳ',
+                state: getMilestoneState(4),
+                icon: <SafetyCertificateOutlined />,
+                onClick: () => navigate('/lecturer/progress?tab=bm04'),
+                styleVars: {
+                    '--step-color': '#D97706',
+                    '--step-soft': '#FFFBEB',
+                    '--step-border': '#FDE68A',
+                    '--step-glow': 'rgba(217, 119, 6, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #D97706, #FBBF24)',
+                },
+            },
+            {
+                key: 'step-6',
+                stepNumber: 6,
+                title: '6. Bảo vệ & Điểm số',
+                subText: `${buckets[5].length} Sinh viên`,
+                count: buckets[5].length,
+                dateText:
+                    fmt(activeSemester?.defenseDate, 'Lịch bảo vệ') ||
+                    'Theo hội đồng',
+                state: getMilestoneState(5),
+                icon: <TrophyOutlined />,
+                onClick: () => navigate('/lecturer/grading'),
+                styleVars: {
+                    '--step-color': '#059669',
+                    '--step-soft': '#ECFDF5',
+                    '--step-border': '#A7F3D0',
+                    '--step-glow': 'rgba(5, 150, 105, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #059669, #34D399)',
+                },
+            },
+        ];
+    }, [students, activeSemester, navigate]);
 
     const handleOpenMeetingForStudent = (student) => {
         if (student?.registrationId) {
@@ -380,6 +566,16 @@ export default function LecturerDashboardPage() {
                     {/* 2. KPI ngắn */}
                     <OverviewKpis summary={mentorSummary} watchCount={watchItems.length} />
 
+                    {/* 2b. Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp */}
+                    <AcademicRoadmapStepper
+                        role="LECTURER"
+                        title="Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp (Theo Chuẩn Viện Công nghệ Số)"
+                        subtitle="Theo dõi tiến độ và phân bố sinh viên hướng dẫn qua từng giai đoạn của học kỳ"
+                        badgeLabel={`${progressPercent}% Tiến độ TB`}
+                        progressPercent={progressPercent}
+                        milestones={lecturerMilestones}
+                    />
+
                     {/* 3. Lưới hai vùng cân bằng: Hàng đợi trái, Sinh viên phải (Mobile: hàng đợi trước) */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
                         <div className="min-w-0">
@@ -389,7 +585,7 @@ export default function LecturerDashboardPage() {
                                 onNavigate={(target) => navigate(target)}
                             />
                         </div>
-                        <div className="min-w-0">
+                        <div id="supervised-students-section" className="min-w-0">
                             <SupervisedStudentList
                                 students={students}
                                 onOpenGuidance={handleOpenGuidance}
