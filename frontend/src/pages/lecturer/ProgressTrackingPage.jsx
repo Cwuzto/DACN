@@ -32,7 +32,6 @@ import taskService from '../../services/taskService';
 import meetingLogService from '../../services/meetingLogService';
 import archiveService from '../../services/archiveService';
 import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
-import CheckpointIssueModal from '../../components/lecturer/CheckpointIssueModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
@@ -47,7 +46,6 @@ import { useProjectCatalogs } from '../../queries/topicQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
 import { useTasksByRegistration, useTaskMutation } from '../../queries/taskQueries';
 import { useMeetingLogs, useBM03Record, useMeetingMutation } from '../../queries/meetingQueries';
-import { useCheckpointEvaluations, useCheckpointMutation } from '../../queries/checkpointQueries';
 import { useStudentArchive } from '../../queries/archiveQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
@@ -56,10 +54,9 @@ import ContentSkeleton from '../../components/common/ContentSkeleton';
  * ProgressTrackingPage — 100% OpenDesign Golden Standard
  * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-progress):
  * - Split layout: Left column student cards list, right column detailed workspace
- * - 3 Sub Nav Tabs:
+ * - 2 Sub Nav Tabs:
  *   1. Nhật ký trao đổi (BM03 timeline)
- *   2. Đánh giá tiến độ (Checkpoints)
- *   3. Phiếu nhận xét & Lưu chiểu (BM04 & Lưu chiểu)
+ *   2. Phiếu nhận xét & Lưu chiểu (BM04 & Lưu chiểu)
  * - Interactive modals: Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
  */
 function resolveBM03StageWindows(reg, semesters = [], bm03Record = null) {
@@ -101,9 +98,7 @@ export default function ProgressTrackingPage() {
 
     const resolveTabKey = (tab) => {
         if (tab === 'bm04' || tab === 'archive') return 'archive';
-        if (tab === 'meeting-logs' || tab === 'bm03') return 'meeting-logs';
-        if (tab === 'checkpoints') return 'checkpoints';
-        if (tab === 'tasks') return 'meeting-logs';
+        if (tab === 'meeting-logs' || tab === 'bm03' || tab === 'checkpoints' || tab === 'tasks') return 'meeting-logs';
         return null;
     };
 
@@ -130,7 +125,7 @@ export default function ProgressTrackingPage() {
     const [studentSearch, setStudentSearch] = useState('');
     const [filterSemesterId, setFilterSemesterId] = useState('ALL');
     const [filterCatalog, setFilterCatalog] = useState('ALL');
-    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'meeting-logs'); // 'meeting-logs' | 'checkpoints' | 'archive'
+    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'meeting-logs'); // 'meeting-logs' | 'archive'
 
     useEffect(() => {
         const resolved = resolveTabKey(tabParam);
@@ -207,12 +202,10 @@ export default function ProgressTrackingPage() {
     const tasksQuery = useTasksByRegistration(scope, selectedRegId, isStudentSelected);
     const meetingLogsQuery = useMeetingLogs(scope, selectedRegId, isStudentSelected);
     const bm03Query = useBM03Record(scope, selectedRegId, isStudentSelected);
-    const checkpointsQuery = useCheckpointEvaluations(scope, selectedRegId, isStudentSelected);
     const archiveQuery = useStudentArchive(scope, selectedRegId, isStudentSelected);
 
     const taskMutation = useTaskMutation(scope, selectedRegId);
     const meetingMutation = useMeetingMutation(scope, selectedRegId);
-    const checkpointMutation = useCheckpointMutation(scope, selectedRegId);
 
     // Selected student data derived from queries
     const tasks = useMemo(() => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []), [tasksQuery.data]);
@@ -235,10 +228,6 @@ export default function ProgressTrackingPage() {
         };
     }, [bm03Record, meetingLogsQuery.data]);
     const meetingLogs = activeMeetingLogs;
-    const checkpoints = useMemo(
-        () => (Array.isArray(checkpointsQuery.data) ? checkpointsQuery.data : []),
-        [checkpointsQuery.data]
-    );
     const archiveData = useMemo(
         () => archiveQuery.data?.archive || archiveQuery.data?.data?.archive || archiveQuery.data || null,
         [archiveQuery.data]
@@ -250,8 +239,6 @@ export default function ProgressTrackingPage() {
     // Modals
     const [newTaskModalOpen, setNewTaskModalOpen] = useState(false);
     const [meetingModalOpen, setMeetingModalOpen] = useState(false);
-    const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
-    const [selectedCheckpointNo, setSelectedCheckpointNo] = useState(1);
     const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
     const [bm03PrintOpen, setBm03PrintOpen] = useState(false);
     const [bm04PrintOpen, setBm04PrintOpen] = useState(false);
@@ -315,10 +302,9 @@ export default function ProgressTrackingPage() {
             tasksQuery.refetch(),
             meetingLogsQuery.refetch(),
             bm03Query.refetch(),
-            checkpointsQuery.refetch(),
             archiveQuery.refetch(),
         ]);
-    }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, checkpointsQuery, archiveQuery]);
+    }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, archiveQuery]);
 
     const handleCreateTask = async () => {
         if (!taskTitle.trim()) {
@@ -801,16 +787,10 @@ export default function ProgressTrackingPage() {
                             1. Nhật ký trao đổi (BM03)
                         </div>
                         <div
-                            className={`d-tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
-                            onClick={() => handleTabChange('checkpoints')}
-                        >
-                            2. Đánh giá tiến độ (Checkpoints)
-                        </div>
-                        <div
                             className={`d-tab ${activeTab === 'archive' ? 'active' : ''}`}
                             onClick={() => handleTabChange('archive')}
                         >
-                            3. Phiếu nhận xét & Lưu chiểu (BM04 & Lưu chiểu)
+                            2. Phiếu nhận xét & Lưu chiểu (BM04)
                         </div>
                     </div>
 
@@ -963,7 +943,7 @@ export default function ProgressTrackingPage() {
                                                 <div className="timeline-card" style={{ borderLeft: '4px solid #0F766E' }}>
                                                     <div className="timeline-head flex-wrap gap-2">
                                                         <div>
-                                                            <strong>Mốc đánh giá giữa kỳ (MIDTERM)</strong>
+                                                            <strong>Mốc đánh giá giữa kỳ</strong>
                                                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                                                                 {isMidtermConfigured
                                                                     ? `Mở từ ${dayjs(midtermOpenAt).format('DD/MM/YYYY')}`
@@ -1031,7 +1011,7 @@ export default function ProgressTrackingPage() {
                                                                 showIcon
                                                                 message={
                                                                     !isMidtermConfigured
-                                                                        ? 'Đợt đồ án chưa cấu hình ngày mở đánh giá giữa kỳ (BM03). Vui lòng liên hệ học vụ.'
+                                                                        ? 'Đợt đồ án chưa cấu hình ngày mở đánh giá giữa kỳ. Vui lòng liên hệ học vụ.'
                                                                         : `Chưa đến ngày mở đánh giá giữa kỳ BM03 (Mở từ ${dayjs(midtermOpenAt).format('DD/MM/YYYY')}).`
                                                                 }
                                                             />
@@ -1046,7 +1026,7 @@ export default function ProgressTrackingPage() {
                                                 <div className="timeline-card" style={{ borderLeft: '4px solid #2563EB' }}>
                                                     <div className="timeline-head flex-wrap gap-2">
                                                         <div>
-                                                            <strong>Mốc đánh giá cuối kỳ (FINAL) &amp; Ký toàn phiếu BM03</strong>
+                                                            <strong>Mốc đánh giá cuối kỳ</strong>
                                                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                                                                 {isFinalConfigured
                                                                     ? `Mở từ ${dayjs(finalOpenAt).format('DD/MM/YYYY')}`
@@ -1116,7 +1096,7 @@ export default function ProgressTrackingPage() {
                                                                     isStopReviewPending
                                                                         ? 'Đang có đề nghị dừng chờ Viện thẩm định, chưa thể đánh giá cuối kỳ.'
                                                                         : !midtermEval
-                                                                            ? 'Cần hoàn tất đánh giá giữa kỳ (MIDTERM) trước khi đánh giá cuối kỳ.'
+                                                                            ? 'Cần hoàn tất đánh giá giữa kỳ trước khi đánh giá cuối kỳ.'
                                                                             : midtermEval.decision !== 'CONTINUE'
                                                                                 ? 'Đánh giá giữa kỳ không ở trạng thái Cho làm tiếp.'
                                                                                 : !isFinalConfigured
@@ -1224,48 +1204,7 @@ export default function ProgressTrackingPage() {
                             </div>
                         )}
 
-                        {/* TAB 3: LEGACY CHECKPOINT EVIDENCE (READ-ONLY) */}
-                        {activeTab === 'checkpoints' && (
-                            <div id="tab-checkpoints" className="tab-pane-content">
-                                <QueryPanel query={checkpointsQuery}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                        <Alert
-                                            type="info"
-                                            showIcon
-                                            message="Đánh giá giữa kỳ, cuối kỳ và ký chốt BM03 được thực hiện trong dòng thời gian liên tục ở tab 2 (Nhật ký trao đổi)."
-                                            description="Tab này chỉ hiển thị chứng cứ checkpoint lịch sử (nếu có) và không tự động chuyển trạng thái hoàn tất BM03."
-                                        />
-                                        {checkpoints.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                                                Không có dữ liệu chứng cứ checkpoint lịch sử.
-                                            </div>
-                                        ) : (
-                                            checkpoints.map((cp, idx) => (
-                                                <div key={cp.id || idx} className="card" style={{ marginBottom: 0 }}>
-                                                    <div className="card-head flex-wrap gap-2">
-                                                        <div>
-                                                            <div className="card-title">Chứng cứ Checkpoint {cp.checkpointNo || idx + 1}</div>
-                                                            <div className="card-subtitle">Dữ liệu lưu vết lịch sử</div>
-                                                        </div>
-                                                        <Tag color={cp.status === 'SIGNED' ? 'green' : 'default'}>{cp.status || 'RECORDED'}</Tag>
-                                                    </div>
-                                                    <div style={{ padding: '12px 16px', fontSize: 12.5 }} className="space-y-1">
-                                                        {cp.comment && <div><strong>Nhận xét:</strong> {cp.comment}</div>}
-                                                        {cp.signedAt && (
-                                                            <div className="text-slate-500 font-mono text-xs">
-                                                                Thời điểm ghi nhận: {dayjs(cp.signedAt).format('DD/MM/YYYY HH:mm')}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </QueryPanel>
-                            </div>
-                        )}
-
-                        {/* TAB 4: BM04 & ARCHIVE */}
+                        {/* TAB 2: BM04 & ARCHIVE */}
                         {activeTab === 'archive' && (
                             <div id="tab-archive" className="tab-pane-content">
                                 <QueryPanel query={archiveQuery}>
@@ -1966,21 +1905,6 @@ export default function ProgressTrackingPage() {
                 />
             )}
 
-            {/* CHECKPOINT ISSUE MODAL */}
-            {checkpointModalOpen && reg && (
-                <CheckpointIssueModal
-                    open={checkpointModalOpen}
-                    onClose={() => setCheckpointModalOpen(false)}
-                    registration={reg}
-                    defaultCheckpointNo={selectedCheckpointNo}
-                    currentLecturerName={currentUser?.fullName || currentUser?.name || ''}
-                    onSuccess={() => {
-                        setCheckpointModalOpen(false);
-                        loadStudentDetails();
-                    }}
-                />
-            )}
-
             {/* BM03 PRINT MODAL */}
             <AcademicFormPrintModal
                 open={bm03PrintOpen}
@@ -1993,7 +1917,6 @@ export default function ProgressTrackingPage() {
             >
                 <BM03PrintSheet
                     meetingLogs={meetingLogs}
-                    checkpoints={checkpoints}
                     registration={reg}
                     bm03Record={bm03Record}
                 />
