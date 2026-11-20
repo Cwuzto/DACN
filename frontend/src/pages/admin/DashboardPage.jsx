@@ -12,6 +12,7 @@ import {
     FileTextOutlined,
     FormOutlined,
     HistoryOutlined,
+    SafetyCertificateOutlined,
     ScheduleOutlined,
     SettingOutlined,
     TrophyOutlined,
@@ -37,7 +38,68 @@ import QueryPanel from '../../components/common/QueryPanel';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import EmptyState from '../../components/common/EmptyState';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
+import AcademicRoadmapStepper from '../../components/common/AcademicRoadmapStepper';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
+
+const STAGE_STYLE_VARS = {
+    1: {
+        '--step-color': '#0F766E',
+        '--step-soft': '#F0FDFA',
+        '--step-border': '#99F6E4',
+        '--step-glow': 'rgba(15, 118, 110, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #0F766E, #14B8A6)',
+    },
+    2: {
+        '--step-color': '#0284C7',
+        '--step-soft': '#F0F9FF',
+        '--step-border': '#BAE6FD',
+        '--step-glow': 'rgba(2, 132, 199, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #0284C7, #38BDF8)',
+    },
+    3: {
+        '--step-color': '#4F46E5',
+        '--step-soft': '#EEF2FF',
+        '--step-border': '#C7D2FE',
+        '--step-glow': 'rgba(79, 70, 229, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #4F46E5, #818CF8)',
+    },
+    4: {
+        '--step-color': '#7C3AED',
+        '--step-soft': '#F5F3FF',
+        '--step-border': '#DDD6FE',
+        '--step-glow': 'rgba(124, 58, 237, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+    },
+    5: {
+        '--step-color': '#D97706',
+        '--step-soft': '#FFFBEB',
+        '--step-border': '#FDE68A',
+        '--step-glow': 'rgba(217, 119, 6, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #D97706, #FBBF24)',
+    },
+    6: {
+        '--step-color': '#059669',
+        '--step-soft': '#ECFDF5',
+        '--step-border': '#A7F3D0',
+        '--step-glow': 'rgba(5, 150, 105, 0.35)',
+        '--step-gradient': 'linear-gradient(135deg, #059669, #34D399)',
+    },
+};
+
+const ROADMAP_ICON_MAP = {
+    1: <FormOutlined />,
+    2: <FileTextOutlined />,
+    3: <AuditOutlined />,
+    4: <ScheduleOutlined />,
+    5: <SafetyCertificateOutlined />,
+    6: <TrophyOutlined />,
+    REGISTRATION: <FormOutlined />,
+    BM01: <FileTextOutlined />,
+    BM02: <AuditOutlined />,
+    BM03: <ScheduleOutlined />,
+    BM04: <SafetyCertificateOutlined />,
+    BM05: <TrophyOutlined />,
+};
 
 const PRIORITY_RANK = {
     OVERDUE: 0,
@@ -120,20 +182,37 @@ function DashboardPage() {
     const queuedActions = useMemo(() => sortedActions.slice(3), [sortedActions]);
     const roadmapStages = useMemo(() => adminActionsQuery.data?.roadmap || [], [adminActionsQuery.data]);
 
-    const ROADMAP_ICON_MAP = {
-        REGISTRATION: <FormOutlined aria-hidden="true" />,
-        BM01: <FileTextOutlined aria-hidden="true" />,
-        BM02: <AuditOutlined aria-hidden="true" />,
-        BM03: <ScheduleOutlined aria-hidden="true" />,
-        BM04: <CommentOutlined aria-hidden="true" />,
-        BM05: <TrophyOutlined aria-hidden="true" />,
-    };
+    const completedStagesCount = useMemo(
+        () => roadmapStages.filter((s) => s.state === 'COMPLETED').length,
+        [roadmapStages]
+    );
 
-    const ROADMAP_STATE_META = {
-        COMPLETED: { label: 'Đã qua mốc', color: 'green', border: 'border-emerald-200 bg-emerald-50/40', iconBg: 'bg-emerald-600 text-white' },
-        ACTIVE: { label: 'Đang diễn ra', color: 'blue', border: 'border-sky-200 bg-sky-50/40', iconBg: 'bg-sky-600 text-white' },
-        UPCOMING: { label: 'Chưa bắt đầu', color: 'default', border: 'border-slate-200 bg-slate-50/60', iconBg: 'bg-slate-200 text-slate-600' },
-    };
+    const adminProgressPercent = useMemo(
+        () => Math.round((completedStagesCount / (roadmapStages.length || 6)) * 100),
+        [completedStagesCount, roadmapStages]
+    );
+
+    const adminMilestones = useMemo(() => {
+        return roadmapStages.map((stage, idx) => {
+            const stepNum = stage.step || idx + 1;
+            const styleVars = STAGE_STYLE_VARS[stepNum] || STAGE_STYLE_VARS[idx + 1] || STAGE_STYLE_VARS[1];
+            const icon = ROADMAP_ICON_MAP[stage.key] || ROADMAP_ICON_MAP[stepNum] || <FormOutlined />;
+
+            return {
+                key: stage.key || `admin-stage-${stepNum}`,
+                stepNumber: stepNum,
+                title: stage.title,
+                subText: typeof stage.count === 'number' ? `${stage.count} Hồ sơ` : '',
+                dateText: stage.date
+                    ? `${stage.datePrefix ? `${stage.datePrefix}: ` : ''}${dayjs(stage.date).format('DD/MM/YYYY')}`
+                    : 'Chưa đặt mốc',
+                state: stage.state === 'COMPLETED' ? 'completed' : (stage.state === 'ACTIVE' ? 'active' : 'pending'),
+                icon,
+                onClick: () => handleNavigateTarget(stage.target),
+                styleVars,
+            };
+        });
+    }, [roadmapStages]);
 
     const scores = useMemo(() => {
         if (scoreDistribution && scoreDistribution.length > 0) return scoreDistribution;
@@ -316,59 +395,14 @@ function DashboardPage() {
 
             {/* 6-Stage Semester Roadmap */}
             {roadmapStages.length > 0 && (
-                <section aria-labelledby="admin-roadmap-heading" className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                        <div>
-                            <span className="text-[11px] font-bold text-[#0F766E] uppercase tracking-wider">
-                                Lộ Trình Thực Hiện Đợt Đồ Án
-                            </span>
-                            <h2 id="admin-roadmap-heading" className="text-base font-bold text-slate-900 mt-0.5">
-                                Theo dõi 6 Mốc Quy Trình ({activeSemester ? formatSemesterLabel(activeSemester) : 'Đợt hiện tại'})
-                            </h2>
-                        </div>
-                        <span className="text-xs text-slate-500">
-                            Bấm vào từng mốc để mở danh sách xử lý tương ứng
-                        </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                        {roadmapStages.map((stage) => {
-                            const stateMeta = ROADMAP_STATE_META[stage.state] || ROADMAP_STATE_META.UPCOMING;
-                            const dateStr = stage.date ? `${stage.datePrefix}: ${dayjs(stage.date).format('DD/MM/YYYY')}` : 'Chưa đặt mốc';
-                            return (
-                                <button
-                                    key={stage.key}
-                                    type="button"
-                                    onClick={() => handleNavigateTarget(stage.target)}
-                                    className={`text-left rounded-xl border p-3.5 transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between gap-2.5 ${stateMeta.border}`}
-                                >
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 ${stateMeta.iconBg}`}>
-                                                {stage.state === 'COMPLETED' ? <CheckCircleOutlined aria-hidden="true" /> : (ROADMAP_ICON_MAP[stage.key] || <CalendarOutlined aria-hidden="true" />)}
-                                            </span>
-                                            <Tag color={stateMeta.color} className="m-0 text-[11px] font-semibold">
-                                                {stateMeta.label}
-                                            </Tag>
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-900 leading-snug">
-                                            {stage.title}
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1 pt-2 border-t border-slate-200/70">
-                                        <div className="text-xs font-mono font-bold text-slate-800">
-                                            {stage.count} hồ sơ
-                                        </div>
-                                        <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
-                                            <CalendarOutlined aria-hidden="true" />
-                                            <span>{dateStr}</span>
-                                        </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </section>
+                <AcademicRoadmapStepper
+                    role="ADMIN"
+                    title={`Lộ trình 6 Mốc Quy Trình (${activeSemester ? formatSemesterLabel(activeSemester) : 'Học kỳ hiện tại'})`}
+                    subtitle="Trạng thái thực thi các mốc nghiệp vụ học kỳ theo cấu hình đợt và dữ liệu thực tế"
+                    badgeLabel={`${completedStagesCount}/${roadmapStages.length || 6} Mốc hoàn tất`}
+                    progressPercent={adminProgressPercent}
+                    milestones={adminMilestones}
+                />
             )}
 
             {/* Secondary Grid: Semester Overview + Scores + Shortcuts + Activity */}
