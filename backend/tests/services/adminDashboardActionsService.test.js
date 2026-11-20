@@ -138,7 +138,7 @@ describe('adminDashboardActionsService - buildAdminDashboardActions', () => {
         expect(bm02Item.target).toContain('semesterId=2');
     });
 
-    test('counts DEFENSE_COUNCIL_ASSIGN only for DEFENSE_READY unassigned registrations and RESULT_* steps accurately', async () => {
+    test('counts DEFENSE_COUNCIL_ALLOCATION only for DEFENSE_READY unassigned registrations and RESULT_* steps accurately', async () => {
         const db = createMockDb();
 
         db.topicRegistration.findMany.mockImplementation(async ({ where }) => {
@@ -172,7 +172,7 @@ describe('adminDashboardActionsService - buildAdminDashboardActions', () => {
             db,
         });
 
-        expect(result.items.find((x) => x.kind === 'DEFENSE_COUNCIL_ASSIGN')?.count).toBe(2);
+        expect(result.items.find((x) => x.kind === 'DEFENSE_COUNCIL_ALLOCATION')?.count).toBe(2);
         expect(result.items.find((x) => x.kind === 'RESULT_LOCK')?.count).toBe(1);
         expect(result.items.find((x) => x.kind === 'RESULT_APPROVE')?.count).toBe(1);
         expect(result.items.find((x) => x.kind === 'RESULT_PUBLISH')?.count).toBe(1);

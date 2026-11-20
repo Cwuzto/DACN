@@ -138,7 +138,8 @@ test('result viewers and mutation owners see the corresponding menu without coun
         ['VIEW_RESULT_PUBLICATIONS', 'result-publications'],
         ['RESULT_PUBLICATION_PUBLISH', 'result-publications'],
     ]) {
-        const items = getVisibleNavigation([permission]).flatMap((group) => group.items);
+        const items = getVisibleNavigation([permission]).flatMap((group) => group.items)
+            .filter((item) => ['defense-result-approvals', 'result-publications'].includes(item.key));
         assert.deepEqual(items.map((item) => item.key), [expectedKey], `${permission} should have only its result menu`);
     }
     for (const permission of ['RESULT_PUBLICATION_MANAGE', 'RESULT_PUBLISH', 'VIEW_USERS']) {

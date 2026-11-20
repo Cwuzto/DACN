@@ -19,7 +19,7 @@ const WORKFLOW_ORDER = {
     TOPIC_REVIEW: 1,
     OUTLINE_COUNCIL_ASSIGN: 2,
     BM02_REVIEW: 3,
-    DEFENSE_COUNCIL_ASSIGN: 4,
+    DEFENSE_COUNCIL_ALLOCATION: 4,
     RESULT_LOCK: 5,
     RESULT_APPROVE: 6,
     RESULT_PUBLISH: 7,
@@ -255,7 +255,7 @@ async function buildAdminDashboardActions({ actor, semesterId, db = prisma, now 
         }
     }
 
-    // 4. DEFENSE_COUNCIL_ASSIGN: Chỉ hồ sơ DEFENSE_READY và chưa có hội đồng bảo vệ
+    // 4. DEFENSE_COUNCIL_ALLOCATION: Chỉ hồ sơ DEFENSE_READY và chưa có hội đồng bảo vệ
     const defenseCouncilAccess = resolveActorActionAccess({
         actor,
         semesterId: parsedSemesterId,
@@ -276,7 +276,7 @@ async function buildAdminDashboardActions({ actor, semesterId, db = prisma, now 
         const count = countUniqueIds(defenseRegs);
         if (count > 0) {
             items.push(buildItem({
-                kind: 'DEFENSE_COUNCIL_ASSIGN',
+                kind: 'DEFENSE_COUNCIL_ALLOCATION',
                 count,
                 title: 'Phân hội đồng bảo vệ',
                 description: `${count} hồ sơ sẵn sàng bảo vệ chưa được phân hội đồng.`,

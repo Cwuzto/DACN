@@ -99,13 +99,13 @@ test('Task 6.4: GradingDefensePage complies with Rule 2.6 button standards', () 
     // Verify Ant Design buttons use proper icon props and clean labels
     assert.match(
         src,
-        /<Button[\s\S]*?icon=\{<SettingOutlined \/>\}[\s\S]*?>/,
-        'GradingDefensePage admin rubric edit button uses SettingOutlined icon'
+        /<Button[\s\S]*?icon=\{<FileTextOutlined \/>\}[\s\S]*?>/,
+        'GradingDefensePage summary button uses FileTextOutlined icon'
     );
     assert.match(
         src,
-        /<Button[\s\S]*?icon=\{<CheckOutlined \/>\}[\s\S]*?>\s*Hoàn tất\s*<\/Button>/,
-        'GradingDefensePage complete button uses pure text "Hoàn tất"'
+        /<Button[\s\S]*?icon=\{<LockOutlined \/>\}[\s\S]*?>/,
+        'GradingDefensePage lock button uses LockOutlined icon'
     );
     assert.match(
         src,

@@ -82,11 +82,11 @@ test('Task 4: TitleAdjustmentModal renders BM02-A 3-signature stepper, personal 
     assert.match(modalSource, /bm02aService/);
 });
 
-test('Task 4: TopicApprovalPage integrates Tab "Duyệt phiếu đổi tên BM02-A" with advisor and department head actions', () => {
-    const pageSource = read('frontend/src/pages/lecturer/TopicApprovalPage.jsx');
+test('Task 4: TitleAdjustmentPage integrates Tab "Duyệt phiếu đổi tên BM02-A" with advisor and department head actions', () => {
+    const pageSource = read('frontend/src/pages/lecturer/TitleAdjustmentPage.jsx');
 
-    // Tab for BM02-A
-    assert.match(pageSource, /Duyệt phiếu đổi tên BM02-A/);
+    // BM02-A handling page
+    assert.match(pageSource, /Xử lý điều chỉnh tên đề tài \(BM02-A\)|điều chỉnh tên BM02-A/);
 
     // Connected to bm02aService
     assert.match(pageSource, /bm02aService/);

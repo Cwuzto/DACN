@@ -68,6 +68,7 @@ jest.mock('../../src/controllers/dashboardController', () => {
         getSemesterStats: ok,
         getScoreDistribution: ok,
         getRecentActivities: ok,
+        getAdminDashboardActions: ok,
     };
 });
 jest.mock('../../src/controllers/notificationController', () => {
@@ -93,6 +94,7 @@ jest.mock('../../src/controllers/rubricController', () => {
         getRubricById: ok,
         createRubric: ok,
         updateRubric: ok,
+        updateRubricCriteria: ok,
         activateRubric: ok,
         deleteRubric: ok,
         lockRubric: ok,

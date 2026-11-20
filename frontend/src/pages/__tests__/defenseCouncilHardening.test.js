@@ -30,12 +30,14 @@ test('CouncilDetailPage: Fallback to getPublicLecturers and scope institute on a
     assert.match(src, /canManageCouncil/, 'Must guard management actions with canManageCouncil');
 });
 
-test('NavigationRegistry: Dynamic filtering for both Outline and Defense Councils', () => {
-    const src = read('frontend/src/config/navigationRegistry.js');
+test('NavigationRegistry: Dynamic filtering for both Outline and Defense Councils', async () => {
+    const { NAVIGATION_REGISTRY } = await import('../../config/navigationRegistry.js');
+    const outlineCouncil = NAVIGATION_REGISTRY.find((item) => item.key === 'outline-councils');
+    const defenseCouncil = NAVIGATION_REGISTRY.find((item) => item.key === 'defense-councils');
 
-    assert.match(src, /key:\s*['"]outline-councils['"][\s\S]*?requiresOutlineCouncil:\s*true/, 'outline-councils requires outline council membership');
-    assert.match(src, /key:\s*['"]defense-councils['"][\s\S]*?requiresDefenseCouncil:\s*true/, 'defense-councils requires defense council membership');
-    assert.match(src, /key:\s*['"]defense-councils['"][\s\S]*?requiredPermission:\s*['"]DEFENSE_COUNCIL_MANAGE['"]/, 'defense-councils requires DEFENSE_COUNCIL_MANAGE');
+    assert.equal(outlineCouncil?.requiresOutlineCouncil, true, 'outline-councils requires outline council membership');
+    assert.equal(defenseCouncil?.requiresDefenseCouncil, true, 'defense-councils requires defense council membership');
+    assert.equal(defenseCouncil?.requiredPermission, 'DEFENSE_COUNCIL_MANAGE', 'defense-councils requires DEFENSE_COUNCIL_MANAGE');
 });
 
 test('Backend registrationController: hasInstituteAuthority recognizes council management permissions', () => {
