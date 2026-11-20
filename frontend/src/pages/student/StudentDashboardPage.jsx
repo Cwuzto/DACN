@@ -54,6 +54,7 @@ import QueryErrorState from '../../components/common/QueryErrorState';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
+import AcademicRoadmapStepper from '../../components/common/AcademicRoadmapStepper';
 
 const ACTIVE_FLOW_STATUSES = [
     'APPROVED',
@@ -985,74 +986,15 @@ export default function StudentDashboardPage() {
             )}
 
             {/* 6-Stage Interactive Milestone Stepper Flow */}
-            <div className="sd-roadmap-card sd-animate-in" style={{ '--sd-delay': 1 }}>
-                <div className="sd-roadmap-header">
-                    <div className="sd-roadmap-title-wrap">
-                        <div className="sd-roadmap-icon-badge" aria-hidden="true">
-                            <ClockCircleOutlined />
-                        </div>
-                        <div>
-                            <h3 className="sd-roadmap-title">
-                                Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp (Theo Chuẩn Viện Công nghệ Số)
-                            </h3>
-                            <div className="sd-roadmap-subtitle">
-                                Theo dõi trạng thái từng giai đoạn và mốc thời gian quan trọng của học kỳ
-                            </div>
-                        </div>
-                    </div>
-                    <div className="sd-roadmap-pct-pill">
-                        <CheckCircleOutlined />
-                        <span>{progressPercent}% Hoàn tất</span>
-                    </div>
-                </div>
-
-                <div className="sd-roadmap-body">
-                    <div className="sd-roadmap-stage">
-                        <div className="sd-roadmap-rail" aria-hidden="true">
-                            <div
-                                className="sd-roadmap-fill"
-                                style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
-                            />
-                        </div>
-
-                        <div className="sd-milestone-grid">
-                            {milestones.map((step) => {
-                                const stateClass =
-                                    step.state === 'completed'
-                                        ? 'is-completed'
-                                        : step.state === 'active'
-                                          ? 'is-active'
-                                          : 'is-pending';
-
-                                return (
-                                    <button
-                                        key={step.key}
-                                        type="button"
-                                        className={`sd-milestone-node ${stateClass}`}
-                                        style={step.styleVars}
-                                        onClick={step.onClick}
-                                    >
-                                        <div className="sd-milestone-orb">
-                                            {step.icon}
-                                            {step.state === 'completed' && (
-                                                <span className="sd-milestone-check-badge" aria-hidden="true">
-                                                    <CheckOutlined />
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="sd-milestone-title">{step.title}</div>
-                                        <div className="sd-milestone-status">{step.subText}</div>
-                                        <div className="sd-milestone-date">
-                                            <CalendarOutlined style={{ fontSize: 10 }} />
-                                            <span>{step.dateText}</span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <AcademicRoadmapStepper
+                role="STUDENT"
+                title="Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp (Theo Chuẩn Viện Công nghệ Số)"
+                subtitle="Theo dõi trạng thái từng giai đoạn và mốc thời gian quan trọng của học kỳ"
+                badgeLabel={`${progressPercent}% Hoàn tất`}
+                progressPercent={progressPercent}
+                milestones={milestones}
+                className="sd-animate-in"
+            />
 
             {/* 4 Key Stat Cards */}
             <div className="sd-kpi-grid sd-animate-in" style={{ '--sd-delay': 2 }}>

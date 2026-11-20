@@ -135,3 +135,49 @@ test('Step 5: academic-roadmap.css defines responsive styles, animations and red
     assert.match(css, /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/, 'Must support prefers-reduced-motion: reduce');
     assert.match(css, /animation:\s*none\s*!important/, 'Must disable animations when prefers-reduced-motion');
 });
+
+test('Step 6: Task 2 - StudentDashboardPage integrates AcademicRoadmapStepper with role="STUDENT"', () => {
+    const studentDashboardPath = path.join(root, 'src/pages/student/StudentDashboardPage.jsx');
+    assert.ok(fs.existsSync(studentDashboardPath), 'StudentDashboardPage.jsx must exist');
+
+    const src = read(studentDashboardPath);
+
+    // Rule 2.4 - UTF-8 without BOM
+    const buf = fs.readFileSync(studentDashboardPath);
+    const hasBOM = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+    assert.equal(hasBOM, false, 'StudentDashboardPage.jsx must not have UTF-8 BOM');
+
+    // Rule 2.1 - No legacy group/groupMember references
+    assert.doesNotMatch(src, /\bgroupMember\b/i, 'Must not reference legacy groupMember');
+    assert.doesNotMatch(src, /\bgroupMembers\b/i, 'Must not reference legacy groupMembers');
+    assert.doesNotMatch(src, /\bgroupId\b/i, 'Must not reference legacy groupId');
+
+    // Rule 2.6 - Button text must not contain raw emojis or forbidden graphic symbols
+    const buttonBlocks = src.match(/<Button[^>]*>([\s\S]*?)<\/Button>/g) || [];
+    const forbidden = /[🤖←→+📋✓✏️👥🗑️🔓▾▴↗✕🖨️⚠️]/;
+    for (const block of buttonBlocks) {
+        const textContent = block.replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
+        if (textContent) {
+            assert.ok(!forbidden.test(textContent), `Button text "${textContent}" must not contain forbidden symbols`);
+        }
+    }
+
+    // Verify import of AcademicRoadmapStepper
+    assert.match(
+        src,
+        /import\s+AcademicRoadmapStepper\s+from\s+['"]\.\.\/\.\.\/components\/common\/AcademicRoadmapStepper['"]/,
+        'StudentDashboardPage.jsx must import AcademicRoadmapStepper'
+    );
+
+    // Verify usage of AcademicRoadmapStepper with required props
+    assert.match(
+        src,
+        /<AcademicRoadmapStepper[\s\S]*?role="STUDENT"[\s\S]*?\/>/,
+        'Must render AcademicRoadmapStepper with role="STUDENT"'
+    );
+    assert.match(src, /progressPercent=\{progressPercent\}/, 'Must pass progressPercent prop');
+    assert.match(src, /milestones=\{milestones\}/, 'Must pass milestones prop');
+
+    // Verify inline repetitive roadmap stepper block was replaced
+    assert.doesNotMatch(src, /<div className="sd-roadmap-card sd-animate-in"/, 'Must replace inline sd-roadmap-card block');
+});
