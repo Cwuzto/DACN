@@ -639,6 +639,7 @@ const getAllRegistrations = async (req, res, next) => {
             councilType,
             stalePendingOnly,
             asCouncilChairman,
+            asCouncilMember,
             asInstituteDirector,
             scope,
         } = req.query;
@@ -662,15 +663,17 @@ const getAllRegistrations = async (req, res, next) => {
         const shouldViewInstituteScope =
             (asInstituteDirector === 'true' || scope === 'all' || scope === 'institute') && hasInstituteAuthority;
 
+        const isCouncilQuery = asCouncilMember === 'true' || asCouncilChairman === 'true';
+
         if (role === 'LECTURER') {
             if (shouldViewInstituteScope) {
                 // Viện trưởng hoặc cấp quản trị xem toàn viện trong đợt đồ án (BM02 queue, ban hành QĐ)
-            } else if (asCouncilChairman === 'true') {
+            } else if (isCouncilQuery) {
                 where.outlineCouncil = {
                     members: {
                         some: {
                             lecturerId: userId,
-                            roleInCouncil: 'CHAIRMAN',
+                            ...(asCouncilChairman === 'true' && asCouncilMember !== 'true' ? { roleInCouncil: 'CHAIRMAN' } : {}),
                         },
                     },
                 };
@@ -683,7 +686,7 @@ const getAllRegistrations = async (req, res, next) => {
             where.semesterId = parseInt(semesterId, 10);
         } else if (role === 'LECTURER' && !shouldViewInstituteScope) {
             let targetSemesterId = null;
-            if (asCouncilChairman !== 'true' && typeof prisma.topicRegistration?.findFirst === 'function') {
+            if (!isCouncilQuery && typeof prisma.topicRegistration?.findFirst === 'function') {
                 const mentorActiveReg = await prisma.topicRegistration.findFirst({
                     where: {
                         topic: { mentorId: userId },
@@ -715,7 +718,7 @@ const getAllRegistrations = async (req, res, next) => {
             } else {
                 where.status = status;
             }
-        } else if (role === 'LECTURER' && asCouncilChairman === 'true') {
+        } else if (role === 'LECTURER' && isCouncilQuery) {
             where.status = { in: ['BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'] };
         }
 

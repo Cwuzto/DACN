@@ -141,6 +141,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('throws ConflictError(INITIAL_SUBMISSION_ALREADY_USED) when atomic updateMany count is 0', async () => {
+            const now = new Date('2026-11-10T10:00:00Z');
             mockTx.topicRegistration.findUnique.mockResolvedValue({
                 id: 101,
                 studentId: 10,
@@ -160,7 +161,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             mockTx.bM01Evaluation.updateMany.mockResolvedValue({ count: 0 });
 
             await expect(
-                submitInitialOutline(101, fileData, 10, { db: mockDb })
+                submitInitialOutline(101, fileData, 10, { db: mockDb, now })
             ).rejects.toThrow(ConflictError);
         });
 

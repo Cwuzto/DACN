@@ -1393,11 +1393,19 @@ async function reviewOutlineRegistration({ registrationId, reviewerId, decision,
         throw new NotFoundError('REGISTRATION_NOT_FOUND');
     }
 
+    if (!registration.outlineCouncil) {
+        throw new ForbiddenError('UNAUTHORIZED_COUNCIL_ROLE');
+    }
+
     const councilMembers = registration.outlineCouncil?.members || [];
     const membership = councilMembers.find((m) => m.lecturerId === uId);
 
-    if (membership && membership.roleInCouncil !== 'CHAIRMAN') {
-        throw new ForbiddenError('ONLY_CHAIRMAN_CAN_APPROVE_OUTLINE');
+    if (!membership) {
+        throw new ForbiddenError('UNAUTHORIZED_COUNCIL_ROLE');
+    }
+
+    if (!['CHAIRMAN', 'SECRETARY'].includes(membership.roleInCouncil)) {
+        throw new ForbiddenError('ONLY_CHAIRMAN_OR_SECRETARY_CAN_APPROVE_OUTLINE');
     }
 
     let normalizedOutcome = 'NEEDS_REVISION';
