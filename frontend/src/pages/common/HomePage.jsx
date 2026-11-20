@@ -10,6 +10,16 @@ import { queryKeys } from '../../query/queryKeys';
 import { usePublicSemesters } from '../../queries/semesterQueries';
 import { usePublicLecturers } from '../../queries/userQueries';
 import { usePublicPortalContent } from '../../queries/portalQueries';
+import {
+    LoginOutlined,
+    ArrowRightOutlined,
+    MenuOutlined,
+    CloseOutlined,
+    CompassOutlined,
+    TeamOutlined,
+    FileTextOutlined,
+    NotificationOutlined,
+} from '@ant-design/icons';
 
 // 6 Guided Academic Stages (Exact OpenDesign Prototype)
 const ROADMAP_STAGES = [
@@ -369,6 +379,7 @@ export default function HomePage() {
     const [previewModalFile, setPreviewModalFile] = useState(null);
     const [toastMessage, setToastMessage] = useState(null);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // Faculty filter state
     const [facultySearch, setFacultySearch] = useState('');
@@ -675,6 +686,7 @@ export default function HomePage() {
     };
 
     const handleBackToPortal = (hash = '') => {
+        setIsMobileMenuOpen(false);
         setSelectedAnnouncement(null);
         if (hash) {
             window.history.replaceState(null, '', hash);
@@ -723,61 +735,209 @@ export default function HomePage() {
             {/* ─── TOP NAVIGATION BAR ────────────────────────────────────── */}
             <header className={`topnav ${isScrolled ? 'is-scrolled' : ''}`} data-od-id="public-topnav">
                 <div className="container topnav-inner">
-                    <div className="brand-group" onClick={() => handleBackToPortal()} style={{ cursor: 'pointer' }}>
-                        <img
-                            className="brand-logo"
-                            src="/assets/tdmu-logo.svg"
-                            onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
-                            alt="Đại học Thủ Dầu Một"
-                            width="107"
-                            height="40"
-                        />
+                    <div
+                        className="brand-group"
+                        onClick={() => handleBackToPortal()}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleBackToPortal(); }}
+                        style={{ cursor: 'pointer' }}
+                    >
+                        <div className="brand-logo-frame">
+                            <img
+                                className="brand-logo"
+                                src="/assets/tdmu-logo.svg"
+                                onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
+                                alt="Đại học Thủ Dầu Một"
+                                width="107"
+                                height="40"
+                            />
+                            <div className="brand-logo-shine" aria-hidden="true" />
+                        </div>
                         <div className="brand-text">
-                            <h1>{portalConfiguration.institutionName}</h1>
-                            <p>{portalConfiguration.siteTitle}</p>
+                            <div className="brand-title-row">
+                                <span className="brand-title">{portalConfiguration.institutionName}</span>
+                                <span className="brand-badge-live">
+                                    <span className="live-dot" />
+                                    <span className="live-text">Học vụ Số</span>
+                                </span>
+                            </div>
+                            <p className="brand-subtitle">{portalConfiguration.siteTitle}</p>
                         </div>
                     </div>
 
-                    <nav>
+                    <nav className="topnav-nav">
                         <ul className="nav-links">
-                            <li><a href="#roadmap" className={`nav-link ${activeNavSection === 'roadmap' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#roadmap'); }}>Lộ trình 6 Chặng</a></li>
-                            <li><a href="#faculty" className={`nav-link ${activeNavSection === 'faculty' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#faculty'); }}>Danh bạ GVHD & Hướng NC</a></li>
-                            <li><a href="#downloads" className={`nav-link ${activeNavSection === 'downloads' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#downloads'); }}>Biểu mẫu BM01-BM05</a></li>
-                            <li><a href="#announcements" className={`nav-link ${activeNavSection === 'announcements' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#announcements'); }}>Bản tin &amp; Quyết định</a></li>
+                            <li>
+                                <a
+                                    href="#roadmap"
+                                    className={`nav-link ${activeNavSection === 'roadmap' ? 'active' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#roadmap'); }}
+                                >
+                                    <CompassOutlined className="nav-link-icon" />
+                                    <span>Lộ trình 6 Chặng</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    href="#faculty"
+                                    className={`nav-link ${activeNavSection === 'faculty' ? 'active' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#faculty'); }}
+                                >
+                                    <TeamOutlined className="nav-link-icon" />
+                                    <span>Danh bạ Giảng viên</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    href="#downloads"
+                                    className={`nav-link ${activeNavSection === 'downloads' ? 'active' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#downloads'); }}
+                                >
+                                    <FileTextOutlined className="nav-link-icon" />
+                                    <span>Biểu mẫu Học vụ</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    href="#announcements"
+                                    className={`nav-link ${activeNavSection === 'announcements' ? 'active' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#announcements'); }}
+                                >
+                                    <NotificationOutlined className="nav-link-icon" />
+                                    <span>Bản tin & Quyết định</span>
+                                </a>
+                            </li>
                         </ul>
                     </nav>
 
                     <div className="nav-actions">
                         {user ? (
-                            <button className="btn btn-brand topnav-login" onClick={handleWorkspaceEntry} type="button">
-                                <div style={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: 4,
-                                    background: '#FFFFFF',
-                                    color: '#0F766E',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 700,
-                                    fontSize: 10
-                                }}>
+                            <button
+                                className="btn-workspace-portal"
+                                onClick={handleWorkspaceEntry}
+                                type="button"
+                                aria-label="Vào Bàn làm việc"
+                            >
+                                <div className="user-avatar-badge">
                                     {user.fullName?.[0]?.toUpperCase() || 'U'}
                                 </div>
-                                <span>Vào Bàn làm việc ({getUserDisplayRole(user)})</span>
+                                <div className="user-info-group">
+                                    <span className="user-workspace-title">Bàn làm việc</span>
+                                    <span className="user-role-chip">{getUserDisplayRole(user)}</span>
+                                </div>
+                                <ArrowRightOutlined className="workspace-arrow-icon" />
                             </button>
                         ) : (
-                            <button className="btn btn-brand topnav-login" onClick={() => setIsLoginModalOpen(true)} type="button" data-od-id="btn-login-trigger" aria-label="Đăng nhập Cổng Học vụ">
-                                <svg style={{ width: 16, height: 16 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                                    <polyline points="10 17 15 12 10 7" />
-                                    <line x1="15" y1="12" x2="3" y2="12" />
-                                </svg>
-                                <span>Đăng nhập</span>
+                            <button
+                                className="btn-portal-login"
+                                onClick={() => setIsLoginModalOpen(true)}
+                                type="button"
+                                data-od-id="btn-login-trigger"
+                                aria-label="Đăng nhập Cổng Học vụ"
+                            >
+                                <LoginOutlined className="login-btn-icon" />
+                                <span className="login-btn-text">Đăng nhập</span>
+                                <div className="login-btn-glow" aria-hidden="true" />
                             </button>
                         )}
+
+                        <button
+                            className="topnav-mobile-toggle"
+                            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                            type="button"
+                            aria-label={isMobileMenuOpen ? 'Đóng trình đơn' : 'Mở trình đơn'}
+                            aria-expanded={isMobileMenuOpen}
+                        >
+                            {isMobileMenuOpen ? <CloseOutlined /> : <MenuOutlined />}
+                        </button>
                     </div>
                 </div>
+
+                {/* Mobile Dropdown Navigation */}
+                {isMobileMenuOpen && (
+                    <div className="topnav-mobile-dropdown">
+                        <nav className="mobile-nav-list">
+                            <a
+                                href="#roadmap"
+                                className={`mobile-nav-item ${activeNavSection === 'roadmap' ? 'active' : ''}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleBackToPortal('#roadmap');
+                                }}
+                            >
+                                <CompassOutlined className="mobile-nav-icon" />
+                                <span>Lộ trình 6 Chặng</span>
+                            </a>
+                            <a
+                                href="#faculty"
+                                className={`mobile-nav-item ${activeNavSection === 'faculty' ? 'active' : ''}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleBackToPortal('#faculty');
+                                }}
+                            >
+                                <TeamOutlined className="mobile-nav-icon" />
+                                <span>Danh bạ Giảng viên</span>
+                            </a>
+                            <a
+                                href="#downloads"
+                                className={`mobile-nav-item ${activeNavSection === 'downloads' ? 'active' : ''}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleBackToPortal('#downloads');
+                                }}
+                            >
+                                <FileTextOutlined className="mobile-nav-icon" />
+                                <span>Biểu mẫu Học vụ</span>
+                            </a>
+                            <a
+                                href="#announcements"
+                                className={`mobile-nav-item ${activeNavSection === 'announcements' ? 'active' : ''}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleBackToPortal('#announcements');
+                                }}
+                            >
+                                <NotificationOutlined className="mobile-nav-icon" />
+                                <span>Bản tin & Quyết định</span>
+                            </a>
+                        </nav>
+                        <div className="mobile-nav-footer">
+                            {user ? (
+                                <button
+                                    className="btn-workspace-portal mobile-cta-btn"
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        handleWorkspaceEntry();
+                                    }}
+                                    type="button"
+                                >
+                                    <div className="user-avatar-badge">
+                                        {user.fullName?.[0]?.toUpperCase() || 'U'}
+                                    </div>
+                                    <div className="user-info-group">
+                                        <span className="user-workspace-title">Bàn làm việc</span>
+                                        <span className="user-role-chip">{getUserDisplayRole(user)}</span>
+                                    </div>
+                                    <ArrowRightOutlined className="workspace-arrow-icon" />
+                                </button>
+                            ) : (
+                                <button
+                                    className="btn-portal-login mobile-cta-btn"
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        setIsLoginModalOpen(true);
+                                    }}
+                                    type="button"
+                                >
+                                    <LoginOutlined className="login-btn-icon" />
+                                    <span className="login-btn-text">Đăng nhập</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </header>
 
             {/* ─── CONDITIONAL: ANNOUNCEMENT DETAIL VIEW OR MAIN PORTAL ─── */}
@@ -1243,7 +1403,7 @@ export default function HomePage() {
                                         onChange={(e) => setQuotaFilter(e.target.value)}
                                     >
                                         <option value="ALL">Tất cả trạng thái suất</option>
-                                        <option value="AVAILABLE">Còn nhận sinh viên (dưới 10 sinh viên)</option>
+                                        <option value="AVAILABLE">Còn chỉ tiêu tiếp nhận sinh viên</option>
                                         <option value="FULL">Đã đủ 10/10 sinh viên</option>
                                     </select>
                                 </div>
