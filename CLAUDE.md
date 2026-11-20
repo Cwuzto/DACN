@@ -70,6 +70,45 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 21/11/2026: Tối Ưu Hóa Trải Nghiệm Cổng Thông Tin Học Vụ (Portal Navigation & Logo UI/UX Pro Max) & Tinh Gọn Quản Lý Đề Tài Giảng Viên
+
+#### 1. Những phần đã hoàn thành
+1. **Tinh Gọn Thanh Công Cụ Đề Tài Của Giảng Viên (`bb7cba8`)**:
+   - Gỡ bỏ nút "Sao chép từ kỳ trước" khỏi thanh công cụ chính trong [TopicManagementPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/TopicManagementPage.jsx), chỉ giữ lại nút hành động chính quy **"Đề xuất Đề tài mới"**.
+   - Giữ nguyên cấu trúc logic nội bộ và modal để bảo toàn tính tương thích nghiệp vụ và không ảnh hưởng đến bộ test suite hiện có.
+2. **Thiết Kế Lại Thanh Điều Hướng (Top Navigation Bar) & Logo Thể Chế Cổng Thông Tin (`9068f5d`)**:
+   - Tái thiết kế toàn bộ khu vực header tại [HomePage.jsx](file:///d:/DACN/frontend/src/pages/common/HomePage.jsx) và bộ CSS tại [index.css](file:///d:/DACN/frontend/src/index.css) theo tiêu chuẩn kỹ năng `ui-ux-pro-max`:
+     * **Khung Logo Thể Chế & Biểu Tượng Viện**: Khung kính mờ đa tầng (`brand-logo-frame`) với viền gradient ngọc lục bảo (Pine Teal & Emerald), hiệu ứng quét sáng chéo (`shimmer sweep`) tự động kích hoạt khi lướt chuột, tiêu đề **"Viện Công nghệ Số"** gradient sắc sảo, đính kèm huy hiệu **"Học vụ Số"** với chấm đèn trạng thái nhịp thở phát quang (`pulse animation`).
+     * **Đảo Điều Hướng Trung Tâm (Center Floating Capsule Dock)**: Thiết kế dạng viên nang lơ lửng (`topnav-nav`), kính mờ (`backdrop-filter: blur(16px)`), các mục liên kết dạng thẻ bo tròn (`pill items`) tích hợp bộ Icon vector chuẩn `@ant-design/icons` (`CompassOutlined`, `TeamOutlined`, `FileTextOutlined`, `NotificationOutlined`), hiệu ứng nhấc thẻ (`translateY(-1px)`), phóng icon (`scale(1.18)`) và chuyển nền sáng mượt mà khi hover/active.
+     * **Khu Vực Nút Hành Động (Action CTA)**:
+       - Khi chưa đăng nhập: Nút **"Đăng nhập"** dạng viên nang gradient Pine Teal -> Emerald với hiệu ứng ánh sáng quét bề mặt (`login-btn-glow`), bóng đổ phát quang 3D (`box-shadow: 0 8px 24px rgba(13, 148, 136, 0.45)`), icon `<LoginOutlined />`.
+       - Khi đã đăng nhập: Khung định danh Bàn làm việc với avatar tròn gradient, chữ thuần Việt **"Bàn làm việc"**, chip vai trò chuẩn học thuật (**Sinh viên**, **Giảng viên**, **Quản trị viên**, **Thư ký**, **Trưởng bộ môn**) hiển thị dạng badge tinh tế (tuyệt đối không dùng chú thích ngoặc đơn `()` thô), icon `<ArrowRightOutlined />` trượt nhẹ khi hover.
+     * **Tương Thích Màn Hình Di Động & Máy Tính Bảng (Mobile / Tablet Responsive)**: Tự động thu gọn và hiển thị nút Trình đơn di động (`MenuOutlined` / `CloseOutlined`), mở khay điều hướng kính mờ (`topnav-mobile-dropdown`) trượt xuống với chuyển động mượt mà (`mobileMenuSlideDown`).
+     * **Tiếp Cận & Chống Mỏi Mắt**: Hỗ trợ chuẩn `prefers-reduced-motion` tự động vô hiệu hóa toàn bộ hiệu ứng chuyển động khi người dùng yêu cầu.
+     * **Chuẩn Hóa Ngôn Ngữ Văn Bản Giao Diện**: Loại bỏ chú thích ngoặc đơn thường ngày trong bộ lọc giảng viên (đổi `Còn nhận sinh viên (dưới 10 sinh viên)` thành `Còn chỉ tiêu tiếp nhận sinh viên`).
+3. **Kiểm Tra & Nghiệm Thu Độc Lập**:
+   - Triển khai Reviewer Subagent độc lập kiểm tra nghiêm ngặt 5 tiêu chuẩn: Rule 2.1 (TopicRegistration), Rule 2.4 (UTF-8 no BOM), Rule 2.6 (chuẩn nút bấm không emoji thô), ngôn ngữ học thuật thuần Việt, và biên dịch sản phẩm. Kết quả thẩm định đạt **100% PASS**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Frontend SPA**:
+  * Thanh navigation bar và logo mới hoạt động ổn định, mượt mà trên cả desktop và mobile/tablet.
+  * Toàn bộ 445/445 tests frontend đạt 100% PASS (`npm --prefix frontend test`).
+  * Biên dịch sản phẩm production (`npm --prefix frontend run build`) hoàn tất thành công trong 14.41s không lỗi.
+  * Tuân thủ 100% Rule 2.1 (`TopicRegistration`), Rule 2.4 (UTF-8 no BOM), Rule 2.6 (chuẩn nút bấm không emoji thô).
+- **Backend API & CSDL**:
+  * Hoạt động ổn định, không có thay đổi cấu trúc backend trong phiên này.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Tiếp tục đồng bộ phong cách thiết kế hiện đại (Pine Teal Glassmorphism & Bento Grid) cho các khối nội dung bên dưới Homepage (khối Hero, danh bạ giảng viên, kho biểu mẫu).
+2. Kiểm tra trực quan trên môi trường browser thực tế khi chuyển trang từ nút Bàn làm việc vào Dashboard của từng vai trò.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Lược bỏ nút Sao chép từ kỳ trước khỏi thanh công cụ chính**: Giúp tinh giản giao diện, tập trung vào thao tác chính quy thường nhật của giảng viên là "Đề xuất Đề tài mới", tránh làm loãng thanh công cụ hành động.
+- **Đảo điều hướng dạng viên nang lơ lửng (Center Floating Capsule Dock)**: Tạo điểm nhấn thị giác hiện đại, thanh thoát, cân đối không gian giữa thương hiệu học viện (bên trái) và nút thao tác đăng nhập/bàn làm việc (bên phải), nâng tầm đẳng cấp giao diện thể chế số của Nhà trường.
+- **Loại bỏ hoàn toàn chú thích ngoặc đơn `()` và tiếng Anh trong nhãn vai trò & nút bấm**: Chuyển đổi toàn bộ thông tin vai trò sang dạng chip/badge chuyên nghiệp và sử dụng các thuật ngữ thuần Việt chuẩn mực (Sinh viên, Giảng viên, Quản trị viên...), giúp văn phong học thuật nghiêm cẩn và giao diện sạch sẽ, chuyên nghiệp.
+
+---
+
 ### Phiên 20/11/2026: Tách Riêng Hội Đồng Thẩm Định Đề Cương & Chuẩn Hóa Lộ Trình 6 Mốc Quy Trình Dùng Chung Cho Cả 3 Phân Hệ (Sinh Viên, Giảng Viên, Quản Trị Viên)
 
 #### 1. Những phần đã hoàn thành
