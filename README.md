@@ -2,7 +2,7 @@
 
 ## Bắt đầu nhanh
 
-Xem hướng dẫn cài đặt và chạy dự án tại: [.docs/SETUP_CLONE.md](./.docs/SETUP_CLONE.md)
+Xem [quy chuẩn phát triển và lệnh chạy](.agents/rules/04-development-guidelines.md). Cấu hình môi trường theo các tệp mẫu trong `backend/` và `frontend/` trước khi khởi động.
 
 ## Giới thiệu
 
@@ -45,8 +45,9 @@ Các luồng chính:
 
 ## Tài liệu quan trọng
 
-- `AGENTS.md`
-- `.docs/PROJECT_STATE.md`
-- `.docs/NEXT_STEPS.md`
-- `.docs/DECISIONS.md`
-- `.docs/TOMORROW_PLAN.md`
+- [Hướng dẫn cho agent](CLAUDE.md)
+- [Quy tắc làm việc](AGENTS.md)
+- [Trạng thái và ưu tiên hiện tại](docs/project-status.md)
+- [Quyết định kiến trúc và nghiệp vụ](docs/architecture/decisions.md)
+- [Quy trình, dữ liệu, phân quyền và quy chuẩn](.agents/rules/)
+- [Lịch sử phiên đã lưu trữ](docs/sessions/2026-10-to-11-session-history.md)
