@@ -133,7 +133,11 @@ export default function StudentProgressActions({
 
     // Check BM04 Signing & Completion status (SECURITY GUARD)
     const activeBm04 = resolvedBm04 || bm04Record;
-    const isBm04Signed = Boolean(activeBm04?.signedAt || activeBm04?.status === 'COMPLETED');
+    const isBm04Signed = Boolean(
+        activeBm04 &&
+        activeBm04.status !== 'DRAFT' &&
+        (activeBm04.isLocked || ['SIGNED_APPROVED', 'COMPLETED', 'PENDING_INSTITUTE_REVIEW'].includes(activeBm04.status))
+    );
 
     // Defense results publication check (immutable security rule)
     const isDefensePublished = Boolean(
@@ -352,13 +356,13 @@ export default function StudentProgressActions({
                 onCancel={() => setBm03AckModalOpen(false)}
                 footer={null}
                 width={640}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 pt-2">
                     <Alert
                         type="info"
                         showIcon
-                        message="Thời hạn phản hồi: 48 giờ"
+                        title="Thời hạn phản hồi: 48 giờ"
                         description={`Biểu mẫu BM03 đã được GVHD hoàn tất và ký số lúc ${
                             bm03Record?.advisorSignedAt
                                 ? dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm')
@@ -485,7 +489,7 @@ export default function StudentProgressActions({
                 title="Nhật Ký Các Buổi Gặp Hướng Dẫn (BM03)"
                 open={meetingDrawerOpen}
                 onClose={() => setMeetingDrawerOpen(false)}
-                width={720}
+                size={720}
                 extra={
                     <Button
                         size="small"
@@ -501,7 +505,7 @@ export default function StudentProgressActions({
                     <Alert
                         type="info"
                         showIcon
-                        message="Chưa có nhật ký buổi gặp"
+                        title="Chưa có nhật ký buổi gặp"
                         description="Giảng viên hướng dẫn sẽ ghi nhận nội dung các buổi làm việc tiến độ vào hệ thống."
                     />
                 ) : (
@@ -592,14 +596,14 @@ export default function StudentProgressActions({
                     </div>
                 }
                 width={720}
-                destroyOnClose
+                destroyOnHidden
             >
                 {activeBm04 && isBm04Signed ? (
                     <div className="space-y-4 pt-2">
                         <Alert
                             type="success"
                             showIcon
-                            message="Phiếu nhận xét đã được GVHD ký duyệt điện tử"
+                            title="Phiếu nhận xét đã được GVHD ký duyệt điện tử"
                             description={`Ký số bởi: ${
                                 activeBm04.lecturer?.fullName ||
                                 activeBm04.advisorSignedBy?.fullName ||
@@ -665,7 +669,7 @@ export default function StudentProgressActions({
                     <Alert
                         type="warning"
                         showIcon
-                        message="Chưa có dữ liệu BM04 đã ký"
+                        title="Chưa có dữ liệu BM04 đã ký"
                         description="Phiếu nhận xét BM04 chưa được giảng viên hướng dẫn ký duyệt hoàn tất."
                     />
                 )}

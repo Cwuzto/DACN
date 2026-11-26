@@ -64,14 +64,14 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
             onCancel={onClose}
             footer={null}
             width={720}
-            destroyOnClose
+            destroyOnHidden
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <Alert
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}
-                    message="Hồ sơ được đưa vào hàng đợi kiểm toán tự động"
+                    title="Hồ sơ được đưa vào hàng đợi kiểm toán tự động"
                     description="Dữ liệu chuyển đổi từ hệ thống cũ cần Quản trị viên xác nhận tính hợp lệ trước khi cấp phiên bản chính sách học vụ chuẩn."
                 />
 

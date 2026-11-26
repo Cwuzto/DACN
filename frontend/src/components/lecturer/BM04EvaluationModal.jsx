@@ -27,11 +27,13 @@ export default function BM04EvaluationModal({
     onClose,
     onSuccess,
     registration,
+    archive,
     currentLecturerName,
 }) {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [savingDraft, setSavingDraft] = useState(false);
+    const [confirmSignOpen, setConfirmSignOpen] = useState(false);
     const [printModalOpen, setPrintModalOpen] = useState(false);
     const [loadingAi, setLoadingAi] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState(null);
@@ -43,6 +45,11 @@ export default function BM04EvaluationModal({
     const bm04Query = useBM04Record(scope, registration?.id, Boolean(open && registration?.id));
     const loadingRecord = bm04Query.isPending && bm04Query.fetchStatus !== 'idle';
     const isLocked = Boolean(bm04Query.data?.isLocked || registration?.bm04Evaluation?.isLocked || bm04Query.data?.status === 'OFFICIAL');
+    const effectiveArchive = archive || registration?.archive || null;
+    const hasPreliminaryArchive = Boolean(
+        effectiveArchive?.id
+        || (Array.isArray(effectiveArchive?.dossierFiles) && effectiveArchive.dossierFiles.length > 0)
+    );
 
     const programOutcome = Form.useWatch('programOutcome', form);
     const defenseRecommendation = Form.useWatch('defenseRecommendation', form);
@@ -117,7 +124,19 @@ export default function BM04EvaluationModal({
         }
     };
 
+    const handleRequestSignAndSubmit = async () => {
+        try {
+            await form.validateFields();
+            setConfirmSignOpen(true);
+        } catch (error) {
+            if (error?.errorFields) {
+                message.warning('Vui lòng điền đầy đủ các trường nhận xét bắt buộc trước khi ký và nộp.');
+            }
+        }
+    };
+
     const handleSignAndSubmit = async () => {
+        setConfirmSignOpen(false);
         try {
             const values = await form.validateFields();
             setSubmitting(true);
@@ -208,7 +227,7 @@ export default function BM04EvaluationModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            destroyOnClose
+            destroyOnHidden
             width={760}
         >
             <div className="space-y-4 pt-2">
@@ -216,15 +235,24 @@ export default function BM04EvaluationModal({
                     <Alert
                         type="info"
                         showIcon
-                        message="Phiếu nhận xét BM04 đã được ký và khóa vĩnh viễn"
+                        title="Phiếu nhận xét BM04 đã được ký và khóa vĩnh viễn"
                         description="Biểu mẫu này đã hoàn tất thẩm định và xuất bản chính thức. Tất cả các trường thông tin đang ở chế độ chỉ đọc."
                     />
                 ) : (
                     <Alert
                         type="warning"
                         showIcon
-                        message="Tính bất biến & Trách nhiệm pháp lý của GVHD"
+                        title="Tính bất biến & Trách nhiệm pháp lý của GVHD"
                         description="Phiếu nhận xét yêu cầu chữ ký điện tử của GVHD. Khi ký và nộp, biểu mẫu sẽ được khóa vĩnh viễn và xuất PDF có mã băm bảo mật. Nếu kết luận ĐỒNG Ý cho ra bảo vệ, sinh viên sẽ đủ điều kiện xếp hội đồng bảo vệ."
+                    />
+                )}
+
+                {!isLocked && !hasPreliminaryArchive && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        title="Sinh viên chưa nộp hồ sơ lưu chiểu sơ bộ"
+                        description="Hệ thống ghi nhận sinh viên chưa tải lên hồ sơ lưu chiểu trước bảo vệ. Bạn vẫn có thể lưu nháp nhận xét, nhưng cần nhắc sinh viên hoàn thiện hồ sơ lưu chiểu theo quy định."
                     />
                 )}
 
@@ -274,14 +302,14 @@ export default function BM04EvaluationModal({
                         </Button>
                     </div>
 
-                    <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
+                    <Divider titlePlacement="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                         4 Tiêu Chí Đánh Giá Bắt Buộc
                     </Divider>
 
                     <Form.Item
                         name="thesisFormatScore"
                         label={<span className="font-semibold text-slate-700">1. Hình thức đáp ứng yêu cầu của Báo cáo tốt nghiệp (*)</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhận xét về hình thức BCTN.' }]}
+                        rules={[{ required: true, whitespace: true, message: 'Vui lòng nhận xét về hình thức BCTN.' }]}
                     >
                         <TextArea
                             rows={2}
@@ -292,7 +320,7 @@ export default function BM04EvaluationModal({
                     <Form.Item
                         name="researchContentScore"
                         label={<span className="font-semibold text-slate-700">2. Nội dung nghiên cứu của đề tài (*)</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhận xét về nội dung nghiên cứu.' }]}
+                        rules={[{ required: true, whitespace: true, message: 'Vui lòng nhận xét về nội dung nghiên cứu.' }]}
                     >
                         <TextArea
                             rows={3}
@@ -303,7 +331,7 @@ export default function BM04EvaluationModal({
                     <Form.Item
                         name="applicabilityScore"
                         label={<span className="font-semibold text-slate-700">3. Tính ứng dụng và triển vọng phát triển (*)</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhận xét về tính ứng dụng của đề tài.' }]}
+                        rules={[{ required: true, whitespace: true, message: 'Vui lòng nhận xét về tính ứng dụng của đề tài.' }]}
                     >
                         <TextArea
                             rows={2}
@@ -314,7 +342,7 @@ export default function BM04EvaluationModal({
                     <Form.Item
                         name="attitudeScore"
                         label={<span className="font-semibold text-slate-700">4. Đánh giá thái độ và ý thức làm việc của sinh viên (*)</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhận xét về thái độ làm việc của sinh viên.' }]}
+                        rules={[{ required: true, whitespace: true, message: 'Vui lòng nhận xét về thái độ làm việc của sinh viên.' }]}
                     >
                         <TextArea
                             rows={2}
@@ -322,7 +350,7 @@ export default function BM04EvaluationModal({
                         />
                     </Form.Item>
 
-                    <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
+                    <Divider titlePlacement="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                         2 Kết Luận Thẩm Định Trước Bảo Vệ
                     </Divider>
 
@@ -420,7 +448,7 @@ export default function BM04EvaluationModal({
                             </div>
                             <Form.Item
                                 name="mismatchReason"
-                                rules={[{ required: true, message: 'Bắt buộc nhập lý do không cho bảo vệ khi sinh viên đã đạt chuẩn đầu ra.' }]}
+                                rules={[{ required: true, whitespace: true, message: 'Bắt buộc nhập lý do không cho bảo vệ khi sinh viên đã đạt chuẩn đầu ra.' }]}
                                 className="!mb-0"
                             >
                                 <TextArea
@@ -441,7 +469,7 @@ export default function BM04EvaluationModal({
                     <Form.Item
                         name="lecturerSignature"
                         label={<span className="font-semibold text-slate-700">Họ và tên GVHD xác nhận ký số (*)</span>}
-                        rules={[{ required: true, message: 'Vui lòng xác nhận tên người ký.' }]}
+                        rules={[{ required: true, whitespace: true, message: 'Vui lòng xác nhận tên người ký.' }]}
                     >
                         <Input placeholder="Nhập đầy đủ học hàm/học vị và họ tên GVHD..." size="large" />
                     </Form.Item>
@@ -465,12 +493,14 @@ export default function BM04EvaluationModal({
                             Lưu nháp
                         </Button>
                         <Popconfirm
+                            open={confirmSignOpen}
                             title="Xác nhận nộp & Khóa vĩnh viễn phiếu nhận xét?"
                             description="Sau khi ký nộp, biểu mẫu sẽ được khóa và xuất bản PDF chính thức. Bạn có chắc chắn muốn nộp?"
                             onConfirm={handleSignAndSubmit}
+                            onCancel={() => setConfirmSignOpen(false)}
                             okText="Đồng ý ký nộp"
                             cancelText="Xem lại"
-                            okButtonProps={{ danger: false, type: 'primary' }}
+                            okButtonProps={{ danger: false, type: 'primary', loading: submitting }}
                             disabled={isLocked}
                         >
                             <Button
@@ -478,6 +508,7 @@ export default function BM04EvaluationModal({
                                 icon={<SafetyCertificateOutlined />}
                                 loading={submitting}
                                 disabled={isLocked}
+                                onClick={handleRequestSignAndSubmit}
                                 className="!bg-[#0F766E] hover:!bg-[#115E59]"
                             >
                                 Ký và nộp

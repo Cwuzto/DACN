@@ -2,6 +2,7 @@ import {
     Avatar,
     Button,
     Input,
+    Select,
     Tag,
     Upload,
     Badge,
@@ -20,6 +21,7 @@ import {
     SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { getUserDisplayRole, isInstituteDirector } from '../../utils/authRedirect';
+import { LECTURER_DEPARTMENT_OPTIONS } from '../../constants/academicUnits';
 
 function formatCohortDisplay(className) {
     if (!className) return 'D22 — Nhập học năm 2022';
@@ -202,12 +204,14 @@ function ProfileIdentityCard({
                             <div className="flex-1">
                                 <span className="text-slate-500">Bộ môn: </span>
                                 {editing ? (
-                                    <Input
+                                    <Select
                                         size="small"
-                                        value={tempProfile.department}
-                                        onChange={(e) => onFieldChange('department', e.target.value)}
-                                        placeholder="Nhập tên bộ môn"
-                                        className="mt-1 text-xs"
+                                        value={tempProfile.department || undefined}
+                                        onChange={(value) => onFieldChange('department', value ?? '')}
+                                        options={LECTURER_DEPARTMENT_OPTIONS}
+                                        allowClear
+                                        placeholder="Chọn bộ môn"
+                                        className="mt-1 w-full text-xs"
                                         disabled={isBusy}
                                     />
                                 ) : (

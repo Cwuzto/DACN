@@ -41,6 +41,7 @@ import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import EmptyState from '../../components/common/EmptyState';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
+import PageHeader from '../../components/common/PageHeader';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 import useAuthStore from '../../stores/authStore';
 import {
@@ -587,113 +588,107 @@ function PermissionGroupPage() {
     ];
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Tiêu đề trang & Thanh công cụ chính */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <p className="eyebrow" style={{ color: '#0F766E', fontWeight: 700, letterSpacing: '0.06em' }}>QUẢN TRỊ HỆ THỐNG • PHÂN QUYỀN TRUY CẬP</p>
-                    <h1 className="h1" style={{ color: '#0F172A', fontWeight: 800 }}>Phân Quyền &amp; Vai Trò Người Dùng</h1>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        {canAssignAcademic ? (
-                            <Tag color="success" icon={<SafetyCertificateOutlined />} className="m-0 text-xs font-semibold border border-emerald-400">
-                                Được ủy quyền điều chỉnh chức năng học vụ
-                            </Tag>
-                        ) : (
-                            <Tag color="warning" icon={<LockOutlined />} className="m-0 text-xs font-semibold border border-amber-400">
-                                Phân quyền quản trị vận hành
-                            </Tag>
+        <div className="space-y-5">
+            <PageHeader
+                icon={<SafetyCertificateOutlined />}
+                accent="rose"
+                title="Phân quyền & Vai trò Người dùng"
+                subtitle={
+                    canAssignAcademic
+                        ? 'Bạn có thẩm quyền phân bổ đầy đủ chức năng chuyên môn học thuật và vận hành hệ thống.'
+                        : 'Các chức năng chuyên môn học vụ được bảo vệ bởi quy chế đào tạo để đảm bảo an toàn học thuật.'
+                }
+                badge={
+                    canAssignAcademic ? (
+                        <Tag color="success" icon={<SafetyCertificateOutlined />} className="m-0 text-xs font-semibold">
+                            Được ủy quyền điều chỉnh chức năng học vụ
+                        </Tag>
+                    ) : (
+                        <Tag color="warning" icon={<LockOutlined />} className="m-0 text-xs font-semibold">
+                            Phân quyền quản trị vận hành
+                        </Tag>
+                    )
+                }
+                actions={
+                    <>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={() => {
+                                if (activeTab === 'MATRIX') {
+                                    fetchMatrix();
+                                } else {
+                                    fetchGroupsData();
+                                }
+                            }}
+                        >
+                            Làm mới
+                        </Button>
+                        {activeTab === 'MATRIX' && (
+                            <>
+                                {dirty && (
+                                    <Button
+                                        icon={<UndoOutlined />}
+                                        onClick={handleResetMatrix}
+                                    >
+                                        Khôi phục
+                                    </Button>
+                                )}
+                                <AuthorizedAction feature="permissions" action="manageGroups">
+                                    <Button
+                                        type="primary"
+                                        icon={<SaveOutlined />}
+                                        loading={savingMatrix}
+                                        disabled={!matrixQuery.data}
+                                        onClick={handleSaveMatrix}
+                                    >
+                                        {dirty ? 'Lưu thay đổi (*)' : 'Lưu thay đổi'}
+                                    </Button>
+                                </AuthorizedAction>
+                            </>
                         )}
-                        <span className="text-xs text-slate-600 font-medium">
-                            {canAssignAcademic
-                                ? 'Bạn có thẩm quyền phân bổ đầy đủ chức năng chuyên môn học thuật và vận hành hệ thống.'
-                                : 'Các chức năng chuyên môn học vụ được bảo vệ bởi quy chế đào tạo để đảm bảo an toàn học thuật.'}
-                        </span>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <Button
-                        icon={<ReloadOutlined />}
-                        onClick={() => {
-                            if (activeTab === 'MATRIX') {
-                                fetchMatrix();
-                            } else {
-                                fetchGroupsData();
-                            }
-                        }}
-                    >
-                        Làm mới
-                    </Button>
-                    {activeTab === 'MATRIX' && (
-                        <>
-                            {dirty && (
-                                <Button
-                                    icon={<UndoOutlined />}
-                                    onClick={handleResetMatrix}
-                                >
-                                    Khôi phục
-                                </Button>
-                            )}
+                        {activeTab === 'GROUPS' && (
                             <AuthorizedAction feature="permissions" action="manageGroups">
                                 <Button
                                     type="primary"
-                                    icon={<SaveOutlined />}
-                                    loading={savingMatrix}
-                                    disabled={!matrixQuery.data}
-                                    onClick={handleSaveMatrix}
-                                    style={{
-                                        background: dirty ? '#0F766E' : undefined,
-                                        borderColor: dirty ? '#0F766E' : undefined,
-                                        fontWeight: 700,
-                                    }}
+                                    icon={<PlusOutlined />}
+                                    onClick={handleAdd}
                                 >
-                                    {dirty ? 'Lưu thay đổi (*)' : 'Lưu thay đổi'}
+                                    Tạo nhóm vai trò mới
                                 </Button>
                             </AuthorizedAction>
-                        </>
-                    )}
-                    {activeTab === 'GROUPS' && (
-                        <AuthorizedAction feature="permissions" action="manageGroups">
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={handleAdd}
-                                style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
-                            >
-                                Tạo nhóm vai trò mới
-                            </Button>
-                        </AuthorizedAction>
-                    )}
-                </div>
-            </div>
+                        )}
+                    </>
+                }
+            />
 
             {/* Thẻ thống kê tổng quan phân quyền */}
             {matrixQuery.data && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Vị trí &amp; Nhóm vai trò</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E', fontWeight: 800 }}>{matrixStats.totalRoles}</p>
-                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
-                        Phân bổ trên <b className="text-slate-900 font-bold">{matrixStats.totalModules}</b> lĩnh vực nghiệp vụ
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl border border-teal-200/80 p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Vị trí &amp; Nhóm vai trò</div>
+                    <div className="text-2xl font-extrabold text-teal-700 mt-1 tabular-nums">{matrixStats.totalRoles}</div>
+                    <div className="text-xs text-slate-500 mt-1.5">
+                        Phân bổ trên <b className="text-slate-800 font-semibold">{matrixStats.totalModules}</b> lĩnh vực nghiệp vụ
                     </div>
                 </div>
-                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Chức năng học vụ chuyên môn</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A', fontWeight: 800 }}>{matrixStats.protectedPerms}</p>
-                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                <div className="bg-white rounded-2xl border border-indigo-200/80 p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Chức năng học vụ chuyên môn</div>
+                    <div className="text-2xl font-extrabold text-indigo-700 mt-1 tabular-nums">{matrixStats.protectedPerms}</div>
+                    <div className="text-xs text-slate-500 mt-1.5">
                         Đề tài, xét duyệt đề cương, tiến độ BM03, chấm bảo vệ
                     </div>
                 </div>
-                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Chức năng quản trị vận hành</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A', fontWeight: 800 }}>{matrixStats.technicalPerms}</p>
-                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                <div className="bg-white rounded-2xl border border-sky-200/80 p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Chức năng quản trị vận hành</div>
+                    <div className="text-2xl font-extrabold text-sky-700 mt-1 tabular-nums">{matrixStats.technicalPerms}</div>
+                    <div className="text-xs text-slate-500 mt-1.5">
                         Đợt đồ án, tài khoản cán bộ, thông báo và báo cáo
                     </div>
                 </div>
-                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Quyền đang áp dụng</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E', fontWeight: 800 }}>{matrixStats.activeAssignments}</p>
-                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                <div className="bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quyền đang áp dụng</div>
+                    <div className="text-2xl font-extrabold text-rose-700 mt-1 tabular-nums">{matrixStats.activeAssignments}</div>
+                    <div className="text-xs text-slate-500 mt-1.5">
                         Lượt phân quyền đang kích hoạt cho các vị trí công tác
                     </div>
                 </div>
@@ -707,7 +702,7 @@ function PermissionGroupPage() {
                     showIcon
                     icon={<ExclamationCircleOutlined className="text-amber-600 text-lg" />}
                     className="border-amber-400 bg-amber-50"
-                    message={
+                    title={
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                             <span className="text-slate-900 font-medium">
                                 <b className="text-amber-900 font-bold">Bạn có thay đổi chưa lưu trên bảng phân quyền!</b> Vui lòng bấm <b>"Lưu thay đổi"</b> để cập nhật vào hệ thống.

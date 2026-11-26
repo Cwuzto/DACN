@@ -154,6 +154,6 @@ async function validateAcademicScope(tx, { actorId, registrationId, capabilityCo
   }
 }
 
-module.exports = { validateAcademicScope };
+module.exports = { validateAcademicScope, isDepartmentUnderInstitute };
 
 

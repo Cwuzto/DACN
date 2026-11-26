@@ -103,7 +103,7 @@ describe('userController.createUser for STUDENT', () => {
                 gender: 'Nam',
                 dateOfBirth: '12/03/2002',
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
             },
         };
         res = {
@@ -160,7 +160,7 @@ describe('userController.createUser for STUDENT', () => {
             gender: 'MALE',
             dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
             className: 'D20PM01',
-            major: 'Ky thuat phan mem',
+            major: 'Kỹ thuật Phần mềm',
         };
 
         mockPrisma.user.create.mockResolvedValue(createdUserRecord);
@@ -181,7 +181,7 @@ describe('userController.createUser for STUDENT', () => {
                 studentId: 101,
                 gender: 'MALE',
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
             }),
         }));
         expect(res.status).toHaveBeenCalledWith(201);
@@ -220,7 +220,7 @@ describe('userController.updateUser for STUDENT', () => {
                 gender: 'Nam',
                 dateOfBirth: '12/03/2002',
                 className: 'D20PM02',
-                major: 'Khoa hoc may tinh',
+                major: 'Trí Tuệ Nhân Tạo',
             },
         };
         res = {
@@ -242,7 +242,7 @@ describe('userController.updateUser for STUDENT', () => {
                 gender: 'MALE',
                 dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
             },
         });
 
@@ -260,7 +260,7 @@ describe('userController.updateUser for STUDENT', () => {
             gender: 'MALE',
             dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
             className: 'D20PM02',
-            major: 'Khoa hoc may tinh',
+            major: 'Trí Tuệ Nhân Tạo',
         });
 
         await userController.updateUser(req, res, next);
@@ -268,8 +268,8 @@ describe('userController.updateUser for STUDENT', () => {
         expect(mockPrisma.$transaction).toHaveBeenCalled();
         expect(mockPrisma.studentProfile.upsert).toHaveBeenCalledWith(expect.objectContaining({
             where: { studentId: 101 },
-            create: expect.objectContaining({ className: 'D20PM02', major: 'Khoa hoc may tinh' }),
-            update: expect.objectContaining({ className: 'D20PM02', major: 'Khoa hoc may tinh' }),
+            create: expect.objectContaining({ className: 'D20PM02', major: 'Trí Tuệ Nhân Tạo' }),
+            update: expect.objectContaining({ className: 'D20PM02', major: 'Trí Tuệ Nhân Tạo' }),
         }));
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             success: true,
@@ -304,7 +304,7 @@ describe('userController.getUserById and getAllUsers studentProfile inclusion', 
                 gender: 'MALE',
                 dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
             },
             permissionGroups: [],
         });
@@ -344,7 +344,7 @@ describe('userController.createUser for LECTURER', () => {
                 fullName: 'TS. Le Van C',
                 email: 'levanc@tdmu.edu.vn',
                 phone: '0912345678',
-                department: 'Bộ môn Công nghệ Phần mềm',
+                department: 'Bộ môn Công Nghệ Thông Tin',
                 academicTitle: 'TIEN_SI',
                 expertiseAreas: ['Trí tuệ nhân tạo', 'Xử lý ảnh'],
             },
@@ -393,11 +393,27 @@ describe('userController.createUser for LECTURER', () => {
             expect.objectContaining({
                 data: expect.objectContaining({
                     role: 'LECTURER',
+                    department: 'Công Nghệ Thông Tin',
                     expertiseAreas: ['AI', 'Xử lý ảnh'],
                 }),
             })
         );
         expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test('rejects with 400 when LECTURER department is not in canonical list', async () => {
+        req.body.department = 'Bộ môn Công nghệ Phần mềm';
+
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                message: 'Bộ môn không hợp lệ. Vui lòng chọn: Công Nghệ Thông Tin hoặc Hệ thống Thông tin.',
+            })
+        );
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
 });
 
@@ -484,7 +500,7 @@ describe('userController STUDENT academicYear and placeOfBirth', () => {
                 gender: 'Nam',
                 dateOfBirth: '12/03/2002',
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
             },
         };
         res = {
@@ -571,7 +587,7 @@ describe('userController STUDENT academicYear and placeOfBirth', () => {
                 gender: 'MALE',
                 dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
                 academicYear: '2022–2026',
                 placeOfBirth: 'Bình Dương',
             },
@@ -622,7 +638,7 @@ describe('userController STUDENT academicYear and placeOfBirth', () => {
                 gender: 'MALE',
                 dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
                 className: 'D20PM01',
-                major: 'Ky thuat phan mem',
+                major: 'Kỹ thuật Phần mềm',
                 academicYear: '2022–2026',
                 placeOfBirth: 'Bình Dương',
             },

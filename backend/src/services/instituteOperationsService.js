@@ -255,7 +255,7 @@ async function resolveSemester(db, semesterId) {
     if (typeof db.semester?.findFirst !== 'function') return null;
 
     const active = await db.semester.findFirst({
-        where: { status: 'ACTIVE' },
+        where: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
         orderBy: { startDate: 'desc' },
         include: { lockedDefenseRubricVersion: true },
     });

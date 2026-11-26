@@ -14,7 +14,16 @@ const {
 router.use(authenticate);
 
 // Routes scoped under registration
-router.get('/registrations/:registrationId/meeting-logs', authorizePermission(PERMISSIONS.VIEW_MY_SUBMISSIONS, PERMISSIONS.BM03_REVIEW), getMeetingLogs);
+router.get(
+    '/registrations/:registrationId/meeting-logs',
+    authorizePermission(
+        PERMISSIONS.VIEW_MY_SUBMISSIONS,
+        PERMISSIONS.BM03_REVIEW,
+        PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+        PERMISSIONS.DEFENSE_SCORE_VIEW,
+    ),
+    getMeetingLogs,
+);
 router.get('/registrations/:registrationId/meeting-stats', authorizePermission(PERMISSIONS.VIEW_MY_SUBMISSIONS, PERMISSIONS.BM03_REVIEW), getMeetingStats);
 router.post('/registrations/:registrationId/meeting-logs', authorizePermission(PERMISSIONS.BM03_SUBMIT), createMeetingLog);
 

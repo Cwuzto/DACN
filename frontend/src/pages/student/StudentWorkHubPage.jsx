@@ -121,6 +121,7 @@ export default function StudentWorkHubPage() {
 
     // Drawer hồ sơ học thuật
     const [dossierDrawerOpen, setDossierDrawerOpen] = useState(false);
+    const [dossierInitialTab, setDossierInitialTab] = useState('BM01');
 
     // Việc READY đang được chọn để xử lý trong hero card
     const [selectedReadyItem, setSelectedReadyItem] = useState(null);
@@ -270,6 +271,47 @@ export default function StudentWorkHubPage() {
             return;
         }
 
+        // 3.5. Fallback cho BM03 / BM03_ACK khi không còn ở trạng thái chờ xác nhận
+        if (targetKind === 'BM03_ACK' || targetKind === 'BM03') {
+            const matchBm03Ready = readyItems.find((i) => i.kind === 'BM03' || i.kind?.startsWith('BM03'));
+            if (matchBm03Ready) {
+                setSelectedReadyItem(matchBm03Ready);
+                setDeeplinkNotice(null);
+                return;
+            }
+            const matchBm03Done = doneItems.find((i) => i.kind === 'BM03' || i.kind?.startsWith('BM03'));
+            if (matchBm03Done) {
+                setExpandedDoneKey(matchBm03Done.id);
+                setDeeplinkNotice({
+                    type: 'info',
+                    message: `Nhiệm vụ "${matchBm03Done.title}" đã hoàn tất và đang được hiển thị trong mục Đã hoàn thành.`,
+                });
+                if (readyItems.length > 0 && !selectedReadyItem) {
+                    setSelectedReadyItem(readyItems[0]);
+                }
+                return;
+            }
+            const matchBm03Upcoming = upcomingItems.find((i) => i.kind === 'BM03' || i.kind?.startsWith('BM03'));
+            if (matchBm03Upcoming) {
+                setDeeplinkNotice({
+                    type: 'warning',
+                    message: `Nhiệm vụ "${matchBm03Upcoming.title}" chưa mở cổng thực hiện (dự kiến mở: ${matchBm03Upcoming.openAt ? formatDate(matchBm03Upcoming.openAt) : 'trong 7 ngày tới'}).`,
+                });
+                if (readyItems.length > 0 && !selectedReadyItem) {
+                    setSelectedReadyItem(readyItems[0]);
+                }
+                return;
+            }
+            // Mở thẳng Drawer Hồ sơ học thuật tại tab BM03 thay vì báo lỗi hết hiệu lực
+            setDossierInitialTab('BM03');
+            setDossierDrawerOpen(true);
+            setDeeplinkNotice(null);
+            if (readyItems.length > 0 && !selectedReadyItem) {
+                setSelectedReadyItem(readyItems[0]);
+            }
+            return;
+        }
+
         // 4. Không tìm thấy mục hợp lệ
         setDeeplinkNotice({
             type: 'warning',
@@ -326,7 +368,7 @@ export default function StudentWorkHubPage() {
         return (
             <div className="student-work-hub-container">
                 <div style={{ textAlign: 'center', padding: '80px 0' }}>
-                    <Spin size="large" tip="Đang tải danh sách việc cần làm..." />
+                    <Spin size="large" description="Đang tải danh sách việc cần làm..." />
                 </div>
             </div>
         );
@@ -339,7 +381,7 @@ export default function StudentWorkHubPage() {
                 <Alert
                     type="error"
                     showIcon
-                    message="Lỗi tải dữ liệu công việc"
+                    title="Lỗi tải dữ liệu công việc"
                     description={error?.message || 'Không thể tải danh sách việc cần làm của sinh viên. Vui lòng thử lại.'}
                     action={
                         <Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>
@@ -437,7 +479,7 @@ export default function StudentWorkHubPage() {
                     showIcon
                     closable
                     onClose={() => setDeeplinkNotice(null)}
-                    message={deeplinkNotice.message}
+                    title={deeplinkNotice.message}
                 />
             )}
 
@@ -631,8 +673,12 @@ export default function StudentWorkHubPage() {
             {/* Academic Dossier Drawer để xem lại toàn bộ hồ sơ BM01-BM05 & bản in PDF */}
             <AcademicDossierDrawer
                 open={dossierDrawerOpen}
-                onClose={() => setDossierDrawerOpen(false)}
+                onClose={() => {
+                    setDossierDrawerOpen(false);
+                    setDossierInitialTab('BM01');
+                }}
                 registration={effectiveRegistration}
+                initialTab={dossierInitialTab}
             />
         </div>
     );

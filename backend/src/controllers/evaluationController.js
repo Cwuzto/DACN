@@ -164,6 +164,7 @@ const getMyGrades = async (req, res, next) => {
                 defenseResult: {
                     include: { evaluator: { select: { fullName: true, role: true } } },
                 },
+                archive: true,
                 memberScores: {
                     select: {
                         evaluatorId: true,
@@ -378,37 +379,53 @@ const getGradingStudents = async (req, res, next) => {
 
 const getAdminDefenseCenter = async (req, res, next) => {
     try {
-        const { semesterId, councilId, mentorId, search, tab } = req.query;
+        const { semesterId, projectCatalogId, councilId, mentorId, search, tab } = req.query;
         const targetSemester = await getTargetSemesterForDefenseCenter(semesterId);
 
         if (!targetSemester) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay hoc ky phu hop.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy học kỳ phù hợp.' });
         }
 
+        const andConditions = [];
         const where = {
             semesterId: targetSemester.id,
             status: { in: DEFENSE_ELIGIBLE_STATUSES },
         };
 
+        const parsedProjectCatalogId = parsePositiveInt(projectCatalogId);
+        if (parsedProjectCatalogId) {
+            andConditions.push({ topic: { projectCatalogId: parsedProjectCatalogId } });
+        }
+
         const parsedCouncilId = parsePositiveInt(councilId);
         if (parsedCouncilId) {
-            where.OR = [
-                { councilId: parsedCouncilId },
-                { defenseCouncilId: parsedCouncilId },
-            ];
+            andConditions.push({
+                OR: [
+                    { councilId: parsedCouncilId },
+                    { defenseCouncilId: parsedCouncilId },
+                ],
+            });
         }
 
         const parsedMentorId = parsePositiveInt(mentorId);
-        if (parsedMentorId) where.topic = { mentorId: parsedMentorId };
+        if (parsedMentorId) {
+            andConditions.push({ topic: { mentorId: parsedMentorId } });
+        }
 
         if (search && String(search).trim()) {
             const keyword = String(search).trim();
-            where.OR = [
-                { student: { fullName: { contains: keyword, mode: 'insensitive' } } },
-                { student: { code: { contains: keyword, mode: 'insensitive' } } },
-                { topic: { title: { contains: keyword, mode: 'insensitive' } } },
-                { topic: { mentor: { fullName: { contains: keyword, mode: 'insensitive' } } } },
-            ];
+            andConditions.push({
+                OR: [
+                    { student: { fullName: { contains: keyword, mode: 'insensitive' } } },
+                    { student: { code: { contains: keyword, mode: 'insensitive' } } },
+                    { topic: { title: { contains: keyword, mode: 'insensitive' } } },
+                    { topic: { mentor: { fullName: { contains: keyword, mode: 'insensitive' } } } },
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            where.AND = andConditions;
         }
 
         const rows = await prisma.topicRegistration.findMany({
@@ -419,6 +436,8 @@ const getAdminDefenseCenter = async (req, res, next) => {
                     select: {
                         id: true,
                         title: true,
+                        projectCatalogId: true,
+                        projectCatalog: { select: { id: true, code: true, name: true } },
                         mentor: { select: { id: true, fullName: true, code: true } },
                         semester: { select: { id: true, name: true, defenseDate: true } },
                     },
@@ -1029,11 +1048,11 @@ const setDefenseScoreLock = async (req, res, next) => {
         const { action } = req.body;
 
         if (!Number.isInteger(registrationId) || registrationId <= 0) {
-            return res.status(400).json({ success: false, message: 'registrationId khong hop le.' });
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
         if (!['LOCK', 'UNLOCK'].includes(action)) {
-            return res.status(400).json({ success: false, message: 'action phai la LOCK hoac UNLOCK.' });
+            return res.status(400).json({ success: false, message: 'action phải là LOCK hoặc UNLOCK.' });
         }
 
         const updated = await lockDefenseScores({
@@ -1056,7 +1075,7 @@ const setDefenseScoreLock = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: action === 'LOCK' ? 'Da khoa diem bao ve va chuyen sang cho phe duyet ket qua.' : 'Da mo khoa diem bao ve.',
+            message: action === 'LOCK' ? 'Đã khóa điểm bảo vệ và chuyển sang chờ phê duyệt kết quả.' : 'Đã mở khóa điểm bảo vệ.',
             data: updated,
         });
     } catch (error) {

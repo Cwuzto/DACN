@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     Modal,
     Button,
+    Input,
+    Popconfirm,
     Tabs,
     message,
 } from 'antd';
@@ -16,10 +18,19 @@ import { queryKeys } from '../../query/queryKeys';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useTopics, useMentors, useTopicMutation, useProjectCatalogs } from '../../queries/topicQueries';
 import { useStudentRegistration, useMyProjectEnrollments } from '../../queries/registrationQueries';
-import { useStudentRegistrationMutation } from '../../queries/studentDashboardQueries';
+import { useStudentRegistrationMutation, useWithdrawRegistrationMutation } from '../../queries/studentDashboardQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import { STUDENT_MAJORS } from '../../constants/academicUnits';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
+
+const formatTopicDescription = (rawDescription) => {
+    if (!rawDescription || !String(rawDescription).trim()) return '';
+    return String(rawDescription)
+        .replace(/\[Thông tin chuyên môn\]\s*/gi, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+};
 
 const formatRegistrationStatus = (status) => {
     switch (status) {
@@ -64,8 +75,10 @@ export default function TopicListPage() {
     const [detailTopic, setDetailTopic] = useState(null);
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [topicToRegister, setTopicToRegister] = useState(null);
+    const [registerNotes, setRegisterNotes] = useState('');
     const [proposeModalOpen, setProposeModalOpen] = useState(false);
     const [registering, setRegistering] = useState(false);
+    const [withdrawing, setWithdrawing] = useState(false);
     const [submittingPropose, setSubmittingPropose] = useState(false);
     const [proposeForm, setProposeForm] = useState({ title: '', mentorId: '', description: '' });
 
@@ -135,6 +148,7 @@ export default function TopicListPage() {
 
     // Mutations
     const registrationMutation = useStudentRegistrationMutation(scope);
+    const withdrawMutation = useWithdrawRegistrationMutation(scope, myRegistration?.id);
     const topicMutation = useTopicMutation(scope);
 
     const getRegistrationWindowState = useCallback(() => {
@@ -169,10 +183,20 @@ export default function TopicListPage() {
         }
 
         if (filterMajor !== 'ALL') {
+            const target = filterMajor.toLowerCase();
             result = result.filter((t) => {
-                const title = (t.title || '').toUpperCase();
-                const catalog = (t.projectCatalog?.name || '').toUpperCase();
-                return title.includes(filterMajor) || catalog.includes(filterMajor);
+                const major = (t.major || '').toLowerCase();
+                const title = (t.title || '').toLowerCase();
+                const catalog = (t.projectCatalog?.name || '').toLowerCase();
+                const mentorDept = (t.mentor?.department || '').toLowerCase();
+                return (
+                    major === target ||
+                    major.includes(target) ||
+                    title.includes(target) ||
+                    catalog.includes(target) ||
+                    mentorDept === target ||
+                    mentorDept.includes(target)
+                );
             });
         }
 
@@ -244,6 +268,19 @@ export default function TopicListPage() {
         });
     };
 
+    const handleWithdrawPendingRegistration = async () => {
+        if (!myRegistration?.id) return;
+        try {
+            setWithdrawing(true);
+            await withdrawMutation.mutateAsync('Sinh viên chủ động hủy đơn đăng ký đang chờ duyệt');
+            message.success('Đã hủy đăng ký đề tài thành công.');
+        } catch (err) {
+            message.error(err?.message || 'Không thể hủy đăng ký đề tài.');
+        } finally {
+            setWithdrawing(false);
+        }
+    };
+
     const confirmRegister = (topic) => {
         if (!currentSemesterId) {
             message.warning('Chưa có đợt đồ án hoạt động để đăng ký.');
@@ -258,6 +295,7 @@ export default function TopicListPage() {
             return;
         }
         setTopicToRegister(topic);
+        setRegisterNotes('');
         setConfirmModalOpen(true);
     };
 
@@ -266,9 +304,14 @@ export default function TopicListPage() {
         if (!topicToRegister || !targetSemesterId) return;
         try {
             setRegistering(true);
-            await registrationMutation.mutateAsync({ topicId: topicToRegister.id, semesterId: targetSemesterId });
+            await registrationMutation.mutateAsync({
+                topicId: topicToRegister.id,
+                semesterId: targetSemesterId,
+                notes: registerNotes.trim() || undefined,
+            });
             message.success('Đăng ký đề tài thành công.');
             setConfirmModalOpen(false);
+            setRegisterNotes('');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi đăng ký đề tài.');
         } finally {
@@ -386,6 +429,24 @@ export default function TopicListPage() {
                     >
                         Hủy đề xuất đề tài
                     </Button>
+                ) : myRegistration?.status === 'PENDING' ? (
+                    <Popconfirm
+                        title="Hủy đăng ký đề tài?"
+                        description="Đơn đăng ký đang chờ duyệt sẽ bị hủy và bạn có thể chọn đăng ký đề tài khác."
+                        okText="Hủy đăng ký"
+                        cancelText="Quay lại"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={handleWithdrawPendingRegistration}
+                    >
+                        <Button
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            loading={withdrawing}
+                        >
+                            Hủy đăng ký
+                        </Button>
+                    </Popconfirm>
                 ) : !hasExistingRegistration ? (
                     <Button
                         type="primary"
@@ -444,13 +505,14 @@ export default function TopicListPage() {
                         className="form-control"
                         value={filterMajor}
                         onChange={(e) => setFilterMajor(e.target.value)}
-                        style={{ width: 170 }}
+                        style={{ width: 190 }}
                     >
                         <option value="ALL">Tất cả chuyên ngành</option>
-                        <option value="KTPM">Kỹ thuật Phần mềm</option>
-                        <option value="AI">Trí tuệ Nhân tạo & DS</option>
-                        <option value="HTTT">Hệ thống Thông tin</option>
-                        <option value="ATTT">An toàn Thông tin</option>
+                        {STUDENT_MAJORS.map((major) => (
+                            <option key={major} value={major}>
+                                {major}
+                            </option>
+                        ))}
                     </select>
 
                     <select
@@ -542,7 +604,7 @@ export default function TopicListPage() {
                                     </div>
                                     <h3 className="topic-card-title">{topic.title}</h3>
                                     <p className="topic-card-desc">
-                                        {topic.description || 'Chưa có mô tả chi tiết cho đề tài này.'}
+                                        {formatTopicDescription(topic.description) || 'Chưa có mô tả chi tiết cho đề tài này.'}
                                     </p>
                                     {isMyRejectedProposal && topic.rejectReason && (
                                         <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', fontSize: 12 }}>
@@ -577,6 +639,24 @@ export default function TopicListPage() {
                                             >
                                                 Hủy đề xuất
                                             </button>
+                                        ) : isMine && myRegistration?.status === 'PENDING' ? (
+                                            <Popconfirm
+                                                title="Hủy đăng ký đề tài?"
+                                                description="Đơn đăng ký đang chờ duyệt sẽ bị hủy và bạn có thể đăng ký đề tài khác."
+                                                okText="Hủy đăng ký"
+                                                cancelText="Quay lại"
+                                                okButtonProps={{ danger: true }}
+                                                onConfirm={handleWithdrawPendingRegistration}
+                                            >
+                                                <Button
+                                                    danger
+                                                    size="small"
+                                                    icon={<DeleteOutlined />}
+                                                    loading={withdrawing}
+                                                >
+                                                    Hủy đăng ký
+                                                </Button>
+                                            </Popconfirm>
                                         ) : canRegisterCard && (
                                             <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
                                                 Đăng ký
@@ -788,8 +868,8 @@ export default function TopicListPage() {
                         </div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Mục tiêu & Nội dung nghiên cứu:</div>
-                            <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.6, marginTop: 4 }}>
-                                {detailTopic.description || 'Chưa có mô tả chi tiết.'}
+                            <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.6, marginTop: 4, whiteSpace: 'pre-line' }}>
+                                {formatTopicDescription(detailTopic.description) || 'Chưa có mô tả chi tiết.'}
                             </p>
                         </div>
                         <div>
@@ -830,6 +910,19 @@ export default function TopicListPage() {
                     <p style={{ color: 'var(--muted)' }}>
                         Cán bộ hướng dẫn: <strong>{topicToRegister?.mentor?.fullName}</strong>
                     </p>
+                    <div style={{ marginTop: 12 }}>
+                        <label style={{ display: 'block', fontWeight: 600, fontSize: 12.5, marginBottom: 6, color: 'var(--fg)' }}>
+                            Ghi chú nguyện vọng gửi GVHD (không bắt buộc):
+                        </label>
+                        <Input.TextArea
+                            rows={3}
+                            value={registerNotes}
+                            onChange={(e) => setRegisterNotes(e.target.value)}
+                            placeholder="Nhập ghi chú nguyện vọng, định hướng hoặc kinh nghiệm liên quan gửi GVHD..."
+                            maxLength={500}
+                            showCount
+                        />
+                    </div>
                     {myPendingProposal && (
                         <p style={{ color: '#B45309', background: '#FFFBEB', padding: '8px 12px', borderRadius: 6, border: '1px solid #FCD34D', marginTop: 10 }}>
                             ⚠️ Lưu ý: Bạn đang có đề tài tự đề xuất <strong>"{myPendingProposal.title}"</strong>. Khi xác nhận đăng ký đề tài này, đề xuất cũ sẽ tự động được thu hồi.
@@ -896,7 +989,7 @@ export default function TopicListPage() {
                             <option value="">-- Chọn Giảng viên hướng dẫn --</option>
                             {mentors.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                    {m.fullName} ({m.email})
+                                    {m.fullName}{m.code ? ` (${m.code})` : m.email ? ` (${m.email})` : ''}
                                 </option>
                             ))}
                         </select>

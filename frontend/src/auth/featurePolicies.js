@@ -302,7 +302,17 @@ export const FEATURE_POLICIES = Object.freeze({
             order: 4,
             requiredPermission: 'VIEW_DEFENSE_LOCK_LEDGER',
         },
-        viewAnyOf: ['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'RESULT_LOCK'],
+        viewAnyOf: [
+            'VIEW_DEFENSE_LOCK_LEDGER',
+            'VIEW_RESULT_LOCKS',
+            'DEFENSE_SCORE_VIEW',
+            'RESULT_LOCK',
+            'VIEW_DEFENSE_RESULT_APPROVALS',
+            'VIEW_DEFENSE_RESULTS_APPROVAL',
+            'DEFENSE_RESULT_APPROVE',
+            'VIEW_RESULT_PUBLICATIONS',
+            'RESULT_PUBLICATION_PUBLISH',
+        ],
         actions: {
             lock: 'RESULT_LOCK',
             returnScorebook: 'DEFENSE_SCOREBOOK_RETURN',
@@ -483,7 +493,7 @@ export const FEATURE_POLICIES = Object.freeze({
             order: 5,
             requiredPermission: 'VIEW_PERMISSIONS',
         },
-        viewAnyOf: ['VIEW_PERMISSIONS', 'VIEW_PERMISSION_GROUPS', 'PERMISSION_GROUP_MANAGE', 'PERMISSION_ASSIGN_ACADEMIC'],
+        viewAnyOf: ['VIEW_PERMISSIONS', 'PERMISSION_GROUP_MANAGE'],
         actions: {
             manageGroups: 'PERMISSION_GROUP_MANAGE',
             assignAcademic: 'PERMISSION_ASSIGN_ACADEMIC',

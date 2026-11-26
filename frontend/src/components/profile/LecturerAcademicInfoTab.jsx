@@ -57,7 +57,7 @@ function LecturerAcademicInfoTab({ user, editing, tempProfile, onFieldChange }) 
             <Alert
                 type="info"
                 showIcon
-                message="Thông tin học thuật & Công tác chính thức"
+                title="Thông tin học thuật & Công tác chính thức"
                 description="Mã số cán bộ, học vị và đơn vị công tác được bảo trợ và xác thực từ CSDL Quản lý Nhân sự của Viện Công nghệ số — Trường Đại học Thủ Dầu Một."
                 className="rounded-xl border-blue-200 bg-blue-50/70"
             />

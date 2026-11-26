@@ -100,7 +100,7 @@ export default function CheckpointSignModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            destroyOnClose
+            destroyOnHidden
             width={640}
         >
             <div className="space-y-4 pt-2">
@@ -109,7 +109,7 @@ export default function CheckpointSignModal({
                         type="error"
                         showIcon
                         icon={<ExclamationCircleOutlined />}
-                        message="Hạn ký xác nhận đã kết thúc"
+                        title="Hạn ký xác nhận đã kết thúc"
                         description="Thời hạn 3 ngày để ký xác nhận biên bản đã trôi qua. Theo quy chế, bạn có 3 ngày để nộp đơn giải trình / khiếu nại lý do chưa ký. Ban chủ nhiệm Khoa/Viện sẽ xem xét xử lý."
                     />
                 ) : (
@@ -117,7 +117,7 @@ export default function CheckpointSignModal({
                         type="info"
                         showIcon
                         icon={<ClockCircleOutlined />}
-                        message="Ký xác nhận biên bản trong vòng 3 ngày"
+                        title="Ký xác nhận biên bản trong vòng 3 ngày"
                         description={`Vui lòng kiểm tra kỹ kết luận và nhận xét của GVHD trước khi ký. Hạn chót ký: ${deadline ? deadline.format('DD/MM/YYYY HH:mm') : '3 ngày'}.`}
                     />
                 )}
@@ -190,7 +190,7 @@ export default function CheckpointSignModal({
                         onFinish={handleAppeal}
                         requiredMark="optional"
                     >
-                        <Divider orientation="left" className="!my-2 text-xs text-rose-500 font-semibold">
+                        <Divider titlePlacement="left" className="!my-2 text-xs text-rose-500 font-semibold">
                             ĐƠN KHIẾU NẠI / GIẢI TRÌNH CHỮ KÝ
                         </Divider>
 

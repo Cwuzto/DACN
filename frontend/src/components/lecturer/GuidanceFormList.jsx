@@ -130,6 +130,8 @@ const FORM_STATUS_LABELS = {
 
 const COMPLETED_STATUSES = new Set(['APPROVED', 'FINALIZED', 'SIGNED', 'PUBLISHED']);
 const IN_PROGRESS_STATUSES = new Set(['SUBMITTED', 'PENDING_REVIEW', 'IN_PROGRESS', 'PENDING_SIGNATURE', 'PROCESSING']);
+const UNSUBMITTED_BM02A_STATUSES = new Set(['STUDENT_PREPARING', 'NOT_STARTED', 'NOT_SUBMITTED', 'NOT_CREATED']);
+const READONLY_ACTION_CODES = new Set(['VIEW', 'VIEW_PRINT']);
 
 const ACTION_CONFIG = {
     VIEW: { label: 'Xem chi tiết', icon: <EyeOutlined aria-hidden="true" />, type: 'default' },
@@ -160,50 +162,62 @@ const formatUpdatedAt = (value) => {
  * Thiết kế giao diện Bento Box Grid kết hợp Pipeline trực quan & Shape Stats sinh động.
  * Không tự sinh nút nghiệp vụ theo role hoặc tự chèn BM02-A khi chưa có yêu cầu.
  */
-export default function GuidanceFormList({ forms = [], onAction }) {
-    if (!Array.isArray(forms) || forms.length === 0) {
+export default function GuidanceFormList({ forms = [], onAction, readOnly = false }) {
+    const visibleForms = (Array.isArray(forms) ? forms : []).filter((form) => {
+        if (!form) return false;
+        if (form.code === 'BM02-A') {
+            if (!form.status || UNSUBMITTED_BM02A_STATUSES.has(form.status)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    if (visibleForms.length === 0) {
         return (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
                 <FileTextOutlined className="mx-auto mb-2 text-2xl text-slate-400" aria-hidden="true" />
                 <div>Chưa có dữ liệu biểu mẫu cho hồ sơ này.</div>
             </div>
         );
     }
 
-    const totalCount = forms.length;
-    const completedCount = forms.filter((f) => COMPLETED_STATUSES.has(f?.status)).length;
-    const inProgressCount = forms.filter((f) => IN_PROGRESS_STATUSES.has(f?.status)).length;
-    const attentionCount = forms.filter((f) => f?.status === 'NEEDS_REVISION').length;
+    const totalCount = visibleForms.length;
+    const completedCount = visibleForms.filter((f) => COMPLETED_STATUSES.has(f?.status)).length;
+    const inProgressCount = visibleForms.filter((f) => IN_PROGRESS_STATUSES.has(f?.status)).length;
+    const attentionCount = visibleForms.filter((f) => f?.status === 'NEEDS_REVISION').length;
     const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
     return (
         <div className="space-y-4">
             {/* Bento Overview: Shape Stats & Multi-segment Pipeline Bar */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50/90 via-white to-teal-50/20 p-4 shadow-sm sm:p-5">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-600 text-white shadow-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0F766E] text-white shadow-xs">
                                 <CheckCircleOutlined className="text-xs" aria-hidden="true" />
                             </span>
-                            <span className="text-sm font-bold text-slate-800">
-                                Tiến độ biểu mẫu học vụ
-                            </span>
-                            <Tag color="cyan" className="m-0 rounded-full font-semibold">
+                            <h2 className="m-0 font-display text-base font-bold text-slate-900">
+                                Hồ sơ biểu mẫu học vụ
+                            </h2>
+                            <Tag color="cyan" className="m-0 rounded-full font-mono tabular-nums font-semibold">
                                 {completionPercentage}% hoàn tất
                             </Tag>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                             <span className="font-semibold text-slate-700">
-                                {completedCount}/{totalCount} biểu mẫu hoàn tất
+                                <span className="font-mono tabular-nums">{completedCount}/{totalCount}</span> biểu mẫu hoàn tất
                             </span>
                             <span>•</span>
-                            <span>{inProgressCount} đang xử lý</span>
+                            <span>
+                                <span className="font-mono tabular-nums font-medium text-slate-700">{inProgressCount}</span> đang xử lý
+                            </span>
                             {attentionCount > 0 && (
                                 <>
                                     <span>•</span>
                                     <span className="font-semibold text-amber-600">
-                                        {attentionCount} cần chỉnh sửa
+                                        <span className="font-mono tabular-nums">{attentionCount}</span> cần chỉnh sửa
                                     </span>
                                 </>
                             )}
@@ -214,7 +228,7 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                     <div className="w-full sm:w-52">
                         <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-500">
                             <span>Tỷ lệ hoàn thành</span>
-                            <span className="font-bold text-teal-700">{completionPercentage}%</span>
+                            <span className="font-mono tabular-nums font-bold text-[#0F766E]">{completionPercentage}%</span>
                         </div>
                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner">
                             <div
@@ -233,8 +247,8 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                     <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                         Quy trình chuỗi biểu mẫu
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                        {forms.map((form) => {
+                    <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${visibleForms.length <= 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-6'}`}>
+                        {visibleForms.map((form) => {
                             const theme = FORM_THEMES[form.code] || DEFAULT_THEME;
                             const isDone = COMPLETED_STATUSES.has(form.status);
                             const isInProgress = IN_PROGRESS_STATUSES.has(form.status);
@@ -267,7 +281,7 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                                         }}
                                     />
                                     <div className="flex items-center justify-between gap-1 pt-0.5">
-                                        <span className="font-mono text-xs font-bold text-slate-800">
+                                        <span className="font-mono tabular-nums text-xs font-bold text-slate-800">
                                             {form.code}
                                         </span>
                                         <span
@@ -297,11 +311,14 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                 className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 list-none p-0 m-0"
                 aria-label="Danh sách biểu mẫu học vụ"
             >
-                {forms.map((form) => {
+                {visibleForms.map((form) => {
                     const theme = FORM_THEMES[form.code] || DEFAULT_THEME;
                     const statusBadge = getFormStatusBadge(form);
                     const updatedAtText = formatUpdatedAt(form.updatedAt);
-                    const actions = Array.isArray(form.actions) ? form.actions : [];
+                    const rawActions = Array.isArray(form.actions) ? form.actions : [];
+                    const actions = readOnly
+                        ? rawActions.filter((a) => READONLY_ACTION_CODES.has(a?.code))
+                        : rawActions;
                     const directActions = actions.slice(0, 2);
                     const overflowActions = actions.slice(2);
 
@@ -325,7 +342,7 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                     return (
                         <li
                             key={form.code}
-                            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
                         >
                             {/* Color Accent Bar */}
                             <div
@@ -345,7 +362,7 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                                                 {theme.icon}
                                             </div>
                                             <span
-                                                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-bold ${theme.badgeBg}`}
+                                                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono tabular-nums text-xs font-bold ${theme.badgeBg}`}
                                             >
                                                 {form.code}
                                             </span>
@@ -359,7 +376,7 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                                     </div>
 
                                     {/* Form Title */}
-                                    <h3 className="m-0 mt-3 text-sm font-semibold leading-snug text-slate-900 line-clamp-2">
+                                    <h3 className="m-0 mt-3 font-display text-sm font-semibold leading-snug text-slate-900 line-clamp-2">
                                         {form.title || FORM_TITLE_FALLBACKS[form.code] || form.code}
                                     </h3>
                                 </div>
@@ -368,12 +385,12 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                                 <div className="space-y-2 border-t border-slate-100 pt-2.5">
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                                         <ClockCircleOutlined aria-hidden="true" className="text-slate-400" />
-                                        <span>
+                                        <span className={updatedAtText ? 'font-mono tabular-nums text-[11.5px]' : ''}>
                                             {updatedAtText ? `Cập nhật: ${updatedAtText}` : 'Chưa có cập nhật'}
                                         </span>
                                     </div>
 
-                                    {form.nextActor && (
+                                    {!readOnly && form.nextActor && (
                                         <div className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 px-2.5 py-1.5 text-xs">
                                             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-700">
                                                 <UserOutlined aria-hidden="true" className="text-[10px]" />
@@ -390,35 +407,37 @@ export default function GuidanceFormList({ forms = [], onAction }) {
                             </div>
 
                             {/* Card Footer Actions */}
-                            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3">
-                                {directActions.map((action, index) => {
-                                    const meta = ACTION_CONFIG[action.code] || ACTION_CONFIG.VIEW;
-                                    const buttonLabel = action.label || meta.label;
-                                    return (
-                                        <Button
-                                            key={`${form.code}-${action.code}-${index}`}
-                                            type={meta.type}
-                                            size="small"
-                                            icon={meta.icon}
-                                            onClick={() => onAction?.(action, form)}
-                                            className={meta.type === 'primary' ? 'shadow-xs' : ''}
-                                        >
-                                            {buttonLabel}
-                                        </Button>
-                                    );
-                                })}
+                            {actions.length > 0 && (
+                                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3">
+                                    {directActions.map((action, index) => {
+                                        const meta = ACTION_CONFIG[action.code] || ACTION_CONFIG.VIEW;
+                                        const buttonLabel = action.label || meta.label;
+                                        return (
+                                            <Button
+                                                key={`${form.code}-${action.code}-${index}`}
+                                                type={meta.type}
+                                                size="small"
+                                                icon={meta.icon}
+                                                onClick={() => onAction?.(action, form)}
+                                                className={meta.type === 'primary' ? 'shadow-xs' : ''}
+                                            >
+                                                {buttonLabel}
+                                            </Button>
+                                        );
+                                    })}
 
-                                {overflowActions.length > 0 && (
-                                    <Dropdown
-                                        menu={{ items: overflowMenuItems, onClick: handleOverflowClick }}
-                                        trigger={['click']}
-                                    >
-                                        <Button size="small" icon={<MoreOutlined aria-hidden="true" />}>
-                                            Thao tác khác
-                                        </Button>
-                                    </Dropdown>
-                                )}
-                            </div>
+                                    {overflowActions.length > 0 && (
+                                        <Dropdown
+                                            menu={{ items: overflowMenuItems, onClick: handleOverflowClick }}
+                                            trigger={['click']}
+                                        >
+                                            <Button size="small" icon={<MoreOutlined aria-hidden="true" />}>
+                                                Thao tác khác
+                                            </Button>
+                                        </Dropdown>
+                                    )}
+                                </div>
+                            )}
                         </li>
                     );
                 })}

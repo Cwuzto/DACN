@@ -282,5 +282,50 @@ describe('authController.updateProfile', () => {
             })
         );
     });
+
+    test('normalizes lecturer department and rejects invalid department on updateProfile', async () => {
+        const invalidReq = createMockReq({
+            user: { id: 201, role: 'LECTURER' },
+            body: { department: 'Bộ môn Mạng Máy tính' },
+        });
+        const invalidRes = createMockRes();
+        const next = createNext();
+
+        await updateProfile(invalidReq, invalidRes, next);
+
+        expect(invalidRes.status).toHaveBeenCalledWith(400);
+        expect(invalidRes.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                message: 'Bộ môn không hợp lệ. Vui lòng chọn: Công Nghệ Thông Tin hoặc Hệ thống Thông tin.',
+            })
+        );
+        expect(prisma.user.update).not.toHaveBeenCalled();
+
+        const validReq = createMockReq({
+            user: { id: 201, role: 'LECTURER' },
+            body: { department: 'bộ môn hệ thống thông tin' },
+        });
+        const validRes = createMockRes();
+        prisma.user.update.mockResolvedValue({
+            id: 201,
+            role: 'LECTURER',
+            department: 'Hệ thống Thông tin',
+        });
+
+        await updateProfile(validReq, validRes, next);
+
+        expect(prisma.user.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 201 },
+                data: expect.objectContaining({
+                    department: 'Hệ thống Thông tin',
+                }),
+            })
+        );
+        expect(validRes.json).toHaveBeenCalledWith(
+            expect.objectContaining({ success: true })
+        );
+    });
 });
 

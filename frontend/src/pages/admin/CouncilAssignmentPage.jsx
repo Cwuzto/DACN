@@ -51,6 +51,8 @@ import {
     EyeOutlined,
     WarningOutlined,
     ReloadOutlined,
+    FileTextOutlined,
+    AuditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -653,7 +655,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 const studentName = (r.student?.fullName || '').toLowerCase();
                 const studentCode = (r.student?.code || '').toLowerCase();
                 const topicTitle = (r.topic?.title || r.adjustedTitle || '').toLowerCase();
-                const supervisor = (r.topic?.lecturer?.fullName || '').toLowerCase();
+                const supervisor = (r.topic?.mentor?.fullName || r.topic?.lecturer?.fullName || '').toLowerCase();
                 return studentName.includes(kw) || studentCode.includes(kw) || topicTitle.includes(kw) || supervisor.includes(kw);
             }
             return true;
@@ -826,7 +828,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             >
                                 Xem chi tiết
                             </Button>
-                            <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
+                            <Button size="small" icon={<HistoryOutlined />} aria-label="Xem nhật ký hội đồng" onClick={() => showLogModal(record)} />
                         </div>
                     );
                 }
@@ -849,9 +851,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 Gán SV
                             </Button>
                         </Tooltip>
-                        <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
+                        <Button size="small" icon={<HistoryOutlined />} aria-label="Xem nhật ký hội đồng" onClick={() => showLogModal(record)} />
                         <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc (Chỉ đọc)' : 'Sửa thông tin hội đồng'}>
-                            <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} disabled={isSemesterCompleted} />
+                            <Button size="small" icon={<EditOutlined />} aria-label="Sửa thông tin hội đồng" onClick={() => showEditModal(record)} disabled={isSemesterCompleted} />
                         </Tooltip>
                         {record.councilType === 'OUTLINE_REVIEW' && (
                             <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc' : 'Mở khóa kết quả (Reopen)'}>
@@ -875,7 +877,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 cancelText="Hủy"
                                 okButtonProps={{ danger: true }}
                             >
-                                <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0} />
+                                <Button size="small" danger icon={<DeleteOutlined />} aria-label="Xóa hội đồng" disabled={record._count?.registrations > 0} />
                             </Popconfirm>
                         )}
                     </div>
@@ -897,61 +899,31 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             : 'Quản lý thành lập hội đồng xét duyệt đề cương và hội đồng chấm bảo vệ khóa luận';
 
     return (
-        <div className="py-2 space-y-6">
+        <div className="space-y-5">
             <PageHeader
+                icon={<TeamOutlined />}
+                accent="purple"
                 title={pageTitle}
                 subtitle={pageSubtitle}
                 actions={
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        {/* Target Size Configuration Control */}
-                        {councilTypeFilter !== 'ALL' && (
-                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-300" data-testid="target-size-control">
-                                <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
-                                    Quy mô mục tiêu:
-                                </span>
-                                <InputNumber
-                                    min={1}
-                                    max={30}
-                                    value={currentTargetSize}
-                                    onChange={handleTargetSizeChange}
-                                    size="small"
-                                    className="w-16 font-bold"
-                                    disabled={!selectedSemester || isSemesterCompleted}
-                                />
-                                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">SV/HĐ</span>
-                                <Tooltip title={`Ước tính cần lập ~${estimatedCouncilsForPhase} hội đồng cho ${candidateStats.unassigned} sinh viên chưa xếp`}>
-                                    <Tag color="cyan" className="m-0 text-[11px] font-mono font-bold">
-                                        ~{estimatedCouncilsForPhase} HĐ
-                                    </Tag>
-                                </Tooltip>
-                            </div>
-                        )}
-                        {councilTypeFilter === 'OUTLINE_REVIEW' ? (
-                            canManageOutline && (
-                                <Button
-                                    onClick={handleAutoAssignOutline}
-                                    loading={submitLoading}
-                                    disabled={!selectedSemester || isSemesterCompleted}
-                                    icon={<RobotOutlined />}
-                                    type="primary"
-                                    ghost
-                                >
-                                    Tự động phân công HĐ Đề cương
-                                </Button>
-                            )
-                        ) : (
-                            canManageDefense && (
-                                <>
-                                    <Tooltip title="Công bố danh sách sinh viên đủ điều kiện bảo vệ">
-                                        <Button
-                                            icon={<CheckCircleOutlined />}
-                                            onClick={handlePublishEligibleDefenseList}
-                                            loading={submitLoading}
-                                            disabled={!selectedSemester || isSemesterCompleted}
-                                        >
-                                            Công bố DS đủ ĐK bảo vệ
-                                        </Button>
-                                    </Tooltip>
+                    <div className="flex flex-col items-end gap-2">
+                        {/* Hàng trên: Phân công hội đồng (trái) + Lập Hội đồng (phải) */}
+                        <div className="flex items-center justify-end gap-2.5 flex-wrap">
+                            {councilTypeFilter === 'OUTLINE_REVIEW' ? (
+                                canManageOutline && (
+                                    <Button
+                                        onClick={handleAutoAssignOutline}
+                                        loading={submitLoading}
+                                        disabled={!selectedSemester || isSemesterCompleted}
+                                        icon={<RobotOutlined />}
+                                        type="primary"
+                                        ghost
+                                    >
+                                        Tự động phân công HĐ Đề cương
+                                    </Button>
+                                )
+                            ) : (
+                                canManageDefense && (
                                     <Button
                                         onClick={handleOpenDefenseConfig}
                                         loading={submitLoading}
@@ -962,23 +934,78 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                     >
                                         Phân công hội đồng bảo vệ
                                     </Button>
-                                </>
-                            )
-                        )}
-                        {canManageCouncil && (
-                            <AuthorizedAction
-                                feature={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'outline-councils' : 'defense-councils'}
-                                action="manage"
-                            >
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={showCreateModal}
-                                    disabled={!selectedSemester || isSemesterCompleted}
+                                )
+                            )}
+                            {canManageCouncil && (
+                                <AuthorizedAction
+                                    feature={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'outline-councils' : 'defense-councils'}
+                                    action="manage"
                                 >
-                                    Lập Hội đồng
-                                </Button>
-                            </AuthorizedAction>
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        onClick={showCreateModal}
+                                        disabled={!selectedSemester || isSemesterCompleted}
+                                    >
+                                        Lập Hội đồng
+                                    </Button>
+                                </AuthorizedAction>
+                            )}
+                        </div>
+
+                        {/* Hàng dưới: Công bố DS đủ ĐK bảo vệ (trái) + Quy mô mục tiêu (phải) */}
+                        {(councilTypeFilter !== 'ALL' || (councilTypeFilter !== 'OUTLINE_REVIEW' && canManageDefense)) && (
+                            <div className="flex items-center justify-end gap-2.5 flex-wrap">
+                                {councilTypeFilter !== 'OUTLINE_REVIEW' && canManageDefense && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {currentSemesterObj?.defenseEligibleListPublishedAt && (
+                                            <Tag color="green" icon={<CheckCircleOutlined />} className="m-0 py-0.5">
+                                                Đã công bố {dayjs(currentSemesterObj.defenseEligibleListPublishedAt).format('DD/MM/YYYY HH:mm')}
+                                            </Tag>
+                                        )}
+                                        <Popconfirm
+                                            title="Công bố danh sách sinh viên đủ điều kiện bảo vệ?"
+                                            description="Hành động này sẽ chốt và công bố danh sách đủ điều kiện bảo vệ cho học kỳ đang chọn."
+                                            onConfirm={handlePublishEligibleDefenseList}
+                                            okText="Công bố"
+                                            cancelText="Hủy"
+                                            disabled={!selectedSemester || isSemesterCompleted}
+                                        >
+                                            <Tooltip title="Công bố danh sách sinh viên đủ điều kiện bảo vệ">
+                                                <Button
+                                                    icon={<CheckCircleOutlined />}
+                                                    loading={submitLoading}
+                                                    disabled={!selectedSemester || isSemesterCompleted}
+                                                >
+                                                    Công bố DS đủ ĐK bảo vệ
+                                                </Button>
+                                            </Tooltip>
+                                        </Popconfirm>
+                                    </div>
+                                )}
+                                {councilTypeFilter !== 'ALL' && (
+                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-300" data-testid="target-size-control">
+                                        <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
+                                            Quy mô mục tiêu:
+                                        </span>
+                                        <InputNumber
+                                            min={1}
+                                            max={30}
+                                            value={currentTargetSize}
+                                            onChange={handleTargetSizeChange}
+                                            size="small"
+                                            className="w-16 font-bold"
+                                            disabled={!selectedSemester || isSemesterCompleted}
+                                        />
+                                        <span className="text-xs text-slate-500 font-medium whitespace-nowrap">SV/HĐ</span>
+                                        <Tooltip title={`Ước tính cần lập ~${estimatedCouncilsForPhase} hội đồng cho ${candidateStats.unassigned} sinh viên chưa xếp`}>
+                                            <Tag color="cyan" className="m-0 text-[11px] font-mono font-bold">
+                                                ~{estimatedCouncilsForPhase} HĐ
+                                            </Tag>
+                                        </Tooltip>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 }
@@ -989,7 +1016,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 <Alert
                     type="warning"
                     showIcon
-                    message="Chưa có đợt đồ án nào"
+                    title="Chưa có đợt đồ án nào"
                     description={
                         <div className="space-y-2 mt-1">
                             <p className="text-sm text-slate-600">
@@ -1009,7 +1036,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 <Alert
                     type="error"
                     showIcon
-                    message="Lỗi nạp danh sách đợt đồ án"
+                    title="Lỗi nạp danh sách đợt đồ án"
                     description={semestersQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
                 />
             )}
@@ -1017,7 +1044,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 <Alert
                     type="error"
                     showIcon
-                    message="Lỗi nạp danh sách hội đồng"
+                    title="Lỗi nạp danh sách hội đồng"
                     description={councilsQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
                 />
             )}
@@ -1025,7 +1052,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 <Alert
                     type="error"
                     showIcon
-                    message="Lỗi nạp danh sách sinh viên"
+                    title="Lỗi nạp danh sách sinh viên"
                     description={registrationsQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
                 />
             )}
@@ -1036,7 +1063,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     type="info"
                     showIcon
                     className="border border-blue-200 bg-blue-50/80 rounded-xl"
-                    message={
+                    title={
                         <span className="font-bold text-slate-900 text-sm">
                             Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only)
                         </span>
@@ -1051,15 +1078,17 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
             {/* Phase Switcher Navigation & Scope Controls */}
             {!forcedCouncilType ? (
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between pb-3 border-b border-slate-300 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
                         <Select
+                            aria-label="Chọn loại đồ án"
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
                             style={{ width: 170 }}
                             options={projectOptions}
                         />
                         <Select
+                            aria-label="Chọn đợt đồ án"
                             value={selectedSemester}
                             onChange={setSelectedSemester}
                             style={{ width: 220 }}
@@ -1069,46 +1098,49 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         />
                         <div className="flex items-center gap-2 flex-wrap">
                             {canManageOutline && <button
-                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                type="button"
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                                     councilTypeFilter === 'OUTLINE_REVIEW'
-                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
+                                        ? 'bg-purple-50 border-purple-400 text-purple-900 shadow-sm'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 font-semibold'
                                 }`}
                                 onClick={() => setCouncilTypeFilter('OUTLINE_REVIEW')}
                             >
-                                <span className="material-symbols-outlined text-sm">description</span>
+                                <FileTextOutlined aria-hidden="true" />
                                 <span>1. Hội đồng Thẩm định Đề cương</span>
                                 <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                     councilTypeFilter === 'OUTLINE_REVIEW'
-                                        ? 'bg-teal-100 text-teal-900'
+                                        ? 'bg-purple-100 text-purple-900'
                                         : 'bg-slate-100 text-slate-700'
                                 }`}>
                                     {councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ
                                 </span>
                             </button>}
                             {canManageDefense && <button
-                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                type="button"
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                                     councilTypeFilter === 'DEFENSE_COUNCIL'
-                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
+                                        ? 'bg-purple-50 border-purple-400 text-purple-900 shadow-sm'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 font-semibold'
                                 }`}
                                 onClick={() => setCouncilTypeFilter('DEFENSE_COUNCIL')}
                             >
-                                <span className="material-symbols-outlined text-sm">gavel</span>
+                                <AuditOutlined aria-hidden="true" />
                                 <span>2. Hội đồng Chấm Bảo vệ Khóa luận</span>
                                 <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                     councilTypeFilter === 'DEFENSE_COUNCIL'
-                                        ? 'bg-teal-100 text-teal-900'
+                                        ? 'bg-purple-100 text-purple-900'
                                         : 'bg-slate-100 text-slate-700'
                                 }`}>
                                     {councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ
                                 </span>
                             </button>}
                             {canManageOutline && canManageDefense && <button
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                type="button"
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                                     councilTypeFilter === 'ALL'
-                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+                                        ? 'bg-purple-50 border-purple-400 text-purple-900 shadow-sm'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                                 }`}
                                 onClick={() => setCouncilTypeFilter('ALL')}
                             >
@@ -1130,15 +1162,17 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-300 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
                         <Select
+                            aria-label="Chọn loại đồ án"
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
                             style={{ width: 170 }}
                             options={projectOptions}
                         />
                         <Select
+                            aria-label="Chọn đợt đồ án"
                             value={selectedSemester}
                             onChange={setSelectedSemester}
                             style={{ width: 220 }}
@@ -1146,7 +1180,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             loading={semestersQuery.isPending}
                             placeholder={semesters.length === 0 && !semestersQuery.isPending ? "Chưa có đợt đồ án" : "Chọn đợt đồ án"}
                         />
-                        <Tag color="cyan" className="px-3 py-1 text-xs font-bold border border-teal-300 m-0">
+                        <Tag color="purple" className="px-3 py-1 text-xs font-bold m-0 rounded-full">
                             {councilTypeFilter === 'OUTLINE_REVIEW'
                                 ? `Hội đồng Đề cương: ${councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ`
                                 : `Hội đồng Bảo vệ: ${councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ`}
@@ -1166,30 +1200,30 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             )}
 
             {/* Quick Metrics Banner — Aligned with Overview KPI Typography Standards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-purple-200/80 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng Hội đồng</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng Hội đồng</div>
                         <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{filteredCouncils.length} <span className="text-xs text-slate-500 font-normal">HĐ</span></div>
                         <div className="text-xs text-slate-500 mt-1">Đã thành lập</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-semibold border border-teal-200 shrink-0">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-semibold border border-purple-200/80 shrink-0">
                         {filteredCouncils.filter((c) => c.members?.length === 3).length} Đủ 3 CB
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
+                <div className="bg-white p-4 rounded-2xl border border-sky-200/80 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sinh viên Trong Đợt</div>
-                        <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{candidateStats.total} <span className="text-xs text-slate-500 font-normal">SV</span></div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sinh viên trong đợt</div>
+                        <div className="text-2xl font-bold text-sky-700 mt-1 tabular-nums">{candidateStats.total} <span className="text-xs text-slate-500 font-normal">SV</span></div>
                         <div className="text-xs text-slate-500 mt-1">Đủ điều kiện xét</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200 shrink-0">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 font-semibold border border-sky-200/80 shrink-0">
                         Hợp lệ
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
+                <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đã xếp vào Hội đồng</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Đã xếp vào Hội đồng</div>
                         <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
                             {candidateStats.assigned} / {candidateStats.total} <span className="text-xs text-slate-500 font-normal">SV</span>
                         </div>
@@ -1197,15 +1231,15 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     </div>
                     <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 ${
                         candidateStats.unassigned === 0
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200/80'
                     }`}>
                         {candidateStats.unassigned === 0 ? 'Đạt 100%' : `${candidateStats.unassigned} chưa xếp`}
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
+                <div className={`bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2 ${conflictCount === 0 ? 'border-slate-200/80' : 'border-rose-200/80 bg-rose-50/25'}`}>
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Xung đột Lợi ích</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Xung đột lợi ích</div>
                         <div className={`text-2xl font-bold mt-1 tabular-nums ${conflictCount === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                             <span className="inline-flex items-center gap-1.5">
                                 {conflictCount === 0 ? (
@@ -1287,6 +1321,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         {/* Search input */}
                         <div className="p-3 border-b border-slate-300 bg-white">
                             <Input
+                                aria-label="Tìm kiếm sinh viên theo MSSV, tên sinh viên hoặc GVHD"
                                 prefix={<SearchOutlined className="text-slate-500" />}
                                 placeholder="Tìm MSSV, tên SV, GVHD..."
                                 value={candidateSearch}
@@ -1320,7 +1355,17 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     {reg.student?.code || 'SV-N/A'}
                                                 </span>
                                                 <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold border border-slate-200">
-                                                    {reg.status}
+                                                    {{
+                                                        DEFENSE_READY: 'Sẵn sàng bảo vệ',
+                                                        DEFENSE_ELIGIBLE: 'Đủ ĐK bảo vệ',
+                                                        ELIGIBLE_BY_INSTITUTE: 'Đủ ĐK bảo vệ',
+                                                        DEFENSE_PASSED: 'Bảo vệ đạt',
+                                                        DEFENSE_FAILED: 'Bảo vệ không đạt',
+                                                        COMPLETED: 'Hoàn thành',
+                                                        BM01_SUBMITTED: 'Đã nộp đề cương',
+                                                        BM01_REVISION: 'Chỉnh sửa đề cương',
+                                                        BM01_PASSED: 'Đạt đề cương',
+                                                    }[reg.status] || reg.status}
                                                 </span>
                                             </div>
                                             <div className="font-bold text-slate-900 text-xs">
@@ -1331,7 +1376,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                             </div>
                                             <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-dashed border-slate-300 pt-2 mt-2">
                                                 <span>
-                                                    GVHD: <strong className="text-slate-900">{reg.topic?.lecturer?.fullName || 'N/A'}</strong>
+                                                    GVHD: <strong className="text-slate-900">{reg.topic?.mentor?.fullName || reg.topic?.lecturer?.fullName || 'Chưa phân công'}</strong>
                                                 </span>
                                                 <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">
                                                     Đạt điều kiện
@@ -1433,7 +1478,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         <div className="councils-board p-4">
                             {filteredCouncils.length === 0 ? (
                                 <div className="bg-white rounded-xl border border-slate-300 p-8 text-center text-slate-600 font-medium">
-                                    <span className="material-symbols-outlined text-4xl mb-2 text-slate-400 block">groups</span>
+                                    <TeamOutlined className="text-4xl mb-2 text-slate-400 block" />
                                     Chưa có hội đồng nào trong đợt này. Nhấp "Lập Hội đồng Mới" ở trên để tạo.
                                 </div>
                             ) : (
@@ -1574,6 +1619,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             onClick={() => handleOpenReopenModal(council)}
                                                             style={{ color: '#b45309', borderColor: '#f59e0b', fontWeight: 600 }}
                                                             title="Mở khóa kết quả (Reopen)"
+                                                            aria-label="Mở khóa kết quả hội đồng"
                                                             disabled={isSemesterCompleted}
                                                         />
                                                     )}
@@ -1582,6 +1628,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                         icon={<HistoryOutlined />}
                                                         onClick={() => showLogModal(council)}
                                                         title="Nhật ký thao tác"
+                                                        aria-label="Xem nhật ký thao tác hội đồng"
                                                     />
                                                     {canManageCouncil && (
                                                         <>
@@ -1590,6 +1637,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                                 icon={<EditOutlined />}
                                                                 onClick={() => showEditModal(council)}
                                                                 title="Sửa thông tin"
+                                                                aria-label="Sửa thông tin hội đồng"
                                                                 disabled={isSemesterCompleted}
                                                             />
                                                             {!isSemesterCompleted && (
@@ -1607,6 +1655,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                                         icon={<DeleteOutlined />}
                                                                         disabled={assignedCount > 0}
                                                                         title="Xóa hội đồng"
+                                                                        aria-label="Xóa hội đồng"
                                                                     />
                                                                 </Popconfirm>
                                                             )}
@@ -1634,7 +1683,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         locale={{
                             emptyText: (
                                 <div className="py-12 text-center text-slate-500 font-medium">
-                                    <span className="material-symbols-outlined text-4xl mb-2 text-slate-400 block">groups</span>
+                                    <TeamOutlined className="text-4xl mb-2 text-slate-400 block" />
                                     Chưa có hội đồng nào được tạo trong đợt này.
                                 </div>
                             ),
@@ -1651,7 +1700,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 onCancel={() => setIsCouncilModalVisible(false)}
                 confirmLoading={submitLoading}
                 width={650}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={lecturersQuery}>
                 <Form form={councilForm} layout="vertical" style={{ marginTop: 16 }}>
@@ -1672,12 +1721,20 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             </Form.Item>
                         </div>
                         <div className="col-span-3">
-                            <Form.Item name="location" label="Phòng họp / Phòng bảo vệ">
+                            <Form.Item
+                                name="location"
+                                label="Phòng họp / Phòng bảo vệ"
+                                rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập phòng họp / phòng bảo vệ' }]}
+                            >
                                 <Input placeholder="VD: P.301, Tòa C" />
                             </Form.Item>
                         </div>
                         <div className="col-span-3">
-                            <Form.Item name="defenseDate" label="Ngày tổ chức">
+                            <Form.Item
+                                name="defenseDate"
+                                label="Ngày tổ chức"
+                                rules={[{ required: true, message: 'Vui lòng chọn ngày tổ chức' }]}
+                            >
                                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
                             </Form.Item>
                         </div>
@@ -1694,7 +1751,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 onCancel={() => setIsMemberModalVisible(false)}
                 confirmLoading={submitLoading}
                 width={720}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={lecturersQuery}>
                 <p className="text-xs text-slate-500 mb-4">
@@ -1730,7 +1787,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 onCancel={() => setIsAssignModalVisible(false)}
                 confirmLoading={submitLoading}
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={unassignedQuery}>
                 <div className="mb-4">
@@ -1749,6 +1806,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     onChange={setSelectedRegistrationsToAssign}
                     optionLabelProp="label"
                     loading={loading}
+                    listHeight={200}
+                    placement="topLeft"
+                    getPopupContainer={(triggerNode) => triggerNode.parentElement}
                     options={unassignedRegistrationOptions}
                     optionRender={(option) => option.data.desc}
                 />
@@ -1762,7 +1822,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 onCancel={() => setIsDetailModalVisible(false)}
                 footer={null}
                 width={760}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={detailQuery}>
                 <List
@@ -1857,7 +1917,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 okText="Xác nhận mở khóa"
                 okButtonProps={{ danger: true, loading: reopenLoading }}
                 cancelButtonProps={{ disabled: reopenLoading }}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <p className="text-sm text-slate-700">
@@ -1872,7 +1932,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         <Alert
                             type="error"
                             showIcon
-                            message="Không thể mở khóa kết quả"
+                            title="Không thể mở khóa kết quả"
                             description={
                                 <div className="mt-1 space-y-2">
                                     <div>{reopenError}</div>
@@ -1946,7 +2006,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         <Alert
                             type="warning"
                             showIcon
-                            message="Lưu ý hệ thống"
+                            title="Lưu ý hệ thống"
                             description={
                                 <ul className="list-disc pl-4 text-xs space-y-1">
                                     {previewWarnings.map((w, idx) => (

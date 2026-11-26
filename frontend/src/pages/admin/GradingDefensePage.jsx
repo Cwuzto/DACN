@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Button,
@@ -9,29 +9,42 @@ import {
     message,
     Modal,
     Popconfirm,
+    Select,
     Spin,
     Table,
     Tag,
     Tooltip,
 } from 'antd';
 import {
+    BellOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    CloseOutlined,
+    EditOutlined,
     ExclamationCircleOutlined,
     FileTextOutlined,
+    FilterOutlined,
+    FolderOpenOutlined,
     HistoryOutlined,
     LockOutlined,
     PrinterOutlined,
     ReloadOutlined,
     RollbackOutlined,
-    FolderOpenOutlined,
+    SafetyCertificateOutlined,
+    SearchOutlined,
+    TrophyOutlined,
+    UnlockOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import { queryKeys } from '../../query/queryKeys';
 import { useApproveDefenseResult, useDefenseResults, useGradingSemesters, useResultApprovals, useScoreBookReturnLogs } from '../../queries/gradingQueries';
+import { useProjectCatalogs } from '../../queries/topicQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import ContentRefreshIndicator from '../../components/common/ContentRefreshIndicator';
-import { PROJECT_NAME } from '../../utils/semesterDisplay';
+import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 import DefenseResultPublicationModal from '../../components/admin/DefenseResultPublicationModal';
 import PublicationHistoryModal from '../../components/admin/PublicationHistoryModal';
@@ -117,15 +130,19 @@ const fmtDate = (v) => {
 };
 
 const getGradeClassification = (score) => {
-    if (score === null || score === undefined || isNaN(score)) return { code: '—', label: 'Chưa có điểm', cls: 'grade-badge-c' };
+    if (score === null || score === undefined || isNaN(score)) {
+        return { code: '—', label: 'Chưa có điểm', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' };
+    }
     const num = Number(score);
-    if (num >= 8.5) return { code: 'A', label: 'Loại A (Giỏi)', cls: 'grade-badge-a' };
-    if (num >= 7.0) return { code: 'B', label: 'Loại B (Khá)', cls: 'grade-badge-b' };
-    if (num >= 5.5) return { code: 'C', label: 'Loại C (Trung bình)', cls: 'grade-badge-c' };
-    return { code: 'F', label: 'Loại F (Không đạt)', cls: 'grade-badge-c' };
+    if (num >= 8.5) return { code: 'A', label: 'Loại A · Giỏi', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (num >= 7.0) return { code: 'B', label: 'Loại B · Khá', badgeClass: 'bg-sky-50 text-sky-700 border-sky-200' };
+    if (num >= 5.5) return { code: 'C', label: 'Loại C · Trung bình', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' };
+    return { code: 'F', label: 'Loại F · Không đạt', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' };
 };
 
 export default function GradingDefensePage() {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
     const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
@@ -145,8 +162,14 @@ export default function GradingDefensePage() {
         const parsed = raw ? Number(raw) : undefined;
         return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
     });
-    const [selectedCouncilId, setSelectedCouncilId] = useState('');
-    const [selectedGradeFilter, setSelectedGradeFilter] = useState('');
+    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(() => {
+        const raw = searchParams.get('projectCatalogId');
+        const parsed = raw ? Number(raw) : undefined;
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+    });
+    const [selectedCouncilId, setSelectedCouncilId] = useState(undefined);
+    const [selectedGradeFilter, setSelectedGradeFilter] = useState(undefined);
+    const [onlyDiscrepancy, setOnlyDiscrepancy] = useState(false);
 
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [lockingId, setLockingId] = useState(null);
@@ -197,12 +220,15 @@ export default function GradingDefensePage() {
     const scope = queryKeys.scope(user);
     const semesterQuery = useGradingSemesters(scope);
     const semesters = semesterQuery.data?.data || [];
+    const projectCatalogsQuery = useProjectCatalogs(scope);
+    const projectCatalogs = projectCatalogsQuery.data || [];
     const filters = useMemo(() => ({
         ...(activeTab === 'COMPLETED' || activeTab === 'AWAITING_GRADING' ? { tab: activeTab } : {}),
         ...(selectedSemesterId ? { semesterId: selectedSemesterId } : {}),
+        ...(selectedProjectCatalogId ? { projectCatalogId: selectedProjectCatalogId } : {}),
         ...(selectedCouncilId ? { councilId: selectedCouncilId } : {}),
         ...(debouncedSearchText.trim() ? { search: debouncedSearchText.trim() } : {}),
-    }), [activeTab, selectedSemesterId, selectedCouncilId, debouncedSearchText]);
+    }), [activeTab, selectedSemesterId, selectedProjectCatalogId, selectedCouncilId, debouncedSearchText]);
     const ledgerEnabled = canReadLedger && Boolean(semesterQuery.data) && (Boolean(selectedSemesterId) || semesters.length === 0);
     const resultsQuery = useDefenseResults(scope, filters, { enabled: ledgerEnabled });
     const approvalsQuery = useResultApprovals(scope, filters, { enabled: ledgerEnabled && searchParams.get('tab') === 'approvals' });
@@ -215,6 +241,26 @@ export default function GradingDefensePage() {
     // request the council-management endpoint just to populate an optional filter.
     const councils = useMemo(() => Array.from(new Map(data.filter((row) => row.council?.id)
         .map((row) => [row.council.id, row.council])).values()), [data]);
+
+    const selectedSemesterObj = useMemo(
+        () => semesters.find((s) => s.id === selectedSemesterId) || null,
+        [semesters, selectedSemesterId]
+    );
+    const selectedSemesterName = selectedSemesterObj ? formatSemesterLabel(selectedSemesterObj) : undefined;
+
+    const handleSemesterChange = useCallback((nextSemesterId) => {
+        setSelectedSemesterId(nextSemesterId);
+        setSelectedCouncilId(undefined);
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (nextSemesterId) {
+                next.set('semesterId', String(nextSemesterId));
+            } else {
+                next.delete('semesterId');
+            }
+            return next;
+        });
+    }, [setSearchParams]);
 
     const handleOpenPublicationModal = useCallback(() => {
         if (!selectedSemesterId) {
@@ -262,25 +308,23 @@ export default function GradingDefensePage() {
 
     // Semester lookup is shared and retryable rather than a mount-only effect.
     useEffect(() => {
-        const targetId = semesterQuery.data?.data?.[0]?.id || resultsQuery.data?.meta?.targetSemester?.id;
+        const list = semesterQuery.data?.data || [];
+        const preferred = list.find((item) => ['DEFENSE', 'ONGOING', 'REGISTRATION'].includes(item.status));
+        const targetId = preferred?.id || list[0]?.id || resultsQuery.data?.meta?.targetSemester?.id;
         if (targetId) setSelectedSemesterId((previous) => previous || targetId);
     }, [semesterQuery.data, resultsQuery.data]);
 
-    // Synchronize tab and publication modal with URL search parameters
+    // Synchronize tab with URL search parameters (do not auto-open modal on ?tab=publish)
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'approvals') {
+        if (tab === 'approvals' || tab === 'publish') {
             setActiveTab('all');
-        } else if (tab === 'publish') {
-            if (canViewPublications) {
-                setIsPublicationModalOpen(true);
-            }
         } else if (tab === 'COMPLETED' || tab === 'AWAITING_GRADING' || tab === 'discrepancy') {
             setActiveTab(tab);
         } else if (!tab) {
             setActiveTab((prev) => (prev === 'all' ? prev : 'all'));
         }
-    }, [searchParams, canViewPublications]);
+    }, [searchParams]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearchText(searchText), 350);
@@ -381,15 +425,33 @@ export default function GradingDefensePage() {
     const metrics = useMemo(() => {
         let total = data.length;
         let gradedCount = 0;
+        let lockedCount = 0;
         let sumScore = 0;
         let validScores = 0;
         let excellentCount = 0;
         let discrepancyCount = 0;
         let awaitingApprovalCount = 0;
+        let approvedOrPublishedCount = 0;
 
         data.forEach((r) => {
             if (r.status === 'AWAITING_FINAL_APPROVAL') {
                 awaitingApprovalCount++;
+            }
+            if (r.scoreLocked) {
+                lockedCount++;
+            }
+            if (
+                r.isPublished
+                || r.resultPublishedAt
+                || r.defenseResult?.isPublished
+                || r.defenseResult?.publishedAt
+                || r.status === 'COMPLETED'
+                || r.status === 'ARCHIVED'
+                || r.status === 'DEFENSE_PASSED'
+                || r.status === 'APPROVED_FOR_GRADUATION'
+                || r.defenseResult?.approvalStatus === 'APPROVED'
+            ) {
+                approvedOrPublishedCount++;
             }
             if (r.gradingStatus === 'GRADED' || r.finalScore !== null) {
                 gradedCount++;
@@ -413,10 +475,12 @@ export default function GradingDefensePage() {
         return {
             total,
             gradedCount,
+            lockedCount,
             avgScore,
             excellentCount,
             discrepancyCount,
             awaitingApprovalCount,
+            approvedOrPublishedCount,
         };
     }, [data]);
 
@@ -424,9 +488,8 @@ export default function GradingDefensePage() {
     const filteredData = useMemo(() => {
         const rows = searchParams.get('tab') === 'approvals' ? (approvalsQuery.data?.data || []) : data;
         return rows.filter((r) => {
-
-            // Tab filter for discrepancy
-            if (activeTab === 'discrepancy') {
+            // Tab or checkbox filter for discrepancy
+            if (activeTab === 'discrepancy' || onlyDiscrepancy) {
                 const memberScores = r.memberScores || [];
                 const scores = memberScores.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
                 const delta = scores.length >= 2 ? Math.max(...scores) - Math.min(...scores) : 0;
@@ -444,7 +507,7 @@ export default function GradingDefensePage() {
 
             return true;
         });
-    }, [data, approvalsQuery.data, activeTab, selectedGradeFilter, searchParams]);
+    }, [data, approvalsQuery.data, activeTab, onlyDiscrepancy, selectedGradeFilter, searchParams]);
 
     // Batch Remind
     const handleRemindGrading = async () => {
@@ -870,183 +933,328 @@ export default function GradingDefensePage() {
         }
     };
 
+    const isApprovalsTab = searchParams.get('tab') === 'approvals';
+
+    const handleResetFilters = () => {
+        setSearchText('');
+        setSelectedProjectCatalogId(undefined);
+        setSelectedCouncilId(undefined);
+        setSelectedGradeFilter(undefined);
+        setOnlyDiscrepancy(false);
+        handleTabChange('all');
+    };
+
     return (
-        <div style={{ padding: '24px 32px' }} data-od-id="view-grading">
-            {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <p className="eyebrow">ACADEMIC GRADING LEDGER · RUBRIC EVALUATION</p>
-                    <h1 className="h1">Sổ điểm Hội đồng & Thẩm định Rubric Học thuật</h1>
-                    <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                        Quản lý bảng điểm bảo vệ khóa luận tốt nghiệp toàn diện, tích hợp kiểm định độ lệch điểm và ký duyệt điện tử.
-                    </p>
+        <div className="space-y-5 pb-6" data-od-id="view-grading">
+            {/* Header Card */}
+            <header className="rounded-2xl bg-white border border-slate-200/80 shadow-sm p-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5 min-w-0">
+                        <div
+                            className="w-11 h-11 rounded-xl bg-teal-50 border border-teal-200/80 text-[#0F766E] flex items-center justify-center text-xl shrink-0 mt-0.5"
+                            aria-hidden="true"
+                        >
+                            <TrophyOutlined />
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h1 className="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0 leading-snug">
+                                    Sổ điểm bảo vệ &amp; Công bố kết quả
+                                </h1>
+                                {selectedSemesterName && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-[#0F766E] border border-teal-200/80">
+                                        {selectedSemesterName}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs sm:text-sm text-slate-500 m-0 leading-relaxed">
+                                Quản lý sổ điểm hội đồng, kiểm soát lệch điểm giám khảo, phê duyệt kết quả và ban hành công bố học kỳ.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-2.5 shrink-0">
+                        {canReadLedger && (
+                            <Button
+                                icon={<ReloadOutlined aria-hidden="true" />}
+                                onClick={() => fetchData()}
+                                loading={resultsQuery.isFetching}
+                                disabled={!ledgerEnabled}
+                                className="font-medium"
+                            >
+                                Làm mới
+                            </Button>
+                        )}
+                        {canViewPublications && (
+                            <Button
+                                icon={<HistoryOutlined aria-hidden="true" />}
+                                onClick={handleOpenPublicationHistory}
+                                className="font-medium"
+                            >
+                                Lịch sử công bố
+                            </Button>
+                        )}
+                        {canViewPublications && (
+                            <Button
+                                type="primary"
+                                icon={<SafetyCertificateOutlined aria-hidden="true" />}
+                                onClick={handlePublishResults}
+                                className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold shadow-xs"
+                            >
+                                {canPublishResult ? 'Công bố kết quả học kỳ' : 'Xem trước công bố kết quả'}
+                            </Button>
+                        )}
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {canReadLedger && <Button icon={<ReloadOutlined aria-hidden="true" />} onClick={() => fetchData()} disabled={!ledgerEnabled || resultsQuery.isFetching}>
-                        Làm mới sổ điểm
-                    </Button>}
-                    {canViewPublications && <button
-                        className="btn btn-primary"
-                        onClick={handlePublishResults}
-                    >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                        <span>{canPublishResult ? 'Công bố kết quả học kỳ' : 'Xem trước công bố kết quả'}</span>
-                    </button>}
-                    {canViewPublications && <button className="btn btn-secondary" onClick={handleOpenPublicationHistory}>
-                        <span>Lịch sử công bố</span>
-                    </button>}
-                </div>
-            </div>
+            </header>
 
             {semesterQuery.isError && <QueryErrorState error={semesterQuery.error} onRetry={() => semesterQuery.refetch()} retrying={semesterQuery.isFetching} />}
             {canReadLedger && <>
             {/* KPI Summary Cards */}
-            <div className="kpi-grid-4" data-od-id="grading-kpi-grid">
-                <div className="kpi-stat-card">
-                    <span className="eyebrow">TIẾN ĐỘ CHẤM ĐIỂM</span>
-                    <span className="kpi-stat-val num" style={{ color: 'var(--accent)' }}>
-                        {metrics.gradedCount} / {metrics.total} SV
-                    </span>
-                    <span className="kpi-stat-sub">
-                        {metrics.total > 0 ? Math.round((metrics.gradedCount / metrics.total) * 100) : 0}% sinh viên đã hoàn tất điểm bảo vệ
-                    </span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5" data-od-id="grading-kpi-grid">
+                <div className="rounded-2xl bg-white border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            Tổng hồ sơ
+                        </div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 font-mono tabular-nums">
+                            {metrics.total}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                            <span className="font-mono tabular-nums font-semibold text-slate-700">{metrics.gradedCount}</span> hồ sơ đã có điểm
+                        </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200/80 flex items-center justify-center shrink-0 text-sky-700 text-lg">
+                        <FileTextOutlined />
+                    </div>
                 </div>
-                <div className="kpi-stat-card">
-                    <span className="eyebrow">ĐIỂM TRUNG BÌNH TOÀN KHÓA</span>
-                    <span className="kpi-stat-val num" style={{ color: 'var(--institutional)' }}>
-                        {metrics.avgScore} / 10
-                    </span>
-                    <span className="kpi-stat-sub">Phổ điểm chuẩn: 7.2 - 9.4 (Chuẩn kiểm định AUN-QA)</span>
+
+                <div className="rounded-2xl bg-white border border-teal-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            Đã khóa sổ
+                        </div>
+                        <div className="text-2xl font-bold text-[#0F766E] mt-1 font-mono tabular-nums">
+                            {metrics.lockedCount}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                            <span className="font-mono tabular-nums font-semibold text-[#0F766E]">
+                                {metrics.total > 0 ? Math.round((metrics.lockedCount / metrics.total) * 100) : 0}%
+                            </span>{' '}
+                            hoàn tất khóa điểm
+                        </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200/80 flex items-center justify-center shrink-0 text-[#0F766E] text-lg">
+                        <LockOutlined />
+                    </div>
                 </div>
-                <div className="kpi-stat-card">
-                    <span className="eyebrow">XUẤT SẮC / GIỎI (≥ 8.5)</span>
-                    <span className="kpi-stat-val num" style={{ color: 'var(--success)' }}>
-                        {metrics.excellentCount} Đề tài
-                    </span>
-                    <span className="kpi-stat-sub">
-                        {metrics.total > 0 ? Math.round((metrics.excellentCount / metrics.total) * 100) : 0}% đạt loại Giỏi trở lên
-                    </span>
+
+                <div className="rounded-2xl bg-white border border-emerald-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            Chờ phê duyệt
+                        </div>
+                        <div className="text-2xl font-bold text-emerald-700 mt-1 font-mono tabular-nums">
+                            {metrics.awaitingApprovalCount}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                            Điểm TB toàn khóa · <span className="font-mono tabular-nums font-semibold text-slate-700">{metrics.avgScore}</span>
+                        </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 text-emerald-700 text-lg">
+                        <CheckCircleOutlined />
+                    </div>
                 </div>
-                <div className="kpi-stat-card" style={{ borderColor: 'color-mix(in oklch, var(--danger) 30%, var(--border))' }}>
-                    <span className="eyebrow" style={{ color: 'var(--danger)' }}>CẢNH BÁO LỆCH ĐIỂM HỘI ĐỒNG</span>
-                    <span className="kpi-stat-val num" style={{ color: 'var(--danger)' }}>
-                        {metrics.discrepancyCount} Đề tài
-                    </span>
-                    <span className="kpi-stat-sub">Độ lệch giám khảo ≥ 1.5đ (Cần họp đối thoại)</span>
+
+                <div className="rounded-2xl bg-white border border-rose-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-rose-600">
+                            Cảnh báo lệch điểm
+                        </div>
+                        <div className="text-2xl font-bold text-rose-700 mt-1 font-mono tabular-nums">
+                            {metrics.discrepancyCount}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                            Độ lệch giám khảo từ <span className="font-mono tabular-nums font-semibold text-rose-700">1.5</span> điểm
+                        </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center justify-center shrink-0 text-rose-600 text-lg">
+                        <WarningOutlined />
+                    </div>
                 </div>
             </div>
 
-            {/* Faceted Filter & Grading Table */}
-            <section className="filter-strip" data-od-id="grading-filter-strip">
-                {/* Status Tabs */}
-                <div className="status-tabs">
-                    <button
-                        className={`tab-pill ${activeTab === 'all' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
-                        onClick={() => handleTabChange('all')}
-                    >
-                        <span>Tất cả</span>
-                        <span className="tab-counter num">{metrics.total}</span>
-                    </button>
-                    <button
-                        className={`tab-pill ${activeTab === 'COMPLETED' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
-                        onClick={() => handleTabChange('COMPLETED')}
-                    >
-                        <span>Đã chốt sổ</span>
-                        <span className="tab-counter num" style={{ color: 'var(--success)' }}>
-                            {meta.counts?.COMPLETED || metrics.gradedCount}
-                        </span>
-                    </button>
-                    <button
-                        className={`tab-pill ${activeTab === 'AWAITING_GRADING' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
-                        onClick={() => handleTabChange('AWAITING_GRADING')}
-                    >
-                        <span>Đang chấm</span>
-                        <span className="tab-counter num" style={{ color: 'var(--warning)' }}>
-                            {meta.counts?.AWAITING_GRADING || Math.max(0, metrics.total - metrics.gradedCount)}
-                        </span>
-                    </button>
-                    <button
-                        className={`tab-pill ${activeTab === 'discrepancy' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
-                        onClick={() => handleTabChange('discrepancy')}
-                    >
-                        <span>Cảnh báo lệch điểm</span>
-                        <span className="tab-counter num" style={{ color: 'var(--danger)' }}>
-                            {metrics.discrepancyCount}
-                        </span>
-                    </button>
-                    <button
-                        className={`tab-pill ${searchParams.get('tab') === 'approvals' ? 'active' : ''}`}
-                        onClick={() => handleTabChange('approvals')}
-                    >
-                        <span>Chờ phê duyệt</span>
-                        <span className="tab-counter num" style={{ color: 'var(--accent)' }}>
-                            {metrics.awaitingApprovalCount}
-                        </span>
-                    </button>
-                </div>
+            {/* Filter Toolbar */}
+            <section className="rounded-2xl bg-white border border-slate-200/80 shadow-sm p-4 space-y-3" data-od-id="grading-filter-strip">
+                {/* Row 1: Responsive Faceted Filters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
+                    <div className="lg:col-span-3">
+                        <Select
+                            aria-label="Chọn đợt học kỳ"
+                            className="w-full"
+                            value={selectedSemesterId}
+                            onChange={handleSemesterChange}
+                            loading={semesterQuery.isPending}
+                            disabled={semesters.length === 0}
+                            placeholder="Chọn đợt học kỳ"
+                            options={semesters.map((s) => ({
+                                value: s.id,
+                                label: formatSemesterLabel(s),
+                            }))}
+                        />
+                    </div>
 
-                {/* Faceted Inputs Row */}
-                <div className="faceted-row">
-                    <div className="search-input-wrap">
-                        <svg className="search-icon-abs" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="11" cy="11" r="8" />
-                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        <input
-                            type="text"
-                            className="search-input"
-                            placeholder="Tìm kiếm theo MSSV, Họ tên sinh viên, Đề tài, GVHD..."
+                    <div className="lg:col-span-2">
+                        <Select
+                            aria-label="Lọc theo loại đồ án"
+                            className="w-full"
+                            allowClear
+                            value={selectedProjectCatalogId}
+                            onChange={(val) => setSelectedProjectCatalogId(val || undefined)}
+                            loading={projectCatalogsQuery.isPending}
+                            placeholder="Tất cả loại đồ án"
+                            options={projectCatalogs.map((cat) => ({
+                                value: cat.id,
+                                label: cat.name,
+                            }))}
+                        />
+                    </div>
+
+                    <div className="lg:col-span-2">
+                        <Select
+                            aria-label="Lọc theo hội đồng"
+                            className="w-full"
+                            allowClear
+                            value={selectedCouncilId}
+                            onChange={(val) => setSelectedCouncilId(val || undefined)}
+                            placeholder="Tất cả hội đồng"
+                            options={councils.map((c) => ({
+                                value: c.id,
+                                label: c.location ? `${c.name} · ${c.location}` : c.name,
+                            }))}
+                        />
+                    </div>
+
+                    <div className="lg:col-span-2">
+                        <Select
+                            aria-label="Lọc theo xếp loại"
+                            className="w-full"
+                            allowClear
+                            value={selectedGradeFilter}
+                            onChange={(val) => setSelectedGradeFilter(val || undefined)}
+                            placeholder="Tất cả xếp loại"
+                            options={[
+                                { value: 'A', label: 'Loại A · Giỏi' },
+                                { value: 'B', label: 'Loại B · Khá' },
+                                { value: 'C', label: 'Loại C · Trung bình' },
+                            ]}
+                        />
+                    </div>
+
+                    <div className="lg:col-span-2">
+                        <Input
+                            allowClear
+                            prefix={<SearchOutlined className="text-slate-400" aria-hidden="true" />}
+                            placeholder="Tìm MSSV, họ tên, đề tài..."
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                         />
                     </div>
 
-                    <select
-                        className="select-dropdown"
-                        value={selectedCouncilId}
-                        onChange={(e) => setSelectedCouncilId(e.target.value)}
-                    >
-                        <option value="">Tất cả Hội đồng</option>
-                        {councils.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name} {c.location ? `(${c.location})` : ''}
-                            </option>
+                    <div className="lg:col-span-1 flex justify-end">
+                        <Button
+                            icon={<FilterOutlined aria-hidden="true" />}
+                            onClick={handleResetFilters}
+                            className="w-full"
+                            title="Đặt lại toàn bộ bộ lọc"
+                        >
+                            Đặt lại
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Row 2: Status Pill Bar & Compact Toggle */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            {
+                                key: 'all',
+                                label: 'Tất cả',
+                                count: metrics.total,
+                                active: activeTab === 'all' && !isApprovalsTab,
+                                countClass: 'text-slate-700',
+                            },
+                            {
+                                key: 'COMPLETED',
+                                label: 'Đã chốt sổ',
+                                count: meta.counts?.COMPLETED ?? metrics.lockedCount,
+                                active: activeTab === 'COMPLETED' && !isApprovalsTab,
+                                countClass: 'text-emerald-700',
+                            },
+                            {
+                                key: 'AWAITING_GRADING',
+                                label: 'Đang chấm',
+                                count: meta.counts?.AWAITING_GRADING ?? Math.max(0, metrics.total - metrics.gradedCount),
+                                active: activeTab === 'AWAITING_GRADING' && !isApprovalsTab,
+                                countClass: 'text-amber-700',
+                            },
+                            {
+                                key: 'discrepancy',
+                                label: 'Cảnh báo lệch điểm',
+                                count: metrics.discrepancyCount,
+                                active: activeTab === 'discrepancy' && !isApprovalsTab,
+                                countClass: 'text-rose-700',
+                            },
+                            {
+                                key: 'approvals',
+                                label: 'Chờ phê duyệt',
+                                count: metrics.awaitingApprovalCount,
+                                active: isApprovalsTab,
+                                countClass: 'text-[#0F766E]',
+                            },
+                        ].map((tabItem) => (
+                            <button
+                                key={tabItem.key}
+                                type="button"
+                                onClick={() => handleTabChange(tabItem.key)}
+                                className={`whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                                    tabItem.active
+                                        ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-xs'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
+                                }`}
+                            >
+                                <span>{tabItem.label}</span>
+                                <span
+                                    className={`font-mono tabular-nums text-[11px] px-1.5 py-0.5 rounded-full ${
+                                        tabItem.active ? 'bg-white/20 text-white' : `bg-white ${tabItem.countClass}`
+                                    }`}
+                                >
+                                    {tabItem.count}
+                                </span>
+                            </button>
                         ))}
-                    </select>
+                    </div>
 
-                    <select
-                        className="select-dropdown"
-                        value={selectedGradeFilter}
-                        onChange={(e) => setSelectedGradeFilter(e.target.value)}
-                    >
-                        <option value="">Tất cả Xếp loại</option>
-                        <option value="A">Loại A / A+ (≥ 8.5)</option>
-                        <option value="B">Loại B / B+ (7.0 - 8.4)</option>
-                        <option value="C">Loại C (5.5 - 6.9)</option>
-                    </select>
-
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                            setSearchText('');
-                            setSelectedCouncilId('');
-                            setSelectedGradeFilter('');
-                            handleTabChange('all');
-                        }}
-                    >
-                        Đặt lại bộ lọc
-                    </button>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Checkbox
+                            checked={onlyDiscrepancy}
+                            onChange={(e) => setOnlyDiscrepancy(e.target.checked)}
+                            className="text-xs text-slate-600"
+                        >
+                            Chỉ hiện lệch điểm
+                        </Checkbox>
+                        <span className="text-xs text-slate-500 font-mono tabular-nums">
+                            Hiển thị <strong className="text-slate-800">{filteredData.length}</strong> / {metrics.total} hồ sơ
+                        </span>
+                    </div>
                 </div>
             </section>
 
             {returnLogs.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
+                <div>
                     <Alert
-                        message="Hội đồng có lượt hoàn trả sổ điểm"
-                        description="Hội đồng này đã từng có sổ điểm được Giáo vụ/Trưởng Viện hoàn trả để rà soát lại kết quả chấm."
+                        title="Hội đồng có lượt hoàn trả sổ điểm"
+                        description="Hội đồng này đã từng có sổ điểm được hoàn trả để rà soát lại kết quả chấm."
                         type="warning"
                         showIcon
                         action={
@@ -1055,7 +1263,7 @@ export default function GradingDefensePage() {
                                 icon={<HistoryOutlined />}
                                 onClick={() => setReturnHistoryModalVisible(true)}
                             >
-                                Xem lịch sử trả ({returnLogs.length})
+                                Lịch sử hoàn trả · {returnLogs.length}
                             </Button>
                         }
                     />
@@ -1068,32 +1276,33 @@ export default function GradingDefensePage() {
             {loading ? <ContentSkeleton variant="table" /> : resultsQuery.isError && !resultsQuery.data ? (
                 <QueryErrorState error={resultsQuery.error} onRetry={() => fetchData()} retrying={resultsQuery.isFetching} />
             ) : (resultsQuery.data || !semesterQuery.isError) && (
-            <section className="table-container" data-od-id="grading-table-container">
-                <table className="data-table" id="grading-table">
+            <section className="rounded-2xl bg-white border border-slate-200/80 shadow-sm overflow-hidden" data-od-id="grading-table-container">
+                <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left" id="grading-table">
                     <thead>
-                        <tr>
-                            <th style={{ width: 40, textAlign: 'center' }}>
+                        <tr className="bg-slate-50/90 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            <th className="py-3 px-3 w-10 text-center">
                                 <input
                                     type="checkbox"
                                     checked={filteredData.length > 0 && selectedRowKeys.length === filteredData.length}
                                     onChange={toggleSelectAll}
+                                    aria-label="Chọn tất cả hồ sơ"
                                 />
                             </th>
-                            <th>Mã & Tên Đề tài</th>
-                            <th>Sinh viên</th>
-                            <th>Hội đồng</th>
-                            <th style={{ textAlign: 'center' }}>Chi tiết Điểm Giám khảo</th>
-                            <th style={{ textAlign: 'center' }}>Điểm TB (Chưa làm tròn)</th>
-                            <th style={{ textAlign: 'center' }}>Điểm Khóa Luận (Làm tròn 1 số lẻ)</th>
-                            <th style={{ textAlign: 'center' }}>Xếp loại</th>
-                            <th>Trạng thái</th>
-                            <th style={{ textAlign: 'right' }}>Thao tác</th>
+                            <th className="py-3 px-3.5">Mã &amp; Tên đề tài</th>
+                            <th className="py-3 px-3.5">Sinh viên</th>
+                            <th className="py-3 px-3.5">Hội đồng</th>
+                            <th className="py-3 px-3.5 text-center">Điểm thành viên hội đồng</th>
+                            <th className="py-3 px-3 text-center whitespace-nowrap">Điểm trung bình</th>
+                            <th className="py-3 px-3 text-center whitespace-nowrap">Điểm tổng kết</th>
+                            <th className="py-3 px-3 text-center whitespace-nowrap">Xếp loại</th>
+                            <th className="py-3 px-3 whitespace-nowrap">Trạng thái</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100">
                         {filteredData.length === 0 ? (
                             <tr>
-                                <td colSpan="11" style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)' }}>
+                                <td colSpan="9" className="text-center py-12 text-sm text-slate-500">
                                     Không có hồ sơ nào phù hợp với bộ lọc hiện tại.
                                 </td>
                             </tr>
@@ -1113,255 +1322,212 @@ export default function GradingDefensePage() {
                                 const hasDiscrepancy = delta >= 1.5;
 
                                 return (
-                                    <tr key={id} style={{ background: isSelected ? 'var(--primary-light)' : undefined }}>
-                                        <td style={{ textAlign: 'center' }}>
+                                    <tr
+                                        key={id}
+                                        className={`transition-colors ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/70'}`}
+                                    >
+                                        <td className="py-3 px-3 text-center align-top">
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => toggleSelectRow(id)}
+                                                aria-label={`Chọn hồ sơ ${r.student?.fullName || id}`}
                                             />
                                         </td>
-                                        <td style={{ maxWidth: 280 }}>
-                                            <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 11.5, fontFamily: 'var(--font-mono)' }}>
-                                                {r.topic?.code || `DT-${String(r.topic?.id || r.topicId || r.id || '2026').padStart(3, '0')}`}
+                                        <td className="py-3 px-3.5 max-w-[290px] align-top">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono tabular-nums font-bold text-[#0F766E] text-[11.5px]">
+                                                    {r.topic?.code || `DT-${String(r.topic?.id || r.topicId || r.id || '2026').padStart(3, '0')}`}
+                                                </span>
+                                                {r.topic?.projectCatalog?.name && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-600 border border-slate-200/80">
+                                                        {r.topic.projectCatalog.name}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <div style={{ fontWeight: 600, color: 'var(--fg)', fontSize: 13, lineHeight: 1.4, marginTop: 2 }}>
+                                            <div className="font-semibold text-slate-900 text-[13px] leading-snug mt-1">
                                                 {r.topic?.title || '—'}
                                             </div>
-                                            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                                GVHD: <strong>{r.mentor?.fullName || 'Chưa phân công'}</strong>
+                                            <div className="text-[11.5px] text-slate-500 mt-1">
+                                                GVHD: <strong className="text-slate-700">{r.mentor?.fullName || 'Chưa phân công'}</strong>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div
-                                                    style={{
-                                                        width: 32,
-                                                        height: 32,
-                                                        borderRadius: '50%',
-                                                        background: '#E0F2FE',
-                                                        color: '#0369A1',
-                                                        fontWeight: 700,
-                                                        fontSize: 12,
-                                                        display: 'grid',
-                                                        placeItems: 'center',
-                                                        flexShrink: 0,
-                                                    }}
-                                                >
+                                        <td className="py-3 px-3.5 align-top whitespace-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    navigate(`/admin/students/${id}`, {
+                                                        state: { from: `${location.pathname}${location.search}` },
+                                                    })
+                                                }
+                                                title="Xem chi tiết quá trình sinh viên"
+                                                className="group flex items-center gap-2.5 text-left cursor-pointer bg-transparent border-0 p-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-teal-50 border border-teal-200/80 text-[#0F766E] font-display font-bold text-xs grid place-items-center shrink-0 group-hover:bg-teal-100 transition-colors">
                                                     {r.student?.fullName ? r.student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'S'}
                                                 </div>
-                                                <div>
-                                                    <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 13 }}>
+                                                <div className="space-y-0.5">
+                                                    <div className="font-semibold text-slate-900 group-hover:text-teal-700 group-hover:underline text-[13px] leading-tight transition-colors">
                                                         {r.student?.fullName || '—'}
                                                     </div>
-                                                    <div style={{ fontSize: 11.5, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-                                                        {r.student?.code || '21004xxx'}
+                                                    <div>
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono tabular-nums text-[11px] font-medium">
+                                                            {r.student?.code || '—'}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </button>
                                         </td>
-                                        <td>
+                                        <td className="py-3 px-3.5 align-top whitespace-nowrap">
                                             {r.council ? (
                                                 <div>
-                                                    <span className="badge badge-approved" style={{ fontWeight: 700 }}>
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-50 text-[#0F766E] border border-teal-200/80 text-xs font-semibold">
                                                         {r.council.name}
                                                     </span>
-                                                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                                                    <div className="text-[11.5px] text-slate-500 font-mono tabular-nums mt-1">
                                                         {fmtDate(r.council.defenseDate)} {r.council.location && `· ${r.council.location}`}
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <span className="badge badge-pending">Chưa gán HĐ</span>
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-xs font-medium">
+                                                    Chưa gán hội đồng
+                                                </span>
                                             )}
                                         </td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <td className="py-3 px-3.5 text-center align-top">
+                                            <div className="flex gap-1 justify-center flex-wrap items-center">
                                                 {effectiveMemberScores.length > 0 ? (
                                                     effectiveMemberScores.map((m, idx) => (
                                                         <span
                                                             key={m.evaluatorId || idx}
-                                                            style={{
-                                                                fontSize: 11,
-                                                                fontFamily: 'var(--font-mono)',
-                                                                background: '#F1F5F9',
-                                                                padding: '2px 6px',
-                                                                borderRadius: 4,
-                                                                color: '#334155',
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: 4,
-                                                            }}
+                                                            className="text-[11px] font-mono tabular-nums bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 inline-flex items-center gap-1"
                                                         >
-                                                            <span>{m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : (m.evaluatorName ? m.evaluatorName.split(' ').slice(-1)[0] : `GK${idx + 1}`)}: <strong>{m.finalScore ?? '—'}</strong></span>
+                                                            <span>
+                                                                {m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : (m.evaluatorName ? m.evaluatorName.split(' ').slice(-1)[0] : `GK${idx + 1}`)}:{' '}
+                                                                <strong className="text-slate-900">{m.finalScore ?? '—'}</strong>
+                                                            </span>
                                                             {m.scoreLocked ? (
-                                                                <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                                                                <span className="text-[9.5px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-sans font-semibold">
                                                                     Đã khóa
                                                                 </span>
                                                             ) : (
-                                                                <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#FEF3C7', color: '#B45309', fontWeight: 600 }}>
+                                                                <span className="text-[9.5px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-sans font-semibold">
                                                                     Chưa khóa
                                                                 </span>
                                                             )}
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Chưa có phiếu</span>
+                                                    <span className="text-xs text-slate-400 italic">Chưa có phiếu</span>
                                                 )}
                                             </div>
-                                            <div style={{ marginTop: 4 }}>
+                                            <div className="mt-1.5 flex items-center justify-center gap-1.5 flex-wrap">
                                                 <span
-                                                    className="badge"
                                                     data-testid={`row-scorer-counter-${id}`}
-                                                    style={{
-                                                        fontSize: 10.5,
-                                                        padding: '2px 6px',
-                                                        borderRadius: 4,
-                                                        background: allLocked ? '#ECFDF5' : '#FFFBEB',
-                                                        color: allLocked ? '#047857' : '#B45309',
-                                                        border: `1px solid ${allLocked ? '#A7F3D0' : '#FDE68A'}`,
-                                                        fontWeight: 600,
-                                                    }}
+                                                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-mono tabular-nums font-semibold border ${
+                                                        allLocked
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                    }`}
                                                 >
                                                     {lockedCount}/{totalScorers} phiếu đã khóa
                                                 </span>
-                                            </div>
-                                            {hasDiscrepancy && (
-                                                <div style={{ marginTop: 4 }}>
+                                                {hasDiscrepancy && (
                                                     <Tag
                                                         color="error"
                                                         icon={<ExclamationCircleOutlined />}
-                                                        style={{ fontSize: 10, padding: '0 6px', margin: 0 }}
+                                                        className="m-0 text-[10.5px] font-mono tabular-nums"
                                                     >
                                                         Lệch {delta.toFixed(1)}đ
                                                     </Tag>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-3 text-center align-top whitespace-nowrap">
+                                            {r.attendanceStatus === 'ABSENT' ? (
+                                                <Tag color="error" className="m-0 font-semibold">Vắng mặt</Tag>
+                                            ) : (
+                                                <div className="font-mono tabular-nums text-[13.5px] font-semibold text-slate-700">
+                                                    {r.rawAverageScore !== null && r.rawAverageScore !== undefined
+                                                        ? Number(r.rawAverageScore).toFixed(2)
+                                                        : r.finalScore !== null && r.finalScore !== undefined
+                                                        ? Number(r.finalScore).toFixed(2)
+                                                        : '—'}
                                                 </div>
                                             )}
                                         </td>
-                                        <td style={{ textAlign: 'center' }}>
+                                        <td className="py-3 px-3 text-center align-top whitespace-nowrap">
                                             {r.attendanceStatus === 'ABSENT' ? (
-                                                <Tag color="error">VẮNG MẶT</Tag>
+                                                <Tag color="error" className="m-0 font-semibold">Vắng mặt</Tag>
                                             ) : (
-                                                <>
-                                                    <div className="num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
-                                                        {r.rawAverageScore !== null && r.rawAverageScore !== undefined
-                                                            ? Number(r.rawAverageScore).toFixed(2)
-                                                            : r.finalScore !== null && r.finalScore !== undefined
-                                                            ? Number(r.finalScore).toFixed(2)
-                                                            : '—'}
-                                                    </div>
-                                                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>rawAverage</div>
-                                                </>
+                                                <div className="font-mono tabular-nums text-base font-extrabold text-[#0F766E]">
+                                                    {r.roundedFinalScore !== null && r.roundedFinalScore !== undefined
+                                                        ? Number(r.roundedFinalScore).toFixed(1)
+                                                        : r.finalScore !== null && r.finalScore !== undefined
+                                                        ? Number(r.finalScore).toFixed(1)
+                                                        : '—'}
+                                                </div>
                                             )}
                                         </td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            {r.attendanceStatus === 'ABSENT' ? (
-                                                <Tag color="error" className="font-bold">ABSENT</Tag>
-                                            ) : (
-                                                <>
-                                                    <div className="num" style={{ fontSize: 16, fontWeight: 900, color: 'var(--institutional)' }}>
-                                                        {r.roundedFinalScore !== null && r.roundedFinalScore !== undefined
-                                                            ? Number(r.roundedFinalScore).toFixed(1)
-                                                            : r.finalScore !== null && r.finalScore !== undefined
-                                                            ? Number(r.finalScore).toFixed(1)
-                                                            : '—'}
-                                                    </div>
-                                                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>roundedScore (1 số lẻ)</div>
-                                                </>
-                                            )}
+                                        <td className="py-3 px-3 text-center align-top whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${grade.badgeClass}`}>
+                                                {grade.label}
+                                            </span>
                                         </td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <span className={grade.cls}>{grade.label}</span>
-                                        </td>
-                                        <td>
-                                            {r.scoreLocked ? (
-                                                <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-                                                    Đã khóa sổ
-                                                </span>
-                                            ) : (
-                                                <span className="status-badge" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                                                    Đang chấm
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td style={{ textAlign: 'right' }}>
-                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => openRubricDrawer(r)}
-                                                    style={{ padding: '4px 10px', fontSize: 12 }}
-                                                >
-                                                    Mở Sổ Điểm
-                                                </button>
-                                                <Button
-                                                    size="small"
-                                                    icon={<FileTextOutlined />}
-                                                    onClick={() => {
-                                                        setSelectedRegForSummary(r);
-                                                        setSummaryModalOpen(true);
-                                                    }}
-                                                    title="Xem Biên bản tổng hợp BM05"
-                                                >
-                                                    BM05
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    icon={<FolderOpenOutlined />}
-                                                    onClick={() => {
-                                                        setSelectedRegForDossier(r);
-                                                        setDossierDrawerOpen(true);
-                                                    }}
-                                                    title="Xem toàn bộ hồ sơ biểu mẫu học vụ"
-                                                >
-                                                    Hồ sơ BM
-                                                </Button>
-                                                {canLockResult && (r.scoreLocked ? (
-                                                    <button
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => handleScoreLock(id, 'UNLOCK')}
-                                                        disabled={lockingId === id}
-                                                        style={{ color: 'var(--danger)', padding: '4px 8px' }}
-                                                        title="Mở khóa sổ điểm"
-                                                    >
-                                                        Mở khóa
-                                                    </button>
-                                                ) : (
-                                                    <Tooltip
-                                                        title={!allLocked ? `Cần đủ ${totalScorers} thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng (Hiện tại: ${lockedCount}/${totalScorers})` : ''}
-                                                    >
-                                                        <span>
-                                                            <button
-                                                                className="btn btn-primary btn-sm"
-                                                                onClick={() => handleScoreLock(id, 'LOCK')}
-                                                                disabled={!allLocked || lockingId === id}
-                                                                style={{ padding: '4px 8px' }}
-                                                                title={allLocked ? "Khóa sổ điểm hội đồng" : undefined}
-                                                            >
-                                                                Khóa sổ điểm hội đồng
-                                                            </button>
+                                        <td className="py-3 px-3 align-top whitespace-nowrap">
+                                            {(() => {
+                                                const isPublished = Boolean(
+                                                    r.isPublished
+                                                    || r.resultPublishedAt
+                                                    || r.defenseResult?.isPublished
+                                                    || r.defenseResult?.publishedAt
+                                                    || r.status === 'COMPLETED'
+                                                    || r.status === 'ARCHIVED'
+                                                );
+                                                const isApprovedPass = Boolean(
+                                                    r.status === 'DEFENSE_PASSED'
+                                                    || r.status === 'APPROVED_FOR_GRADUATION'
+                                                    || r.defenseResult?.approvalStatus === 'APPROVED'
+                                                );
+                                                const isFailed = Boolean(
+                                                    r.status === 'DEFENSE_FAILED'
+                                                    || r.status === 'FAILED'
+                                                    || r.attendanceStatus === 'ABSENT'
+                                                );
+                                                if (isPublished) {
+                                                    return (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                            Đã công bố
                                                         </span>
-                                                    </Tooltip>
-                                                ))}
-                                                {canApproveResult && r.status === 'AWAITING_FINAL_APPROVAL' && (
-                                                    <>
-                                                        <button className="btn btn-primary btn-sm" onClick={() => handleApproveResult(id, 'PASSED')} disabled={approvingId === id} style={{ padding: '4px 8px' }}>
-                                                             Duyệt đạt
-                                                        </button>
-                                                        <button className="btn btn-secondary btn-sm" onClick={() => handleApproveResult(id, 'FAILED')} disabled={approvingId === id} style={{ color: 'var(--danger)', padding: '4px 8px' }}>
-                                                             Duyệt không đạt
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {canLockResult && !r.isPublished && !r.isResultPublished && r.status !== 'COMPLETED' && (
-                                                    <Button
-                                                        size="small"
-                                                        icon={<RollbackOutlined />}
-                                                        onClick={() => handleOpenReturnModal(r)}
-                                                        style={{ color: '#D97706', borderColor: '#FDE68A' }}
-                                                    >
-                                                        Trả sổ về Hội đồng
-                                                    </Button>
-                                                )}
-                                            </div>
+                                                    );
+                                                }
+                                                if (isApprovedPass) {
+                                                    return (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-[#0F766E] border border-teal-200">
+                                                            Đã duyệt đạt
+                                                        </span>
+                                                    );
+                                                }
+                                                if (isFailed) {
+                                                    return (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                            Không đạt
+                                                        </span>
+                                                    );
+                                                }
+                                                if (r.scoreLocked) {
+                                                    return (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                                                            Đã khóa sổ
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                        Đang chấm
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                     </tr>
                                 );
@@ -1369,6 +1535,7 @@ export default function GradingDefensePage() {
                         )}
                     </tbody>
                 </table>
+                </div>
             </section>
             )}
 
@@ -1376,25 +1543,33 @@ export default function GradingDefensePage() {
             {canRemindGrading && selectedRowKeys.length > 0 && (
                 <div className="floating-batch-bar" style={{ display: 'flex' }}>
                     <span className="batch-count-text">
-                        Đã chọn: <span className="num">{selectedRowKeys.length}</span> đề tài
+                        Đã chọn: <span className="font-mono tabular-nums font-bold">{selectedRowKeys.length}</span> đề tài
                     </span>
                     <div className="batch-divider" />
-                    <button className="btn-batch primary" onClick={handleRemindGrading}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span>Nhắc Chấm Điểm HĐ</span>
-                    </button>
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<BellOutlined />}
+                        onClick={handleRemindGrading}
+                        className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold"
+                    >
+                        Nhắc chấm điểm hội đồng
+                    </Button>
                     <div className="batch-divider" />
-                    <button className="btn-batch" onClick={() => setSelectedRowKeys([])} style={{ opacity: 0.8 }}>
+                    <Button
+                        size="small"
+                        icon={<CloseOutlined />}
+                        onClick={() => setSelectedRowKeys([])}
+                    >
                         Bỏ chọn
-                    </button>
+                    </Button>
                 </div>
             )}
             </>}
 
             {/* CONTEXT-PRESERVING RUBRIC GRADING DRAWER */}
-            {drawerOpen && <div className="drawer-overlay" onClick={closeRubricDrawer} />}
+            {drawerOpen && scoreSheetRegistration && <div className="drawer-overlay" onClick={closeRubricDrawer} />}
+            {scoreSheetRegistration && (
             <aside
                 aria-hidden={!drawerOpen}
                 className={`side-drawer ${drawerOpen ? 'open' : ''}`}
@@ -1404,19 +1579,26 @@ export default function GradingDefensePage() {
             >
                 <div className="drawer-header">
                     <div>
-                        <span className="eyebrow" id="rubric-drawer-code">
-                            {scoreSheetRegistration?.topic?.code || 'DT-2026-001'} · {scoreSheetRegistration?.council?.name || 'HỘI ĐỒNG BẢO VỆ'}
+                        <span className="eyebrow font-mono tabular-nums" id="rubric-drawer-code">
+                            {scoreSheetRegistration?.topic?.code || '—'} · {scoreSheetRegistration?.council?.name || 'HỘI ĐỒNG BẢO VỆ'}
                         </span>
-                        <h2 className="h2" style={{ marginTop: 4 }}>
-                            {scoreSheetRegistration?.student?.fullName || 'Nguyễn Tiến Đạt'} ({scoreSheetRegistration?.student?.code || '21004189'})
-                        </h2>
+                        <div className="flex items-center gap-2 flex-wrap mt-1">
+                            <h2 className="font-display text-lg font-bold text-slate-900 m-0">
+                                {scoreSheetRegistration?.student?.fullName || '—'}
+                            </h2>
+                            {scoreSheetRegistration?.student?.code && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono tabular-nums text-xs font-semibold">
+                                    {scoreSheetRegistration.student.code}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    <button className="btn-icon-only" onClick={closeRubricDrawer} title="Đóng">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                    </button>
+                    <Button
+                        type="text"
+                        icon={<CloseOutlined />}
+                        onClick={closeRubricDrawer}
+                        aria-label="Đóng"
+                    />
                 </div>
 
                 <div className="drawer-body">
@@ -1424,7 +1606,7 @@ export default function GradingDefensePage() {
                     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
                         <span className="drawer-field-label">Tên Đề tài</span>
                         <p style={{ fontWeight: 600, color: 'var(--fg)', fontSize: 13.5, marginTop: 2 }}>
-                            {scoreSheetRegistration?.topic?.title || 'Hệ thống Quản lý Khóa luận Tốt nghiệp dựa trên Microservices và Ant Design'}
+                            {scoreSheetRegistration?.topic?.title || '—'}
                         </p>
                         <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
                             <span>GVHD: <strong style={{ color: 'var(--fg)' }}>{scoreSheetRegistration?.mentor?.fullName || scoreSheetRegistration?.topic?.mentor?.fullName || 'Chưa phân công'}</strong></span>
@@ -1452,8 +1634,8 @@ export default function GradingDefensePage() {
                     {/* Jury Members Comparison Cards */}
                     <div style={{ marginTop: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <div className="drawer-section-title" style={{ marginBottom: 0 }}>
-                                Điểm số Từng Thành viên Hội đồng (Click chọn người đang chấm)
+                            <div className="drawer-section-title font-display" style={{ marginBottom: 0 }}>
+                                Điểm số từng thành viên hội đồng
                             </div>
                             <span
                                 className="badge"
@@ -1515,7 +1697,7 @@ export default function GradingDefensePage() {
                             showIcon
                             icon={<LockOutlined />}
                             style={{ marginTop: 14 }}
-                            message="Phiếu chấm đã được khóa"
+                            title="Phiếu chấm đã được khóa"
                             description="Điểm số của phiếu chấm này đã được chốt vào biên bản hội đồng và đang ở chế độ chỉ đọc."
                         />
                     )}
@@ -1545,13 +1727,13 @@ export default function GradingDefensePage() {
                             <Alert
                                 type="error"
                                 showIcon
-                                message="Không thể tải phiếu chấm rubric"
+                                title="Không thể tải phiếu chấm rubric"
                                 description={drawerError}
                                 style={{ marginBottom: 12 }}
                             />
                         ) : drawerLoading ? (
                             <div style={{ padding: 32, textAlign: 'center' }}>
-                                <Spin tip="Đang tải phiếu chấm..." />
+                                <Spin description="Đang tải phiếu chấm..." />
                             </div>
                         ) : drawerOpen ? (
                             <>
@@ -1590,20 +1772,20 @@ export default function GradingDefensePage() {
                     {/* Realtime Summary Calculation Box */}
                     <div className="rubric-calc-summary" style={{ marginTop: 18 }}>
                         <div>
-                            <span className="eyebrow" style={{ color: 'var(--institutional)' }}>
+                            <span className="eyebrow font-display" style={{ color: 'var(--institutional)' }}>
                                 KẾT QUẢ ĐIỂM TỔNG HỢP HỘI ĐỒNG
                             </span>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
-                                <span className="h1 num" style={{ color: 'var(--institutional)' }}>
+                            <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+                                <span className="font-mono tabular-nums text-2xl font-extrabold text-[#0F766E]">
                                     {finalCompositeScore.toFixed(2)}
                                 </span>
-                                <span style={{ fontSize: 13, color: 'var(--muted)' }}>/ 10</span>
-                                <span className={getGradeClassification(finalCompositeScore).cls} style={{ marginLeft: 6 }}>
+                                <span className="text-xs text-slate-500 font-mono">/ 10</span>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ml-1 ${getGradeClassification(finalCompositeScore).badgeClass}`}>
                                     {getGradeClassification(finalCompositeScore).label}
                                 </span>
                             </div>
-                            <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                Quy chế Viện: Trung bình cộng điểm các thành viên Hội đồng bảo vệ có hiệu lực ({drawerScorerSummary.totalScorers} thành viên)
+                            <p className="text-xs text-slate-500 mt-1 mb-0">
+                                Trung bình cộng điểm các thành viên hội đồng có hiệu lực · <span className="font-mono tabular-nums font-semibold text-slate-700">{drawerScorerSummary.totalScorers}</span> thành viên
                             </p>
                         </div>
                         <Button
@@ -1673,25 +1855,30 @@ export default function GradingDefensePage() {
                     </div>
                 </div>
             </aside>
-            {/* Modal Công Bố Kết Quả Bảo Vệ Snapshot */}
+            )}
+            {/* Modal Công Bố Kết Quả Bảo Vệ Học Kỳ */}
             <DefenseResultPublicationModal
                 open={publishModalOpen && Boolean(selectedSemesterId)}
                 onClose={handleClosePublicationModal}
                 semesterId={selectedSemesterId}
-                semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
+                semesterName={selectedSemesterName}
             />
 
-            {/* Modal Lịch Sử Công Bố & Lưu Chiểu Snapshot */}
+            {/* Modal Lịch Sử Công Bố Kết Quả */}
             <PublicationHistoryModal
                 open={historyModalOpen && Boolean(selectedSemesterId)}
                 onClose={() => setHistoryModalOpen(false)}
                 semesterId={selectedSemesterId}
-                semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
+                semesterName={selectedSemesterName}
             />
 
-            {/* Modal Trả Sổ Điểm Về Hội Đồng (Trước Công Bố) */}
+            {/* Modal Trả Sổ Điểm Về Hội Đồng */}
             <Modal
-                title={`Trả Sổ Điểm Về Hội Đồng: ${selectedRegForReturn?.student?.fullName || ''}`}
+                title={
+                    <span className="font-display font-bold text-slate-900">
+                        Trả sổ điểm về hội đồng · {selectedRegForReturn?.student?.fullName || ''}
+                    </span>
+                }
                 open={returnModalOpen}
                 onOk={handleConfirmReturnScoreBook}
                 onCancel={() => {
@@ -1724,9 +1911,9 @@ export default function GradingDefensePage() {
 
                     <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                            Chọn các phiếu giám khảo cần mở khóa lại: <span className="text-rose-500">*</span>
+                            Chọn các phiếu giám khảo cần mở khóa lại <span className="text-rose-500">*</span>
                         </label>
-                        <div className="space-y-1 mt-1 border border-slate-200 p-2.5 rounded bg-slate-50">
+                        <div className="space-y-1.5 mt-1 border border-slate-200 p-2.5 rounded-lg bg-slate-50">
                             {(selectedRegForReturn?.memberScores || []).map((m, idx) => {
                                 const scoreId = m?.id;
                                 if (!scoreId) return null;
@@ -1743,11 +1930,14 @@ export default function GradingDefensePage() {
                                             }}
                                         >
                                             <span className="font-semibold text-slate-800">
-                                                {m.evaluator?.fullName || m.evaluatorName || `Giám khảo #${scoreId}`} ({m.memberRole || 'Thành viên HĐ'})
+                                                {m.evaluator?.fullName || m.evaluatorName || `Giám khảo #${scoreId}`}
                                             </span>
+                                            <Tag className="ml-1.5 mr-0 text-[10.5px]">
+                                                {m.memberRole || 'Thành viên HĐ'}
+                                            </Tag>
                                             {m.finalScore !== null && m.finalScore !== undefined && (
-                                                <span className="ml-1 text-slate-500">
-                                                    - Điểm hiện tại: <strong>{Number(m.finalScore).toFixed(1)}</strong>
+                                                <span className="ml-1.5 text-slate-500 font-mono tabular-nums">
+                                                    · Điểm hiện tại: <strong className="text-slate-800">{Number(m.finalScore).toFixed(1)}</strong>
                                                 </span>
                                             )}
                                         </Checkbox>

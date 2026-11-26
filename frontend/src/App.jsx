@@ -187,6 +187,9 @@ function App() {
                                 <Route element={<ProtectedRoute featureKey="defense-lock" requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH']} />}>
                                     <Route path="grading" element={<GradingDefensePage />} />
                                 </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'DEFENSE_SCORE_VIEW', 'VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'VIEW_RESULT_PUBLICATIONS', 'VIEW_ALL_TOPICS']} />}>
+                                    <Route path="students/:registrationId" element={<LecturerStudentGuidancePage mode="admin" />} />
+                                </Route>
                                 <Route element={<ProtectedRoute featureKey="rubric-config" requiredAnyPermissions={['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE']} />}>
                                     <Route path="rubric-management" element={<RubricManagementPage />} />
                                 </Route>

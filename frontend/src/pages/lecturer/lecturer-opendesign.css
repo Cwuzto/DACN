@@ -97,31 +97,7 @@
       font-weight: 500;
     }
 
-    /* Lecturer Profile Chip */
-    .lecturer-chip {
-      padding: 14px 18px;
-      margin: 14px 16px;
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .lecturer-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--primary-light);
-      color: var(--primary);
-      border: 2px solid #CCFBF1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
+    /* .lecturer-chip and .lecturer-avatar inherited from index.css */
     .lecturer-info {
       min-width: 0;
     }
@@ -197,35 +173,7 @@
       flex: 1;
       overflow-y: auto;
     }
-    .nav-section-title {
-      font-size: 10.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #475569;
-      padding: 10px 10px 4px 10px;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 9px 12px;
-      border-radius: var(--radius-sm);
-      color: #475569;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .nav-item:hover {
-      background: #F1F5F9;
-      color: var(--fg);
-    }
-    .nav-item.active {
-      background: var(--primary-light);
-      color: var(--primary);
-      font-weight: 600;
-    }
+    /* .nav-section-title and .nav-item states inherited from index.css */
     .nav-left {
       display: flex;
       align-items: center;
@@ -317,46 +265,7 @@
 
     /* MAIN VIEWPORT - Inherited from global index.css */
 
-    /* TOP HEADER */
-    .topbar {
-      height: 56px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px;
-      flex-shrink: 0;
-    }
-    .topbar-left {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .period-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--fg);
-    }
-    .period-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
-    }
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    /* TOP HEADER inherited from index.css */
 
     /* BUTTONS */
     .btn {

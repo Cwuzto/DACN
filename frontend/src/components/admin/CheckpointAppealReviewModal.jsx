@@ -171,7 +171,7 @@ export default function CheckpointAppealReviewModal({
                     <Alert
                         type="error"
                         showIcon
-                        message="Xung đột lợi ích: Giảng viên hướng dẫn không được thẩm định khiếu nại của sinh viên mình hướng dẫn."
+                        title="Xung đột lợi ích: Giảng viên hướng dẫn không được thẩm định khiếu nại của sinh viên mình hướng dẫn."
                         description="Theo quy chế học vụ, đơn khiếu nại chữ ký Checkpoint của sinh viên bắt buộc phải do Ban chủ nhiệm khoa / Viện trưởng hoặc hội đồng độc lập thẩm định để đảm bảo tính khách quan và công bằng."
                     />
                 )}

@@ -42,9 +42,11 @@ import {
     HistoryOutlined,
     SwapOutlined,
     WarningOutlined,
+    ClockCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
+import PageHeader from '../../components/common/PageHeader';
 
 import useAuthStore from '../../stores/authStore';
 
@@ -717,78 +719,72 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
     return (
         <QueryPanel query={councilQuery}>
-        <div className="p-6 space-y-6">
-            {/* Header with Navigation, Title, and Actions */}
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <Button
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => navigate(effectiveCouncilType === 'OUTLINE_REVIEW' ? '/admin/outline-councils' : '/admin/defense-councils')}
-                        className="mb-3 hover:border-teal-600 hover:text-teal-700 font-medium"
-                    >
-                        Quay lại Danh sách HĐ
-                    </Button>
-                    <Button
-                        icon={<ReloadOutlined />}
-                        loading={councilQuery.isFetching}
-                        onClick={() => councilQuery.refetch()}
-                        className="mb-3"
-                    >
-                        Làm mới
-                    </Button>
-                </div>
+        <div className="space-y-5">
+            {/* Top Back & Refresh Bar */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <Button
+                    icon={<ArrowLeftOutlined />}
+                    onClick={() => navigate(effectiveCouncilType === 'OUTLINE_REVIEW' ? '/admin/outline-councils' : '/admin/defense-councils')}
+                >
+                    Quay lại Danh sách HĐ
+                </Button>
+                <Button
+                    icon={<ReloadOutlined />}
+                    loading={councilQuery.isFetching}
+                    onClick={() => councilQuery.refetch()}
+                >
+                    Làm mới
+                </Button>
+            </div>
 
-                {/* Read-only Alert Banner for Completed Semesters */}
-                {isSemesterCompleted && (
-                    <Alert
-                        type="info"
-                        showIcon
-                        className="border border-blue-200 bg-blue-50/80 rounded-xl mb-1"
-                        message={
-                            <span className="font-bold text-slate-900 text-sm">
-                                Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only)
-                            </span>
-                        }
-                        description={
-                            <span className="text-slate-600 text-xs">
-                                Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng, danh sách thành viên và phân công sinh viên được khóa cố định nhằm bảo toàn tính toàn vẹn của dữ liệu học vụ. Các thao tác điều chỉnh đã được vô hiệu hóa.
-                            </span>
-                        }
-                    />
-                )}
+            {/* Read-only Alert Banner for Completed Semesters */}
+            {isSemesterCompleted && (
+                <Alert
+                    type="info"
+                    showIcon
+                    className="border border-blue-200 bg-blue-50/80 rounded-2xl"
+                    title={
+                        <span className="font-bold text-slate-900 text-sm">
+                            Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only)
+                        </span>
+                    }
+                    description={
+                        <span className="text-slate-600 text-xs">
+                            Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng, danh sách thành viên và phân công sinh viên được khóa cố định nhằm bảo toàn tính toàn vẹn của dữ liệu học vụ. Các thao tác điều chỉnh đã được vô hiệu hóa.
+                        </span>
+                    }
+                />
+            )}
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-300">
-                    <div>
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                                {council.name}
-                            </h1>
-                            <Tag color={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'} className="font-bold border border-slate-300">
-                                {effectiveCouncilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
-                            </Tag>
-                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && isSchedulePublished && (
-                                <Tag color="success" icon={<CheckCircleOutlined />} className="font-bold border border-emerald-300">
-                                    Lịch bảo vệ chính thức (Đã công bố)
-                                </Tag>
-                            )}
-                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && isAssignmentConfirmed && !isSchedulePublished && (
-                                <Tag color="processing" icon={<ClockCircleOutlined />} className="font-bold border border-blue-300">
-                                    Đã xác nhận phân công
-                                </Tag>
-                            )}
-                            <span className={`text-xs px-2.5 py-1 rounded font-bold ${
-                                activeMembers.length === 3 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
-                            }`}>
-                                {activeMembers.length === 3 ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
-                            </span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1 font-medium">
-                            Học kỳ: <span className="font-bold text-slate-900">{council.semester?.name || '---'}</span>
-                        </p>
-                    </div>
-
-                    {/* Action buttons */}
+            <PageHeader
+                icon={<TeamOutlined />}
+                accent="purple"
+                title={council.name}
+                subtitle={`Học kỳ: ${council.semester?.name || '---'}`}
+                badge={
                     <div className="flex items-center gap-2 flex-wrap">
+                        <Tag color={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'purple' : 'cyan'} className="m-0 font-semibold">
+                            {effectiveCouncilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
+                        </Tag>
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && isSchedulePublished && (
+                            <Tag color="success" icon={<CheckCircleOutlined />} className="m-0 font-semibold">
+                                Lịch bảo vệ chính thức (Đã công bố)
+                            </Tag>
+                        )}
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && isAssignmentConfirmed && !isSchedulePublished && (
+                            <Tag color="processing" icon={<ClockCircleOutlined />} className="m-0 font-semibold">
+                                Đã xác nhận phân công
+                            </Tag>
+                        )}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                            activeMembers.length === 3 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                            {activeMembers.length === 3 ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
+                        </span>
+                    </div>
+                }
+                actions={
+                    <>
                         {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && !isSchedulePublished && (
                             <Button
                                 type="primary"
@@ -796,7 +792,6 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 onClick={handleConfirmAndPublishDefenseSchedule}
                                 loading={submitLoading}
                                 disabled={isSemesterCompleted}
-                                className="bg-emerald-700 hover:bg-emerald-800 font-semibold"
                             >
                                 Công bố lịch bảo vệ chia ca
                             </Button>
@@ -822,7 +817,6 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                     icon={<UserAddOutlined />}
                                     onClick={openAssignModal}
                                     disabled={isSemesterCompleted}
-                                    className="bg-teal-700 hover:bg-teal-800 font-semibold"
                                 >
                                     Gán thêm Sinh viên
                                 </Button>
@@ -833,21 +827,21 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 Mở khóa kết quả
                             </Button>
                         )}
-                    </div>
-                </div>
-            </div>
+                    </>
+                }
+            />
 
             {/* 2-Column Summary Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Left Card: Lịch & Địa điểm (1/3) */}
                 <Card
                     title={
                         <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-                            <CalendarOutlined className="text-teal-700" />
+                            <CalendarOutlined className="text-purple-600" />
                             <span>Thông tin lịch & địa điểm</span>
                         </div>
                     }
-                    className="shadow-sm border border-slate-300 rounded-lg"
+                    className="shadow-sm border border-slate-200/80 rounded-2xl"
                 >
                     <div className="space-y-4">
                         <div>
@@ -871,7 +865,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         <div>
                             <span className="text-xs text-slate-600 block mb-0.5 font-semibold">Phòng họp / Link</span>
                             <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
-                                <EnvironmentOutlined className="text-teal-700" />
+                                <EnvironmentOutlined className="text-purple-600" />
                                 <span>{council.location || council.meetingUrl || 'Chưa xếp phòng'}</span>
                             </div>
                         </div>
@@ -879,14 +873,14 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         <div className="pt-2 border-t border-slate-200">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-xs text-slate-600 font-semibold">Quy mô sinh viên</span>
-                                <span className="text-xs font-black text-slate-900">
+                                <span className="text-xs font-black text-slate-900 tabular-nums">
                                     {effectiveRegistrations.length} / {effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10} SV
                                 </span>
                             </div>
                             <Progress
                                 percent={Math.min(100, (effectiveRegistrations.length / (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10)) * 100)}
                                 showInfo={false}
-                                strokeColor={effectiveRegistrations.length > (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10) ? '#ef4444' : '#0f766e'}
+                                strokeColor={effectiveRegistrations.length > (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10) ? '#ef4444' : '#7c3aed'}
                                 size="small"
                             />
                         </div>
@@ -898,21 +892,21 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     title={
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-                                <TeamOutlined className="text-teal-700" />
+                                <TeamOutlined className="text-purple-600" />
                                 <span>Thành phần Hội đồng (3 Ủy viên)</span>
                             </div>
                             {conflictNames.length > 0 && (
-                                <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2.5 py-1 rounded border border-amber-300 font-bold text-xs">
+                                <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-xs">
                                     <WarningOutlined className="text-amber-600" /> Có GV {conflictNames.join(', ')} là GVHD của sinh viên HĐ này
                                 </span>
                             )}
                         </div>
                     }
-                    className="lg:col-span-2 shadow-sm border border-slate-300 rounded-lg"
+                    className="lg:col-span-2 shadow-sm border border-slate-200/80 rounded-2xl"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* 1. Chairman */}
-                        <div className="p-3.5 bg-teal-50 rounded-lg border-2 border-teal-200 text-teal-950 flex flex-col justify-between">
+                        <div className="p-3.5 bg-teal-50/70 rounded-xl border border-teal-200 text-teal-950 flex flex-col justify-between">
                             <div>
                                 <span className="text-xs font-bold text-teal-900 block mb-2 uppercase tracking-wider">
                                     1. Chủ tịch Hội đồng
@@ -1069,7 +1063,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 onOk={handleSaveCouncil}
                 onCancel={() => setIsEditModalVisible(false)}
                 confirmLoading={submitLoading}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={councilForm} layout="vertical" className="mt-4">
                     <Form.Item
@@ -1105,7 +1099,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 onCancel={() => setIsMemberModalVisible(false)}
                 confirmLoading={submitLoading}
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={lecturersQuery}>
                 <p className="text-xs text-slate-500 mb-4">
@@ -1156,7 +1150,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 onCancel={() => setIsAssignModalVisible(false)}
                 confirmLoading={submitLoading}
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={unassignedQuery}>
                 <div className="mb-4">
@@ -1201,7 +1195,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 okText="Xác nhận mở khóa"
                 okButtonProps={{ danger: true, loading: reopenLoading }}
                 cancelButtonProps={{ disabled: reopenLoading }}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <p className="text-sm text-slate-700">
@@ -1216,7 +1210,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         <Alert
                             type="error"
                             showIcon
-                            message="Không thể mở khóa kết quả"
+                            title="Không thể mở khóa kết quả"
                             description={
                                 <div className="mt-1 space-y-2">
                                     <div>{reopenError}</div>
@@ -1279,7 +1273,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     </Button>,
                 ]}
                 width={950}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={adjustmentsQuery}>
                 {defenseScheduleAdjustmentLogs.length === 0 && !loadingAdjustments ? (
@@ -1309,7 +1303,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     setAdjustingReg(null);
                 }}
                 confirmLoading={submitLoading}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <div>
@@ -1364,13 +1358,13 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     setReplacingMember(null);
                 }}
                 confirmLoading={submitLoading}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={lecturersQuery}>
                 <div className="space-y-4 py-2">
                     <Alert
                         type="info"
-                        message="Thay thế thành viên chấm điểm"
+                        title="Thay thế thành viên chấm điểm"
                         description="Thành viên mới sẽ tiếp quản chấm điểm cho các sinh viên trong hội đồng này."
                         showIcon
                     />

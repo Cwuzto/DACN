@@ -540,7 +540,7 @@ export default function LecturerDashboardPage() {
                 <Alert
                     type="warning"
                     showIcon
-                    message={titleAdjustmentsQuery.error?.message || 'Không thể đồng bộ một số dữ liệu phụ.'}
+                    title={titleAdjustmentsQuery.error?.message || 'Không thể đồng bộ một số dữ liệu phụ.'}
                 />
             )}
 
@@ -548,7 +548,7 @@ export default function LecturerDashboardPage() {
                 <Alert
                     type="error"
                     showIcon
-                    message="Không thể tải dữ liệu tổng quan giảng viên"
+                    title="Không thể tải dữ liệu tổng quan giảng viên"
                     description={overviewQuery.error?.message || 'Vui lòng thử lại sau.'}
                     action={
                         <Button
@@ -700,6 +700,7 @@ export default function LecturerDashboardPage() {
                                     Sinh viên hướng dẫn:
                                 </label>
                                 <Select
+                                    aria-label="Chọn sinh viên hướng dẫn"
                                     value={meetingStudentId || undefined}
                                     onChange={(val) => setMeetingStudentId(val)}
                                     style={{ width: '100%' }}
@@ -737,6 +738,7 @@ export default function LecturerDashboardPage() {
                                         Hình thức làm việc:
                                     </label>
                                     <Select
+                                        aria-label="Chọn hình thức làm việc"
                                         value={meetingLocation}
                                         onChange={setMeetingLocation}
                                         style={{ width: '100%' }}

@@ -1389,7 +1389,7 @@ model BM04Evaluation {
   finalPdfFileUrl      String?                      @map("final_pdf_file_url")
   finalPdfAssetId      String?                      @map("final_pdf_asset_id")
   finalPdfAsset        StoredAsset?                 @relation("BM04EvaluationAsset", fields: [finalPdfAssetId], references: [id], onDelete: SetNull)
-  signedAt             DateTime                     @default(now()) @map("signed_at")
+  signedAt             DateTime?                    @map("signed_at")
   isLocked             Boolean                      @default(true) @map("is_locked")
   policyVersionId      Int?                         @map("policy_version_id")
   policyVersion        PeriodWorkflowPolicyVersion? @relation("BM04PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)

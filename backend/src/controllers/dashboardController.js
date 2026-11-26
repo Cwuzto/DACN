@@ -11,6 +11,7 @@ const {
 const { computeAllowedActions } = require('../services/workflowActionService');
 const { buildStudentWorkState } = require('../services/studentWorkItemService');
 const { buildStudentNextAction } = require('../services/studentDashboardActionService');
+const { buildArchiveDeadlineSummary } = require('../utils/defenseTimeWindowUtils');
 const {
     resolveReportReadScope,
     buildTopicDepartmentWhere,
@@ -656,7 +657,15 @@ const getStudentDashboard = async (req, res, next) => {
             },
             bm04Evaluation: true,
             defenseResult: true,
-            archive: true,
+            defenseCouncil: { select: { id: true, name: true, defenseDate: true, location: true } },
+            council: { select: { id: true, name: true, defenseDate: true, location: true } },
+            archive: {
+                include: {
+                    documentVersions: {
+                        orderBy: { versionNumber: 'desc' },
+                    },
+                },
+            },
             bm03Record: true,
             currentBM02Submission: true,
         };
@@ -763,7 +772,7 @@ const getStudentDashboard = async (req, res, next) => {
         if (meetingLogsCount === 0) {
             if (Array.isArray(registration.bm03MeetingEntries)) {
                 meetingLogsCount = registration.bm03MeetingEntries.length;
-            } else if (!Array.isArray(registration.meetingLogs) && typeof prisma.bM03MeetingEntry?.count === 'function') {
+            } else if (typeof prisma.bM03MeetingEntry?.count === 'function') {
                 const count = await prisma.bM03MeetingEntry.count({
                     where: { registrationId: registration.id },
                 });
@@ -773,27 +782,25 @@ const getStudentDashboard = async (req, res, next) => {
             }
         }
 
-        // 3. mentorScore: Lấy điểm đánh giá của GVHD từ BM04Evaluation
+        // 3. mentorScore: Lấy điểm số thực tế (nếu có) và mentorConclusion từ BM04Evaluation
         let mentorScore = null;
+        let mentorConclusion = null;
         const bm04 = registration.bm04Evaluation || (
             prisma.bM04Evaluation?.findUnique
                 ? await prisma.bM04Evaluation.findUnique({ where: { registrationId: registration.id } })
                 : null
         );
         if (bm04) {
-            if (typeof bm04.score === 'number') {
+            if (typeof bm04.score === 'number' && Number.isFinite(bm04.score)) {
                 mentorScore = bm04.score;
-            } else if (typeof bm04.finalScore === 'number') {
+            } else if (typeof bm04.finalScore === 'number' && Number.isFinite(bm04.finalScore)) {
                 mentorScore = bm04.finalScore;
-            } else if (bm04.score !== undefined && bm04.score !== null && !isNaN(Number(bm04.score))) {
+            } else if (bm04.score !== undefined && bm04.score !== null && bm04.score !== '' && Number.isFinite(Number(bm04.score))) {
                 mentorScore = Number(bm04.score);
-            } else if (bm04.finalScore !== undefined && bm04.finalScore !== null && !isNaN(Number(bm04.finalScore))) {
+            } else if (bm04.finalScore !== undefined && bm04.finalScore !== null && bm04.finalScore !== '' && Number.isFinite(Number(bm04.finalScore))) {
                 mentorScore = Number(bm04.finalScore);
-            } else if (bm04.programOutcome !== undefined && bm04.programOutcome !== null) {
-                mentorScore = bm04.programOutcome;
-            } else if (bm04.conclusion) {
-                mentorScore = bm04.conclusion;
             }
+            mentorConclusion = bm04.conclusion || bm04.programOutcome || null;
         }
 
         // 4. mentorFullName
@@ -801,30 +808,96 @@ const getStudentDashboard = async (req, res, next) => {
 
         const tasks = formattedTasks;
         const now = new Date();
+        const DONE_TASK_STATUSES = ['SUBMITTED', 'COMPLETED', 'APPROVED', 'PASSED'];
         const totalTasks = tasks.length;
         const submittedTasksCount = tasks.filter(
-            (task) => task.status === 'SUBMITTED' || task.status === 'COMPLETED'
+            (task) => DONE_TASK_STATUSES.includes(task.status)
         ).length;
-        const completedTasksCount = tasks.filter((task) => task.status === 'COMPLETED').length;
+        const completedTasksCount = tasks.filter((task) => ['COMPLETED', 'APPROVED', 'PASSED'].includes(task.status)).length;
         const overdueTasksCount = tasks.filter(
             (task) =>
                 (task.dueDate || task.deadline) &&
                 new Date(task.dueDate || task.deadline) < now &&
-                !['SUBMITTED', 'COMPLETED'].includes(task.status)
+                !DONE_TASK_STATUSES.includes(task.status)
         ).length;
         const upcomingTasksCount = tasks.filter(
             (task) =>
                 (task.dueDate || task.deadline) &&
                 new Date(task.dueDate || task.deadline) >= now &&
-                !['SUBMITTED', 'COMPLETED'].includes(task.status)
+                !DONE_TASK_STATUSES.includes(task.status)
         ).length;
         const remainingTasks = totalTasks - submittedTasksCount;
-        const progressPercent = totalTasks > 0 ? Math.round((submittedTasksCount / totalTasks) * 100) : 0;
+        const STATUS_PROGRESS_MAP = {
+            PENDING_MENTOR: 5,
+            TOPIC_APPROVED: 10,
+            OUTLINE_PENDING: 15,
+            BM01_SUBMITTED: 20,
+            BM01_NEEDS_REVISION: 20,
+            BM01_PASSED: 30,
+            BM02_PENDING_STUDENT: 35,
+            BM02_PENDING_ADVISOR: 40,
+            BM02_PENDING_DEPARTMENT: 45,
+            BM02_SUBMITTED: 45,
+            BM02_APPROVED: 50,
+            DECISION_ISSUED: 55,
+            IN_PROGRESS: 60,
+            IN_PROGRESS_BM03: 60,
+            BM03_SIGNATURE_PENDING: 65,
+            BM03_PASSED: 70,
+            BM04_REVIEW: 75,
+            DEFENSE_READY: 80,
+            DEFENSE_ELIGIBLE: 80,
+            ELIGIBLE_BY_INSTITUTE: 80,
+            AWAITING_SCORES: 85,
+            AWAITING_FINAL_APPROVAL: 90,
+            DEFENDED: 90,
+            DEFENSE_PASSED: 95,
+            PENDING_INSTITUTE_SIGNATURE: 98,
+            COMPLETED: 100,
+        };
+        const taskProgress = totalTasks > 0 ? Math.round((submittedTasksCount / totalTasks) * 100) : 0;
+        const statusProgress = STATUS_PROGRESS_MAP[registration.status] || 0;
+        const progressPercent = Math.max(statusProgress, taskProgress);
 
-        const upcomingDeadlines = tasks
-            .filter((task) => (task.dueDate || task.deadline) && new Date(task.dueDate || task.deadline) > now)
-            .sort((firstTask, secondTask) => new Date(firstTask.dueDate || firstTask.deadline) - new Date(secondTask.dueDate || secondTask.deadline))
-            .slice(0, 3)
+        const archiveSummary = buildArchiveDeadlineSummary(
+            { ...registration, semester: registration.semester || activeSemester },
+            registration.archive || null,
+            now
+        );
+
+        if (registration.archive) {
+            registration.archive = {
+                ...registration.archive,
+                softPreparationDeadlineAt:
+                    registration.archive.softPreparationDeadlineAt || archiveSummary.timeWindows.softPreparationDeadlineAt,
+                defenseSnapshotAt:
+                    registration.archive.defenseSnapshotAt || archiveSummary.timeWindows.defenseSnapshotAt,
+                windowClosesAt:
+                    registration.archive.windowClosesAt || archiveSummary.timeWindows.windowClosesAt,
+                timeWindows: archiveSummary.timeWindows,
+            };
+        }
+
+        const PRE_DEFENSE_ARCHIVE_STAGES = [
+            'BM03_PASSED',
+            'BM04_REVIEW',
+            'DEFENSE_READY',
+            'DEFENSE_ELIGIBLE',
+            'ELIGIBLE_BY_INSTITUTE',
+        ];
+        const POST_DEFENSE_ARCHIVE_STAGES = [
+            'DEFENSE_PASSED',
+            'ARCHIVE_INCOMPLETE',
+            'ARCHIVE_REJECTED',
+        ];
+
+        const taskUpcomingDeadlines = tasks
+            .filter(
+                (task) =>
+                    !DONE_TASK_STATUSES.includes(task.status) &&
+                    (task.dueDate || task.deadline) &&
+                    new Date(task.dueDate || task.deadline) > now
+            )
             .map((task) => ({
                 id: task.id,
                 title: `Nộp phần việc: ${task.title}`,
@@ -832,6 +905,36 @@ const getStudentDashboard = async (req, res, next) => {
                 date: task.dueDate || task.deadline,
                 desc: task.content || task.description || 'Hoàn thành công việc được giao trên hệ thống',
             }));
+
+        const isPreDefenseArchiveStage = PRE_DEFENSE_ARCHIVE_STAGES.includes(registration.status);
+        const isPostDefenseArchiveStage = POST_DEFENSE_ARCHIVE_STAGES.includes(registration.status);
+
+        if ((isPreDefenseArchiveStage || isPostDefenseArchiveStage) && !archiveSummary.isComplete) {
+            const archiveDeadlineAt = isPostDefenseArchiveStage
+                ? archiveSummary.timeWindows.windowClosesAt
+                : (archiveSummary.timeWindows.softPreparationDeadlineAt || archiveSummary.timeWindows.windowClosesAt);
+
+            if (archiveDeadlineAt && !archiveSummary.isWindowClosed) {
+                const deadlineDate = new Date(archiveDeadlineAt);
+                const isFutureOrExpiring = !Number.isNaN(deadlineDate.getTime()) && (deadlineDate >= now || isPostDefenseArchiveStage);
+                if (isFutureOrExpiring) {
+                    taskUpcomingDeadlines.push({
+                        id: `archive-deadline-${registration.id}`,
+                        title: isPostDefenseArchiveStage
+                            ? `Hạn nộp hồ sơ lưu chiểu (${archiveSummary.submittedCount}/${archiveSummary.totalRequired})`
+                            : `Hạn nộp hồ sơ bảo vệ (${archiveSummary.submittedCount}/${archiveSummary.totalRequired})`,
+                        color: getDeadlineColor(archiveDeadlineAt),
+                        date: archiveDeadlineAt,
+                        desc: `Còn thiếu ${archiveSummary.missingTypes.length} tài liệu: ${archiveSummary.missingTypes.join(', ')}`,
+                        kind: 'ARCHIVE_DEADLINE',
+                    });
+                }
+            }
+        }
+
+        const upcomingDeadlines = taskUpcomingDeadlines
+            .sort((firstItem, secondItem) => new Date(firstItem.date) - new Date(secondItem.date))
+            .slice(0, 4);
 
         // Hide defenseResult if not published yet to prevent leaking grades/comments
         if (registration?.defenseResult && !registration.defenseResult.isPublished) {
@@ -870,9 +973,10 @@ const getStudentDashboard = async (req, res, next) => {
                     registeredAt: registration.createdAt || null,
                     decisionNumber: registration.decisionNumber,
                     decisionDate: registration.decisionDate,
-                    bm04SignedAt: bm04?.signedAt || bm04?.createdAt || null,
+                    bm04SignedAt: bm04 && bm04.status !== 'DRAFT' ? (bm04.signedAt || bm04.createdAt || null) : null,
                     adjustedTitle: registration.adjustedTitle,
                     mentorScore,
+                    mentorConclusion,
                     mentorFullName,
                     meetingLogsCount,
                     tasks: formattedTasks,
@@ -903,6 +1007,7 @@ const getStudentDashboard = async (req, res, next) => {
                     progressPercent,
                 },
                 upcomingDeadlines,
+                archiveSummary,
                 registration,
                 topic: registration.topic || null,
                 tasks: formattedTasks,

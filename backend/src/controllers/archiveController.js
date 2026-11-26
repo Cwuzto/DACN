@@ -8,6 +8,7 @@ const defenseAndArchivalSweepService = require('../services/defenseAndArchivalSw
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 const { storedAssetService } = require('../services/storedAssetService');
 const { STORAGE_BUCKETS } = require('../config/storageConfig');
+const { buildArchiveDeadlineSummary } = require('../utils/defenseTimeWindowUtils');
 
 const parsePositiveInt = (value) => {
     const parsed = parseInt(value, 10);
@@ -89,12 +90,14 @@ const getArchiveByRegistration = async (req, res, next) => {
                 topic: {
                     include: {
                         mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
-                        semester: { select: { id: true, name: true, startDate: true, endDate: true } },
+                        semester: { select: { id: true, name: true, startDate: true, endDate: true, defenseDate: true } },
                         projectCatalog: { select: { id: true, name: true } },
                     },
                 },
+                semester: { select: { id: true, name: true, startDate: true, endDate: true, defenseDate: true } },
                 defenseResult: true,
                 defenseCouncil: { select: { id: true, name: true, defenseDate: true, location: true } },
+                council: { select: { id: true, name: true, defenseDate: true, location: true } },
                 archive: {
                     include: {
                         reviewer: { select: { id: true, fullName: true, code: true, role: true } },
@@ -155,6 +158,8 @@ const getArchiveByRegistration = async (req, res, next) => {
             summary: archiveData.summary || null,
         } : null;
 
+        const archiveSummary = buildArchiveDeadlineSummary(registration, archiveData);
+
         const dossierFiles = (archiveData?.documentVersions || []).map((dv) => ({
             id: dv.id,
             docType: dv.documentType,
@@ -162,6 +167,9 @@ const getArchiveByRegistration = async (req, res, next) => {
             fileName: dv.fileName,
             fileUrl: dv.fileUrl || dv.demoVideoExternalUrl,
             versionNumber: dv.versionNumber,
+            version: dv.versionNumber,
+            checksumSha256: dv.checksumSha256 || dv.checksum || null,
+            assetId: dv.assetId || null,
             uploadedAt: dv.uploadedAt,
         }));
 
@@ -171,6 +179,10 @@ const getArchiveByRegistration = async (req, res, next) => {
                 registration: responseRegistration,
                 archive: archiveData ? {
                     ...archiveData,
+                    softPreparationDeadlineAt: archiveData.softPreparationDeadlineAt || archiveSummary.timeWindows.softPreparationDeadlineAt,
+                    defenseSnapshotAt: archiveData.defenseSnapshotAt || archiveSummary.timeWindows.defenseSnapshotAt,
+                    windowClosesAt: archiveData.windowClosesAt || archiveSummary.timeWindows.windowClosesAt,
+                    timeWindows: archiveSummary.timeWindows,
                     phase,
                     dossierFiles,
                     documents: dossierFiles,
@@ -178,6 +190,13 @@ const getArchiveByRegistration = async (req, res, next) => {
                 phase,
                 preDefenseDocuments,
                 postDefenseDocuments,
+                timeWindows: archiveSummary.timeWindows,
+                missingTypes: archiveSummary.missingTypes,
+                submittedCount: archiveSummary.submittedCount,
+                totalRequired: archiveSummary.totalRequired,
+                isComplete: archiveSummary.isComplete,
+                isSoftDeadlinePast: archiveSummary.isSoftDeadlinePast,
+                isWindowClosed: archiveSummary.isWindowClosed,
             },
         });
     } catch (error) {
@@ -558,7 +577,7 @@ const getClearanceCertificate = async (req, res, next) => {
         }
 
         const archive = registration.archive;
-        const isApproved = archive?.status === 'APPROVED' || registration.status === 'COMPLETED';
+        const isApproved = ['APPROVED', 'COMPLETED'].includes(archive?.status) || registration.status === 'COMPLETED';
 
         if (!isApproved) {
             return res.status(400).json({

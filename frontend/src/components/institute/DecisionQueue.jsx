@@ -26,6 +26,7 @@ import { invalidateInstituteOperations } from '../../queries/instituteOperations
 import { useApproveDefenseResult } from '../../queries/gradingQueries';
 import { oversightKeys } from '../../queries/oversightQueries';
 import { bm02aKeys } from '../../queries/bm02aQueries';
+import { dashboardKeys } from '../../queries/dashboardQueries';
 import { queryKeys } from '../../query/queryKeys';
 import { semesterService } from '../../services/semesterService';
 import registrationService from '../../services/registrationService';
@@ -73,11 +74,14 @@ export default function DecisionQueue({
     const refreshDecisionCaches = async () => {
         await Promise.all([
             invalidateInstituteOperations(queryClient, scope),
-            queryClient.invalidateQueries({ queryKey: queryKeys.semesters.list(scope) }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all(scope) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
             queryClient.invalidateQueries({ queryKey: bm02aKeys.queue(scope) }),
             queryClient.invalidateQueries({ queryKey: oversightKeys.archivesList(scope) }),
             queryClient.invalidateQueries({ queryKey: queryKeys.grading.all(scope) }),
+            queryClient.invalidateQueries({ queryKey: dashboardKeys.stats(scope, semesterId) }),
+            queryClient.invalidateQueries({ queryKey: dashboardKeys.adminActions(scope, semesterId) }),
+            ...(semesterId ? [queryClient.invalidateQueries({ queryKey: dashboardKeys.overview(scope, semesterId) })] : []),
         ]);
     };
 

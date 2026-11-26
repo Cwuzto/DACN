@@ -3,7 +3,7 @@ import { useUsers } from '../../queries/userQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../common/QueryPanel';
 import AuthorizedAction from '../common/AuthorizedAction';
-import ExcelImportModal from '../common/ExcelImportModal';
+import BulkAssignRosterModal from './BulkAssignRosterModal';
 import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -22,7 +22,6 @@ import {
 } from 'antd';
 import {
     PlusOutlined,
-    UploadOutlined,
     CopyOutlined,
     EditOutlined,
     DeleteOutlined,
@@ -32,7 +31,6 @@ import {
     WarningOutlined,
     CheckCircleOutlined,
 } from '@ant-design/icons';
-import * as XLSX from 'xlsx';
 
 const EMPTY_LIST = [];
 
@@ -96,7 +94,10 @@ export function LecturerAssignmentTab({
     const [copying, setCopying] = useState(false);
     const [sourceSemesterId, setSourceSemesterId] = useState(null);
 
-    const [importModalOpen, setImportModalOpen] = useState(false);
+    const [bulkRosterOpen, setBulkRosterOpen] = useState(false);
+    const [bulkCatalogId, setBulkCatalogId] = useState(null);
+    const [bulkQuota, setBulkQuota] = useState(10);
+    const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
     const scope = queryKeys.scope(user);
     const assignmentsQuery = useLecturerAssignments(scope, { semesterId, projectCatalogId: projectCatalogId || undefined });
@@ -108,7 +109,7 @@ export function LecturerAssignmentTab({
     useEffect(() => {
         setAvailableFilters({ semesterId, projectCatalogId: projectCatalogId || undefined });
     }, [semesterId, projectCatalogId]);
-    const availableQuery = useAvailableLecturers(scope, availableFilters, createModalOpen);
+    const availableQuery = useAvailableLecturers(scope, availableFilters, createModalOpen || bulkRosterOpen);
     const availableLecturers = availableQuery.data || EMPTY_LIST;
     const loadingAvailable = availableQuery.isFetching;
     const fetchAvailableLecturers = (semId, catId) => setAvailableFilters({ semesterId: semId, projectCatalogId: catId || undefined });
@@ -237,20 +238,6 @@ export function LecturerAssignmentTab({
         } finally {
             setCopying(false);
         }
-    };
-
-    // Download Excel Template for Lecturer Assignment
-    const handleDownloadTemplate = () => {
-        const headers = ['Mã Giảng Viên', 'Họ Và Tên (Tham khảo)', 'Mã Loại Đồ Án', 'Chỉ Tiêu Hướng Dẫn (1-10)'];
-        const sampleRows = [
-            ['GV001', 'Nguyễn Văn A', catalogs[0]?.code || 'DATN', 10],
-            ['GV002', 'Trần Thị B', catalogs[0]?.code || 'DATN', 8],
-        ];
-
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Mau_Phan_Cong_GV');
-        XLSX.writeFile(wb, 'Mau_Phan_Cong_Giang_Vien.xlsx');
     };
 
     // Table columns definition
@@ -477,10 +464,20 @@ export function LecturerAssignmentTab({
                                 Gán giảng viên vào đợt
                             </Button>
                             <Button
-                                icon={<UploadOutlined />}
-                                onClick={() => setImportModalOpen(true)}
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    if (!semesterId) {
+                                        message.warning('Vui lòng chọn đợt đồ án ở thanh bộ lọc trước khi gán giảng viên.');
+                                        return;
+                                    }
+                                    const targetCatId = projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id;
+                                    setBulkCatalogId(targetCatId);
+                                    setBulkQuota(10);
+                                    fetchAvailableLecturers(semesterId, targetCatId);
+                                    setBulkRosterOpen(true);
+                                }}
                             >
-                                Gán bằng Excel
+                                Gán hàng loạt từ danh sách
                             </Button>
                             <Button
                                 icon={<CopyOutlined />}
@@ -520,7 +517,7 @@ export function LecturerAssignmentTab({
                 open={createModalOpen}
                 onCancel={() => setCreateModalOpen(false)}
                 footer={null}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={availableQuery}>
                 <Form
@@ -629,7 +626,7 @@ export function LecturerAssignmentTab({
                 open={editModalOpen}
                 onCancel={() => setEditModalOpen(false)}
                 footer={null}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="py-2 space-y-1">
                     <p className="text-xs text-slate-500 font-medium">Giảng viên:</p>
@@ -696,26 +693,97 @@ export function LecturerAssignmentTab({
 
             </Modal>
 
-            {/* Modal 4: Gán Giảng viên Bằng Excel */}
-            <ExcelImportModal
-                open={importModalOpen}
-                onCancel={() => setImportModalOpen(false)}
-                type="LECTURER_ASSIGNMENT"
-                semesters={semesters}
-                catalogs={catalogs}
-                lecturers={lecturers}
-                defaultSemesterId={semesterId ? Number(semesterId) : null}
-                defaultCatalogId={projectCatalogId ? Number(projectCatalogId) : null}
-                onDownloadTemplate={handleDownloadTemplate}
-                onExecuteImport={async (payload) => {
-                    const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [payload.items] });
-                    if (res?.success) {
-                        message.success(
-                            `Gán thành công: Tạo mới ${res.data?.created || 0}, cập nhật ${res.data?.updated || 0} giảng viên`
-                        );
-                        setImportModalOpen(false);
+            <BulkAssignRosterModal
+                open={bulkRosterOpen}
+                onCancel={() => setBulkRosterOpen(false)}
+                title="Xác nhận gán danh sách Giảng viên vào đợt"
+                subtitle="Mặc định chọn tất cả giảng viên khả dụng. Bỏ tick những giảng viên không muốn gán trước khi xác nhận."
+                items={availableLecturers}
+                loading={loadingAvailable}
+                submitting={bulkSubmitting}
+                searchPlaceholder="Tìm theo mã GV, họ tên, bộ môn, email..."
+                extraHeader={
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Loại đồ án</label>
+                            <Select
+                                className="w-full"
+                                value={bulkCatalogId}
+                                options={catalogs.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                                onChange={(newCatId) => {
+                                    setBulkCatalogId(newCatId);
+                                    fetchAvailableLecturers(semesterId, newCatId);
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Chỉ tiêu hướng dẫn mặc định (1-10 SV)</label>
+                            <InputNumber
+                                min={1}
+                                max={10}
+                                value={bulkQuota}
+                                onChange={(val) => setBulkQuota(Number(val) || 10)}
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+                }
+                columns={[
+                    {
+                        title: 'Mã GV',
+                        dataIndex: 'code',
+                        width: 100,
+                        render: (c) => <code className="text-xs font-mono font-bold text-teal-800">{c || '—'}</code>,
+                    },
+                    {
+                        title: 'Họ và tên',
+                        dataIndex: 'fullName',
+                        render: (name) => <span className="text-xs font-semibold text-slate-900">{name}</span>,
+                    },
+                    {
+                        title: 'Bộ môn',
+                        dataIndex: 'department',
+                        render: (d) => <span className="text-xs text-slate-600">{cleanDepartment(d)}</span>,
+                    },
+                    {
+                        title: 'Chỉ tiêu khả dụng',
+                        dataIndex: 'availableQuota',
+                        width: 130,
+                        render: (q) => (
+                            <Tag color="cyan" className="text-[11px] m-0">
+                                {q !== undefined ? `Còn ${q} SV` : '10 SV'}
+                            </Tag>
+                        ),
+                    },
+                ]}
+                onConfirm={async (ids) => {
+                    if (!bulkCatalogId) {
+                        message.warning('Vui lòng chọn loại đồ án');
+                        return;
                     }
-                    return res;
+                    setBulkSubmitting(true);
+                    try {
+                        const items = ids.map((lecturerId) => {
+                            const lec = availableLecturers.find((l) => l.id === lecturerId);
+                            const maxAvail = lec?.availableQuota !== undefined ? lec.availableQuota : 10;
+                            return {
+                                semesterId: Number(semesterId),
+                                projectCatalogId: Number(bulkCatalogId),
+                                lecturerId,
+                                plannedQuota: Math.min(bulkQuota || 10, maxAvail || 10),
+                                status: 'ACTIVE',
+                            };
+                        });
+                        const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [items] });
+                        if (res?.success) {
+                            message.success(`Đã gán ${res.data?.created ?? items.length} giảng viên vào đợt`);
+                            setBulkRosterOpen(false);
+                        }
+                    } catch (err) {
+                        message.error(err?.message || 'Lỗi khi gán giảng viên hàng loạt');
+                    } finally {
+                        setBulkSubmitting(false);
+                    }
                 }}
             />
         </div>

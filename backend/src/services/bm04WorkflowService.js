@@ -223,10 +223,10 @@ async function saveBM04Draft(input, options = {}) {
                 policyVersionId: registration.periodPolicyVersionId,
             },
             update: {
-                thesisFormatScore: thesisFormatScore !== undefined ? String(thesisFormatScore).trim() : undefined,
-                researchContentScore: researchContentScore !== undefined ? String(researchContentScore).trim() : undefined,
-                applicabilityScore: applicabilityScore !== undefined ? String(applicabilityScore).trim() : undefined,
-                attitudeScore: attitudeScore !== undefined ? String(attitudeScore).trim() : undefined,
+                thesisFormatScore: thesisFormatScore === undefined ? undefined : (thesisFormatScore === null ? '' : String(thesisFormatScore).trim()),
+                researchContentScore: researchContentScore === undefined ? undefined : (researchContentScore === null ? '' : String(researchContentScore).trim()),
+                applicabilityScore: applicabilityScore === undefined ? undefined : (applicabilityScore === null ? '' : String(applicabilityScore).trim()),
+                attitudeScore: attitudeScore === undefined ? undefined : (attitudeScore === null ? '' : String(attitudeScore).trim()),
                 conclusion,
                 programOutcome: programOutcome !== undefined ? programOutcome : undefined,
                 defenseRecommendation: defenseRecommendation !== undefined ? defenseRecommendation : undefined,
@@ -334,11 +334,7 @@ async function signAndSubmitBM04(input, options = {}) {
         }
 
         if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
-            throw new BM04WorkflowError('Chỉ được lưu nháp BM04 khi hồ sơ đang ở trạng thái BM03_PASSED hoặc BM04_REVIEW.', 'INELIGIBLE_REGISTRATION', 400);
-        }
-
-        if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
-            throw new BM04WorkflowError('Chỉ được lập BM04 khi hồ sơ đang ở trạng thái BM03_PASSED.', 'INVALID_TRANSITION', 409);
+            throw new BM04WorkflowError('Chỉ được ký nộp BM04 khi hồ sơ đang ở trạng thái BM03_PASSED hoặc BM04_REVIEW.', 'INVALID_TRANSITION', 409);
         }
 
         if (isApprove) {

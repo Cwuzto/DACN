@@ -3,9 +3,11 @@ const outlineReviewService = require('../services/outlineReviewService');
 const outlineSweepService = require('../services/outlineSweepService');
 
 const handleControllerError = (error, res, next) => {
-    if (error.statusCode) {
-        return res.status(error.statusCode).json({
+    const statusCode = error.statusCode || error.status;
+    if (statusCode) {
+        return res.status(statusCode).json({
             success: false,
+            ...(error.code ? { code: error.code } : {}),
             message: error.message,
             ...(error.details && typeof error.details === 'object' ? error.details : {}),
         });

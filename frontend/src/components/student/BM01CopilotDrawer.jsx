@@ -68,7 +68,7 @@ export default function BM01CopilotDrawer({
         <Drawer
             open={open}
             onClose={onClose}
-            width={580}
+            size={580}
             title={(
                 <Flex align="center" justify="space-between" wrap="wrap" gap={8}>
                     <Space size="middle">
@@ -97,7 +97,7 @@ export default function BM01CopilotDrawer({
                 </Flex>
             )}
         >
-            <Spin spinning={loading} tip="AI đang phân tích tính logic đề cương...">
+            <Spin spinning={loading} description="AI đang phân tích tính logic đề cương...">
                 {data ? (
                     <div className="space-y-4">
                         {/* Overall Score & Status */}

@@ -82,7 +82,24 @@ async function uploadDefenseDocumentVersion(params) {
         let windows = null;
         let isLatePreDefense = false;
         const warnings = [];
-        let phase = 'POST_DEFENSE';
+        const PRE_DEFENSE_STATUSES = [
+            'BM03_PASSED',
+            'BM04_REVIEW',
+            'DEFENSE_READY',
+            'DEFENSE_ELIGIBLE',
+            'ELIGIBLE_BY_INSTITUTE',
+            'DECISION_ISSUED',
+            'IN_PROGRESS_BM03',
+        ];
+        const POST_DEFENSE_STATUSES = [
+            'DEFENSE_PASSED',
+            'DEFENDED',
+            'COMPLETED',
+            'PENDING_INSTITUTE_SIGNATURE',
+            'ARCHIVE_INCOMPLETE',
+            'ARCHIVE_REJECTED',
+        ];
+        let phase = PRE_DEFENSE_STATUSES.includes(registration.status) ? 'PRE_DEFENSE' : 'POST_DEFENSE';
 
         if (registration.archive?.windowClosedAt) {
             throw new WorkflowTransitionError(
@@ -110,10 +127,10 @@ async function uploadDefenseDocumentVersion(params) {
                 warnings.push('Tài liệu nộp sau hạn mềm chuẩn bị bảo vệ (00:00 trước ngày bảo vệ 3 ngày).');
             }
 
-            if (currentTime < windows.defenseSnapshotAt) {
-                phase = 'PRE_DEFENSE';
-            } else {
+            if (POST_DEFENSE_STATUSES.includes(registration.status) || currentTime >= windows.defenseSnapshotAt) {
                 phase = 'POST_DEFENSE';
+            } else {
+                phase = 'PRE_DEFENSE';
             }
         }
 

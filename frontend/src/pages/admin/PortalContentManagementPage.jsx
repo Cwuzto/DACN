@@ -22,6 +22,7 @@ import {
     FileTextOutlined,
     NotificationOutlined,
     LinkOutlined,
+    GlobalOutlined,
 } from '@ant-design/icons';
 import portalContentService from '../../services/portalContentService';
 import ConfigurationForm from './portal/ConfigurationForm';
@@ -33,6 +34,7 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { usePortalResources, usePortalMutation } from '../../queries/portalQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import PageHeader from '../../components/common/PageHeader';
 
 const RESOURCE_TABS = [
     { key: 'CONFIGURATION', label: 'Nhận diện & Hero' },
@@ -175,28 +177,26 @@ export default function PortalContentManagementPage() {
 
     return (
         <div className="space-y-5">
-            {/* Page Header */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <p className="eyebrow">PORTAL CMS • CẤU HÌNH GIAO DIỆN &amp; TÀI NGUYÊN</p>
-                    <h1 className="h1">Cấu Hình Giao Diện &amp; Tài Nguyên Portal</h1>
-                    <Typography.Text type="secondary">
-                        Cấu hình banner trang chủ, biểu mẫu chuẩn BM01-BM05 và liên kết ngoài của Cổng thông tin.
-                    </Typography.Text>
-                </div>
-                {activeType !== 'CONFIGURATION' || resources.length === 0 ? (
-                    <Button type="primary" icon={<FileAddOutlined />} onClick={createAndEdit}>
-                        Tạo {activeType === 'TEMPLATE' ? 'biểu mẫu mới' : 'liên kết mới'}
-                    </Button>
-                ) : null}
-            </div>
+            <PageHeader
+                icon={<GlobalOutlined />}
+                accent="rose"
+                title="Cấu hình Giao diện & Tài nguyên Portal"
+                subtitle="Cấu hình banner trang chủ, biểu mẫu chuẩn BM01–BM05 và liên kết ngoài của Cổng thông tin."
+                actions={
+                    activeType !== 'CONFIGURATION' || resources.length === 0 ? (
+                        <Button type="primary" icon={<FileAddOutlined />} onClick={createAndEdit}>
+                            Tạo {activeType === 'TEMPLATE' ? 'biểu mẫu mới' : 'liên kết mới'}
+                        </Button>
+                    ) : null
+                }
+            />
 
             {/* Information Alert directing to Centralized Announcements */}
             <Alert
                 type="info"
                 showIcon
                 icon={<NotificationOutlined className="text-blue-600" />}
-                message={
+                title={
                     <span className="font-semibold text-slate-800">
                         Quản lý tin tức &amp; thông báo văn bản học vụ đã được chuyển sang trang riêng
                     </span>
@@ -213,11 +213,11 @@ export default function PortalContentManagementPage() {
                         . Trang CMS này chỉ dành riêng cho cấu hình Giao diện, Biểu mẫu chuẩn BM01–BM05 và Liên kết chân trang.
                     </div>
                 }
-                className="border-blue-200 bg-blue-50/70 rounded-xl"
+                className="border-blue-200/80 bg-blue-50/70 rounded-2xl"
             />
 
             {/* Content Tabs & List */}
-            <Card className="rounded-xl shadow-xs">
+            <Card className="rounded-2xl border-slate-200/80 shadow-sm">
                 <Tabs
                     activeKey={activeType}
                     onChange={handleTabChange}
@@ -324,7 +324,7 @@ export default function PortalContentManagementPage() {
                 onCancel={() => setEditorOpen(false)}
                 title={getEditorTitle()}
                 width={820}
-                destroyOnClose
+                destroyOnHidden
                 footer={
                     <Space>
                         <Button onClick={() => setEditorOpen(false)}>Đóng</Button>

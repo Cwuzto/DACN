@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     Button,
@@ -7,6 +7,7 @@ import {
     Flex,
     Tag,
     Divider,
+    Input,
     message,
 } from 'antd';
 import {
@@ -20,6 +21,8 @@ import {
     DownloadOutlined,
     ReloadOutlined,
     ScanOutlined,
+    LinkOutlined,
+    ExportOutlined,
 } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
 import { uploadGovernedAsset, getAssetDownloadUrl } from '../../services/resumableUploadService';
@@ -31,6 +34,7 @@ import ContentSkeleton from '../common/ContentSkeleton';
 import ContentRefreshIndicator from '../common/ContentRefreshIndicator';
 import aiService from '../../services/aiService';
 import ArchivalCrossCheckModal from '../admin/ArchivalCrossCheckModal';
+import ArchiveDeadlineBanner from './ArchiveDeadlineBanner';
 
 const DOCUMENT_TYPES = [
     {
@@ -51,11 +55,10 @@ const DOCUMENT_TYPES = [
     },
     {
         key: 'DEMO_VIDEO',
-        title: 'Video Demo Sản phẩm',
-        ext: '.mp4,.webm',
-        accept: '.mp4,.webm,video/mp4,video/webm',
+        title: 'Video Demo Sản phẩm (Link HTTPS)',
+        isExternalLink: true,
         icon: <VideoCameraOutlined className="text-purple-600 text-xl" />,
-        desc: 'Video ghi hình vận hành hệ thống thực tế (tối đa 15 phút).',
+        desc: 'Dán đường dẫn HTTPS công khai (YouTube, Google Drive, OneDrive...) ghi hình vận hành hệ thống thực tế.',
     },
     {
         key: 'SLIDE_PPTX',
@@ -88,6 +91,7 @@ export default function ArchiveSubmissionModal({
     const loading = dossierQuery.isFetching;
     const fetchDossier = () => dossierQuery.refetch();
     const [uploadingType, setUploadingType] = useState(null);
+    const [demoVideoUrlInput, setDemoVideoUrlInput] = useState('');
 
     // AI Archival Cross-Check state
     const [crossCheckModalOpen, setCrossCheckModalOpen] = useState(false);
@@ -121,6 +125,61 @@ export default function ArchiveSubmissionModal({
     const docs = dossier?.documents || [];
     const bm03Record = dossier?.bm03Record;
     const bm04Record = dossier?.bm04Record;
+    const bm05Record = dossier?.bm05Record || null;
+    const bm05PdfUrl = bm05Record?.finalPdfFileUrl
+        || registration?.defenseResult?.bm05PdfUrl
+        || registration?.bm05PdfUrl
+        || null;
+
+    const existingDemoDoc = docs.find((d) => d.documentType === 'DEMO_VIDEO');
+    const existingDemoUrl = existingDemoDoc?.demoVideoExternalUrl || existingDemoDoc?.fileUrl || '';
+
+    useEffect(() => {
+        if (isOpen) {
+            setDemoVideoUrlInput(existingDemoUrl);
+        }
+    }, [isOpen, existingDemoUrl]);
+
+    const handleSaveDemoVideoUrl = async () => {
+        if (uploadDisabled) {
+            message.error('Chưa thể nộp tài liệu. Vui lòng kiểm tra trạng thái đề tài và cửa sổ nộp hồ sơ.');
+            return;
+        }
+        const trimmedUrl = demoVideoUrlInput.trim();
+        let isValidHttps = false;
+        if (trimmedUrl.startsWith('https://')) {
+            try {
+                const parsed = new URL(trimmedUrl);
+                isValidHttps = parsed.protocol === 'https:';
+            } catch {
+                isValidHttps = false;
+            }
+        }
+        if (!isValidHttps) {
+            message.warning('Vui lòng nhập đường dẫn HTTPS hợp lệ (ví dụ: https://youtu.be/... hoặc https://drive.google.com/...).');
+            return;
+        }
+
+        try {
+            setUploadingType('DEMO_VIDEO');
+            message.loading({ content: 'Đang lưu đường dẫn Video Demo...', key: 'DEMO_VIDEO' });
+            const res = await uploadMutation.mutateAsync({
+                documentType: 'DEMO_VIDEO',
+                demoVideoExternalUrl: trimmedUrl,
+                fileName: 'Video Demo Sản phẩm',
+            });
+            if (res.success) {
+                message.success({ content: 'Đã lưu đường dẫn Video Demo thành công!', key: 'DEMO_VIDEO' });
+                if (onSuccess) onSuccess();
+            } else {
+                message.error({ content: res.message || 'Lỗi khi lưu đường dẫn Video Demo', key: 'DEMO_VIDEO' });
+            }
+        } catch (err) {
+            message.error({ content: err?.message || 'Lưu đường dẫn Video Demo thất bại', key: 'DEMO_VIDEO' });
+        } finally {
+            setUploadingType(null);
+        }
+    };
 
     const handleUploadFile = async (documentType, file) => {
         if (uploadDisabled) {
@@ -207,33 +266,13 @@ export default function ArchiveSubmissionModal({
                 {dossier && <>
                 <ContentRefreshIndicator refreshing={dossierQuery.isFetching} />
                 {ineligible && <Alert type="warning" showIcon title="Trạng thái đề tài chưa đủ điều kiện nộp hồ sơ lưu chiểu." />}
-                {/* Time Windows & Closing Notice */}
-                {isWindowClosed ? (
-                    <Alert
-                        type="error"
-                        showIcon
-                        icon={<LockOutlined />}
-                        title="Cổng nộp hồ sơ lưu chiểu đã đóng (00:00 ngày 15 sau ngày bảo vệ)"
-                        description="Thời hạn 14 ngày bổ sung và hoàn thiện hồ sơ lưu chiểu đã kết thúc. Bạn không thể nộp thêm hoặc sửa đổi tài liệu lưu chiểu."
-                    />
-                ) : (
-                    <Alert
-                        type="info"
-                        showIcon
-                        icon={<ClockCircleOutlined />}
-                        title="Cửa sổ nộp hồ sơ lưu chiểu 14 ngày"
-                        description={(
-                            <div className="text-xs space-y-1 mt-1">
-                                <div>
-                                    Hạn mềm hoàn thiện tài liệu bảo vệ: <strong>00:00 3 ngày trước ngày bảo vệ</strong>.
-                                </div>
-                                <div>
-                                    Đóng cổng hoàn toàn lúc: <strong>00:00 ngày thứ 15 sau ngày bảo vệ</strong>. Sau thời điểm này hệ thống tự động khóa cổng vĩnh viễn.
-                                </div>
-                            </div>
-                        )}
-                    />
-                )}
+                {/* Time Windows, Countdown & Missing Documents Banner */}
+                <ArchiveDeadlineBanner
+                    dossier={dossier}
+                    registrationStatus={registration?.status}
+                    variant="prominent"
+                    showAction={false}
+                />
 
                 {/* 4 Independent Upload Slots */}
                 <div className="space-y-3">
@@ -292,49 +331,86 @@ export default function ArchiveSubmissionModal({
                                         )}
                                     </div>
 
-                                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/80">
-                                        {(latestDoc?.fileUrl || latestDoc?.assetId) && (
-                                            <Button
+                                    {dt.isExternalLink ? (
+                                        <div className="pt-2 space-y-2 border-t border-slate-200/80">
+                                            <Input
                                                 size="small"
-                                                type="link"
-                                                icon={<DownloadOutlined />}
-                                                onClick={async () => {
-                                                    if (latestDoc.assetId) {
-                                                        try {
-                                                            const dl = await getAssetDownloadUrl(latestDoc.assetId);
-                                                            window.open(dl.downloadUrl || dl.url, '_blank');
-                                                            return;
-                                                        } catch (err) {
-                                                            // fallback to direct url
-                                                        }
-                                                    }
-                                                    if (latestDoc.fileUrl) {
-                                                        window.open(latestDoc.fileUrl, '_blank');
-                                                    }
-                                                }}
-                                                className="p-0 text-xs"
-                                            >
-                                                Tải về xem
-                                            </Button>
-                                        )}
-                                        <Upload
-                                            beforeUpload={(file) => handleUploadFile(dt.key, file)}
-                                            showUploadList={false}
-                                            accept={dt.accept}
-                                            disabled={uploadDisabled || Boolean(uploadingType)}
-                                        >
-                                            <Button
-                                                size="small"
-                                                type="primary"
-                                                icon={<CloudUploadOutlined />}
-                                                loading={isCurrentlyUploading}
+                                                prefix={<LinkOutlined className="text-slate-400" />}
+                                                placeholder="https://youtube.com/... hoặc https://drive.google.com/..."
+                                                value={demoVideoUrlInput}
+                                                onChange={(e) => setDemoVideoUrlInput(e.target.value)}
                                                 disabled={uploadDisabled || Boolean(uploadingType)}
-                                                className="bg-teal-700 hover:bg-teal-800"
+                                            />
+                                            <div className="flex items-center justify-between gap-2">
+                                                {(latestDoc?.demoVideoExternalUrl || latestDoc?.fileUrl) ? (
+                                                    <Button
+                                                        size="small"
+                                                        type="link"
+                                                        icon={<ExportOutlined />}
+                                                        onClick={() => window.open(latestDoc.demoVideoExternalUrl || latestDoc.fileUrl, '_blank', 'noopener,noreferrer')}
+                                                        className="p-0 text-xs"
+                                                    >
+                                                        Mở link video
+                                                    </Button>
+                                                ) : <span />}
+                                                <Button
+                                                    size="small"
+                                                    type="primary"
+                                                    icon={<LinkOutlined />}
+                                                    loading={isCurrentlyUploading}
+                                                    disabled={uploadDisabled || Boolean(uploadingType)}
+                                                    onClick={handleSaveDemoVideoUrl}
+                                                    className="bg-teal-700 hover:bg-teal-800"
+                                                >
+                                                    {latestDoc ? 'Cập nhật link' : 'Lưu link video'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/80">
+                                            {(latestDoc?.fileUrl || latestDoc?.assetId) && (
+                                                <Button
+                                                    size="small"
+                                                    type="link"
+                                                    icon={<DownloadOutlined />}
+                                                    onClick={async () => {
+                                                        if (latestDoc.assetId) {
+                                                            try {
+                                                                const dl = await getAssetDownloadUrl(latestDoc.assetId);
+                                                                window.open(dl.downloadUrl || dl.url, '_blank');
+                                                                return;
+                                                            } catch (err) {
+                                                                // fallback to direct url
+                                                            }
+                                                        }
+                                                        if (latestDoc.fileUrl) {
+                                                            window.open(latestDoc.fileUrl, '_blank');
+                                                        }
+                                                    }}
+                                                    className="p-0 text-xs"
+                                                >
+                                                    Tải về xem
+                                                </Button>
+                                            )}
+                                            <Upload
+                                                beforeUpload={(file) => handleUploadFile(dt.key, file)}
+                                                showUploadList={false}
+                                                accept={dt.accept}
+                                                disabled={uploadDisabled || Boolean(uploadingType)}
                                             >
-                                                {latestDoc ? 'Nộp version mới' : 'Tải tệp lên'}
-                                            </Button>
-                                        </Upload>
-                                    </div>
+                                                <Button
+                                                    size="small"
+                                                    type="primary"
+                                                    icon={<CloudUploadOutlined />}
+                                                    loading={isCurrentlyUploading}
+                                                    disabled={uploadDisabled || Boolean(uploadingType)}
+                                                    className="bg-teal-700 hover:bg-teal-800"
+                                                >
+                                                    {latestDoc ? 'Nộp version mới' : 'Tải tệp lên'}
+                                                </Button>
+                                            </Upload>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -343,16 +419,16 @@ export default function ArchiveSubmissionModal({
 
                 <Divider className="my-2" />
 
-                {/* 2 Auto-linked Legal Records (BM03 & BM04) */}
+                {/* Auto-linked Legal Records (BM03, BM04, BM05) */}
                 <div className="space-y-2">
                     <div className="font-bold text-slate-800 text-sm">
-                        2. 2 Văn bản pháp lý tự động liên kết hệ thống (Chỉ đọc, không upload đè):
+                        2. Văn bản pháp lý tự động liên kết hệ thống (Chỉ đọc, không upload đè):
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className={`grid grid-cols-1 ${bm05PdfUrl || bm05Record || registration?.defenseResult ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-3`}>
                         <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="font-bold text-emerald-900">BM03: Nhật ký hướng dẫn & Tiến độ</span>
+                                <span className="font-bold text-emerald-900">BM03: Nhật ký hướng dẫn &amp; Tiến độ</span>
                                 <Tag color={bm03Record?.advisorSignedAt ? 'success' : 'warning'}>{!bm03Record ? 'Chưa có bản ghi' : bm03Record.advisorSignedAt ? 'Đã ký số' : 'Chưa ký số'}</Tag>
                             </div>
                             <p className="text-slate-600 text-[11px]">
@@ -375,6 +451,27 @@ export default function ArchiveSubmissionModal({
                                 {bm04Record?.finalPdfFileUrl ? <Button type="link" href={bm04Record.finalPdfFileUrl} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined aria-hidden="true" />}>Tải BM04</Button> : 'Chưa có bản PDF BM04'}
                             </div>
                         </div>
+
+                        {(bm05PdfUrl || bm05Record || registration?.defenseResult) && (
+                            <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-indigo-900">BM05: Biên bản Hội đồng</span>
+                                    <Tag color={bm05PdfUrl || bm05Record?.lockedAt || registration?.defenseResult?.scoreLocked ? 'success' : 'processing'}>
+                                        {bm05PdfUrl || bm05Record?.lockedAt || registration?.defenseResult?.scoreLocked ? 'Đã chốt sổ' : 'Đang tổng hợp'}
+                                    </Tag>
+                                </div>
+                                <p className="text-slate-600 text-[11px]">
+                                    Biên bản tổng hợp điểm bảo vệ Hội đồng được tự động liên kết sau buổi bảo vệ.
+                                </p>
+                                <div className="pt-1 font-semibold text-indigo-800">
+                                    {bm05PdfUrl ? (
+                                        <Button type="link" href={bm05PdfUrl} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined aria-hidden="true" />}>
+                                            Tải BM05
+                                        </Button>
+                                    ) : 'Chưa xuất bản PDF BM05'}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
                 </>}

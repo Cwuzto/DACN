@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { WorkflowTransitionError } = require('./registrationTransitionService');
 const { computeCanonicalPayloadHash, recordSignatureEvent } = require('./electronicSignatureService');
-const { validateAcademicScope } = require('./academicScopeService');
+const { validateAcademicScope, isDepartmentUnderInstitute } = require('./academicScopeService');
 const { resolveUserCapabilities, getEffectivePermissions } = require('../auth/capabilityResolver');
 
 const ENTITY_TYPE = 'BM02_SUBMISSION';
@@ -424,17 +424,34 @@ async function signBM02Department({
             }
 
             if (department) {
+                const hasBaseDeptSign = (identity.basePermissions || []).includes('BM02_DEPARTMENT_SIGN');
                 const hasDirectDept = Boolean(
                     identity.department
                     && String(identity.department).trim().toUpperCase() === String(department).trim().toUpperCase()
-                    && (identity.basePermissions || []).includes('BM02_DEPARTMENT_SIGN'),
+                    && hasBaseDeptSign,
+                );
+                const hasInstituteScope = Boolean(
+                    hasBaseDeptSign
+                    && (
+                        (identity.department && isDepartmentUnderInstitute(identity.department, department))
+                        || (
+                            !identity.department
+                            && (
+                                ['INSTITUTE_DIRECTOR', 'VIEN_TRUONG', 'ADMIN'].includes(identity.role)
+                                || (identity.groupCodes || []).includes('VIEN_TRUONG')
+                                || (identity.groupCodes || []).includes('INSTITUTE_DIRECTOR')
+                            )
+                        )
+                    ),
                 );
                 const hasScopedDelegation = (identity.activeDelegations || []).some((d) => {
-                    const deptMatch = !d.department || String(d.department).trim().toUpperCase() === String(department).trim().toUpperCase();
+                    const deptMatch = !d.department
+                        || String(d.department).trim().toUpperCase() === String(department).trim().toUpperCase()
+                        || isDepartmentUnderInstitute(d.department, department);
                     const semMatch = d.semesterId === null || d.semesterId === undefined || Number(d.semesterId) === Number(semesterId);
                     return d.capabilityCode === 'BM02_DEPARTMENT_SIGN' && deptMatch && semMatch;
                 });
-                if (!hasDirectDept && !hasScopedDelegation) {
+                if (!hasDirectDept && !hasInstituteScope && !hasScopedDelegation) {
                     throw new WorkflowTransitionError(
                         'DELEGATION_SCOPE_MISMATCH',
                         403,

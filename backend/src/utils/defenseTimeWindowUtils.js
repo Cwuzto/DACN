@@ -101,10 +101,108 @@ function roundDefenseScoreOneDecimal(rawScore) {
     return Number(rounded.toFixed(1));
 }
 
+/**
+ * Formats a Date or date string to ISO string, or returns null if invalid/empty.
+ * @param {Date | string | null | undefined} value
+ * @returns {string | null}
+ */
+function toIsoOrNull(value) {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Builds a unified archive deadline & completeness (X/4) summary
+ * for a TopicRegistration and its ProjectArchive.
+ *
+ * @param {object | null | undefined} registration
+ * @param {object | null | undefined} archive
+ * @param {Date} [now]
+ */
+function buildArchiveDeadlineSummary(registration, archive, now = new Date()) {
+    const currentNow = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+    const rawDefenseDate =
+        registration?.defenseCouncil?.defenseDate
+        || registration?.council?.defenseDate
+        || registration?.semester?.defenseDate
+        || registration?.topic?.semester?.defenseDate
+        || null;
+
+    const defenseDate = toIsoOrNull(rawDefenseDate);
+    const computedWindows = defenseDate ? computeDefenseTimeWindows(defenseDate) : null;
+
+    const softPreparationDeadlineAt = toIsoOrNull(
+        archive?.softPreparationDeadlineAt || computedWindows?.softPreparationDeadlineAt || null
+    );
+    const defenseSnapshotAt = toIsoOrNull(
+        archive?.defenseSnapshotAt || computedWindows?.defenseSnapshotAt || null
+    );
+    const windowClosesAt = toIsoOrNull(
+        archive?.windowClosesAt || computedWindows?.windowClosesAt || null
+    );
+    const windowClosedAt = toIsoOrNull(archive?.windowClosedAt || null);
+
+    const isSoftDeadlinePast = Boolean(
+        softPreparationDeadlineAt && currentNow >= new Date(softPreparationDeadlineAt)
+    );
+    const isWindowClosed = Boolean(windowClosedAt)
+        || Boolean(windowClosesAt && currentNow >= new Date(windowClosesAt));
+
+    const docVersions = Array.isArray(archive?.documentVersions)
+        ? archive.documentVersions
+        : (Array.isArray(registration?.documentVersions) ? registration.documentVersions : []);
+
+    const presentDocTypes = new Set(
+        docVersions
+            .map((doc) => doc?.documentType || doc?.docType)
+            .filter(Boolean)
+    );
+
+    const requiredChecks = [
+        {
+            type: 'REPORT_WORD',
+            present: Boolean(archive?.reportWordFileUrl) || presentDocTypes.has('REPORT_WORD'),
+        },
+        {
+            type: 'REPORT_PDF',
+            present: Boolean(archive?.reportPdfFileUrl || archive?.reportFileUrl) || presentDocTypes.has('REPORT_PDF'),
+        },
+        {
+            type: 'DEMO_VIDEO',
+            present: Boolean(archive?.demoVideoUrl) || presentDocTypes.has('DEMO_VIDEO'),
+        },
+        {
+            type: 'SLIDE_PPTX',
+            present: Boolean(archive?.slideFileUrl) || presentDocTypes.has('SLIDE_PPTX'),
+        },
+    ];
+
+    const missingTypes = requiredChecks.filter((item) => !item.present).map((item) => item.type);
+    const submittedCount = requiredChecks.length - missingTypes.length;
+
+    return {
+        submittedCount,
+        totalRequired: 4,
+        isComplete: submittedCount === 4,
+        missingTypes,
+        timeWindows: {
+            defenseDate,
+            softPreparationDeadlineAt,
+            defenseSnapshotAt,
+            windowClosesAt,
+            windowClosedAt,
+        },
+        isSoftDeadlinePast,
+        isWindowClosed,
+    };
+}
+
 module.exports = {
     VN_TIMEZONE,
     toVietnamDateYmd,
     createVietnamMidnightDate,
     computeDefenseTimeWindows,
     roundDefenseScoreOneDecimal,
+    buildArchiveDeadlineSummary,
 };

@@ -798,6 +798,17 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
 
     const lockedAt = new Date();
     const updated = await prisma.$transaction(async (tx) => {
+        await tx.rubricVersion.updateMany({
+            where: {
+                isActive: true,
+                id: { not: rubric.id },
+            },
+            data: {
+                isActive: false,
+                status: 'ARCHIVED',
+            },
+        });
+
         const updatedRubric = await tx.rubricVersion.update({
             where: { id: rubric.id },
             data: {
@@ -849,7 +860,15 @@ const restoreDefaultReferenceRubric = async (id, userId) => {
 const activateRubricVersion = async (id) => {
     const editCheck = await checkCanEditRubric();
     if (!editCheck.canEdit) {
-        throw new Error(editCheck.reason);
+        const lockedOngoingSemester = await prisma.semester.findFirst({
+            where: {
+                status: { in: ['ONGOING', 'DEFENSE'] },
+                lockedDefenseRubricVersionId: { not: null },
+            },
+        });
+        if (lockedOngoingSemester) {
+            throw new Error(editCheck.reason);
+        }
     }
 
     const rubric = await getRubricById(id);

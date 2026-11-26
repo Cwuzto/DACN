@@ -214,7 +214,7 @@ export default function TitleAdjustmentModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            destroyOnClose
+            destroyOnHidden
             width={720}
         >
             <Spin spinning={loading}>
@@ -224,7 +224,7 @@ export default function TitleAdjustmentModal({
                         showIcon
                         type={isExpired ? 'error' : 'info'}
                         icon={<ClockCircleOutlined />}
-                        message={
+                        title={
                             isExpired
                                 ? 'Cửa sổ 168 giờ đã kết thúc'
                                 : `Cửa sổ điều chỉnh tên (168 giờ): còn ${remainingDays} ngày ${remainingHoursMod} giờ`
@@ -292,7 +292,7 @@ export default function TitleAdjustmentModal({
                             <Alert
                                 type="warning"
                                 showIcon
-                                message="Yêu cầu chỉnh sửa phiếu BM02-A"
+                                title="Yêu cầu chỉnh sửa phiếu BM02-A"
                                 description={
                                     <div>
                                         <div><strong>Người trả:</strong> {currentVersion?.returnedByRole || 'GVHD'}</div>
@@ -355,7 +355,7 @@ export default function TitleAdjustmentModal({
                                 <Alert
                                     type="error"
                                     showIcon
-                                    message="Không thể gửi lại phiếu BM02-A"
+                                    title="Không thể gửi lại phiếu BM02-A"
                                     description={
                                         isExpired
                                             ? 'Cửa sổ 168 giờ đã kết thúc. Bạn không thể gửi lại bản sửa đổi.'

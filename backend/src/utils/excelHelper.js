@@ -76,7 +76,7 @@ const generateStudentTemplateBuffer = () => {
             'Số điện thoại (*)': '0912345678',
             'Lớp (*)': 'D20HTTT01',
             'Email (*)': 'sv20260003@student.tdmu.edu.vn',
-            'Ngành (*)': 'Công nghệ Thông tin',
+            'Ngành (*)': 'Công Nghệ Thông Tin',
         },
         {
             'MSSV (*)': 'SV20260004',
@@ -96,7 +96,7 @@ const generateStudentTemplateBuffer = () => {
             'Số điện thoại (*)': '0933456789',
             'Lớp (*)': 'D20KTPM02',
             'Email (*)': 'sv20260005@student.tdmu.edu.vn',
-            'Ngành (*)': 'Khoa học Máy tính',
+            'Ngành (*)': 'Trí Tuệ Nhân Tạo',
         },
     ];
 
@@ -176,8 +176,9 @@ const generateLecturerTemplateBuffer = () => {
             'Họ và tên (*)': 'TS. Lê Văn C',
             'Email (*)': 'levanc@tdmu.edu.vn',
             'Số điện thoại': '0912345678',
-            'Bộ môn / Khoa': 'Bộ môn Công nghệ Phần mềm',
+            'Bộ môn / Khoa': 'Công Nghệ Thông Tin',
             'Học vị (*)': 'Tiến sĩ', // Chấp nhận: Thạc sĩ, Tiến sĩ, Phó Giáo sư (hoặc THAC_SI, TIEN_SI, PHO_GIAO_SU)
+            'Chuyên môn': 'Công nghệ phần mềm, Trí tuệ nhân tạo',
             'SV Tối Đa (Quota)': 10,
         },
         {
@@ -185,8 +186,9 @@ const generateLecturerTemplateBuffer = () => {
             'Họ và tên (*)': 'ThS. Phạm Thị D',
             'Email (*)': 'phamthid@tdmu.edu.vn',
             'Số điện thoại': '0987654321',
-            'Bộ môn / Khoa': 'Bộ môn Mạng Máy tính',
+            'Bộ môn / Khoa': 'Hệ thống Thông tin',
             'Học vị (*)': 'Thạc sĩ',
+            'Chuyên môn': 'Mạng máy tính, An toàn thông tin',
             'SV Tối Đa (Quota)': 10,
         },
     ];
@@ -198,6 +200,7 @@ const generateLecturerTemplateBuffer = () => {
         { wch: 16 }, // SĐT
         { wch: 32 }, // Bộ môn
         { wch: 18 }, // Học vị
+        { wch: 36 }, // Chuyên môn
         { wch: 20 }, // Quota
     ];
 

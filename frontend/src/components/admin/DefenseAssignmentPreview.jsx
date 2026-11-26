@@ -298,7 +298,7 @@ export default function DefenseAssignmentPreview({
                     <Alert
                         type="error"
                         showIcon
-                        message="Dữ liệu nguồn đã thay đổi (Xung đột 409)"
+                        title="Dữ liệu nguồn đã thay đổi (Xung đột 409)"
                         description={
                             <div className="space-y-2">
                                 <p className="m-0 text-xs">
@@ -325,7 +325,7 @@ export default function DefenseAssignmentPreview({
                     <Alert
                         type="error"
                         showIcon
-                        message="Không thể xác nhận phân công"
+                        title="Không thể xác nhận phân công"
                         description={confirmError}
                     />
                 )}
@@ -335,7 +335,7 @@ export default function DefenseAssignmentPreview({
                     <Alert
                         type="info"
                         showIcon
-                        message="Chế độ xem dành cho Giáo vụ"
+                        title="Chế độ xem dành cho Giáo vụ"
                         description="Tài khoản Giáo vụ chỉ có quyền xem bản xem trước phương án phân công. Chỉ tài khoản Quản trị viên (Admin) mới có quyền xác nhận và ghi dữ liệu vào hệ thống."
                     />
                 )}
@@ -394,7 +394,7 @@ export default function DefenseAssignmentPreview({
                 <Alert
                     type={isInfeasible ? 'error' : 'warning'}
                     showIcon
-                    message={
+                    title={
                         <span className="font-bold text-sm">
                             {isInfeasible ? 'Phương án không khả thi — Không thể xác nhận' : 'Vượt quá giới hạn tìm kiếm — Không thể xác nhận'}
                         </span>
@@ -424,7 +424,7 @@ export default function DefenseAssignmentPreview({
                 <Alert
                     type="info"
                     showIcon
-                    message={<span className="font-bold text-xs">Tóm tắt phân bổ phương án</span>}
+                    title={<span className="font-bold text-xs">Tóm tắt phân bổ phương án</span>}
                     description={
                         <ul className="text-xs text-slate-600 m-0 pl-4 list-disc space-y-0.5 mt-1">
                             {previewData.explanations.map((exp, i) => (

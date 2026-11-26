@@ -24,9 +24,9 @@ import QueryErrorState from '../common/QueryErrorState';
 import ContentRefreshIndicator from '../common/ContentRefreshIndicator';
 
 const TYPE_TAG_PROPS = {
-    INITIAL: { color: 'cyan', text: 'CÔNG BỐ CHÍNH THỨC ĐỢT 1' },
-    SUPPLEMENTARY: { color: 'blue', text: 'CÔNG BỐ BỔ SUNG' },
-    CORRECTION: { color: 'orange', text: 'CÔNG BỐ ĐÍNH CHÍNH' },
+    INITIAL: { color: 'cyan', text: 'Chính thức đợt 1' },
+    SUPPLEMENTARY: { color: 'blue', text: 'Công bố bổ sung' },
+    CORRECTION: { color: 'orange', text: 'Công bố đính chính' },
 };
 
 export default function PublicationHistoryModal({
@@ -40,8 +40,6 @@ export default function PublicationHistoryModal({
     const historyQuery = usePublicationHistory(queryKeys.scope(user), semesterId, { enabled: open && canRead });
     const history = historyQuery.data?.data || [];
     const [selectedPublicationId, setSelectedPublicationId] = useState(null);
-    // Derive selection from the current semester response, so old local objects
-    // never survive a refresh or semester change.
     const selectedPublication = history.find((publication) => publication.id === selectedPublicationId) || history[0] || null;
 
     const itemColumns = [
@@ -49,47 +47,41 @@ export default function PublicationHistoryModal({
             title: 'Mã SV',
             dataIndex: 'studentCodeSnapshot',
             key: 'code',
-            width: 110,
+            width: 115,
             render: (code) => (
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                <span className="font-mono tabular-nums text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
                     {code || '—'}
                 </span>
             ),
         },
         {
-            title: 'Họ tên Sinh viên',
+            title: 'Họ tên sinh viên',
             dataIndex: 'studentNameSnapshot',
             key: 'name',
-            width: 170,
-            render: (name) => <span style={{ fontWeight: 600 }}>{name || '—'}</span>,
+            width: 175,
+            render: (name) => <span className="font-semibold text-slate-900 text-xs">{name || '—'}</span>,
         },
         {
-            title: 'Tên Đề tài',
+            title: 'Tên đề tài',
             dataIndex: 'topicTitleSnapshot',
             key: 'topic',
             ellipsis: true,
+            render: (title) => <span className="text-xs text-slate-700">{title || '—'}</span>,
         },
         {
-            title: 'Điểm Niêm Phong',
+            title: 'Điểm chính thức',
             dataIndex: 'finalScoreSnapshot',
             key: 'score',
             width: 130,
             align: 'center',
             render: (score) => (
-                <span
-                    style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontWeight: 700,
-                        color: 'var(--institutional)',
-                        fontSize: 14,
-                    }}
-                >
-                    {score !== null && score !== undefined ? Number(score).toFixed(2) : '—'}
+                <span className="font-mono tabular-nums font-bold text-[#0F766E] text-sm">
+                    {score !== null && score !== undefined ? Number(score).toFixed(1) : '—'}
                 </span>
             ),
         },
         {
-            title: 'Kết quả Chính thức',
+            title: 'Kết quả bảo vệ',
             dataIndex: 'outcomeSnapshot',
             key: 'outcome',
             width: 130,
@@ -97,14 +89,14 @@ export default function PublicationHistoryModal({
             render: (outcome) => {
                 if (outcome === 'PASSED') {
                     return (
-                        <Tag color="cyan" icon={<CheckCircleOutlined />}>
-                            ĐẠT BẢO VỆ
+                        <Tag color="cyan" icon={<CheckCircleOutlined />} className="m-0 font-semibold">
+                            Đạt bảo vệ
                         </Tag>
                     );
                 }
                 return (
-                    <Tag color="error" icon={<CloseCircleOutlined />}>
-                        KHÔNG ĐẠT
+                    <Tag color="error" icon={<CloseCircleOutlined />} className="m-0 font-semibold">
+                        Không đạt
                     </Tag>
                 );
             },
@@ -113,14 +105,14 @@ export default function PublicationHistoryModal({
             title: 'Đối ứng đính chính',
             dataIndex: 'replacesPublicationItemId',
             key: 'replace',
-            width: 160,
+            width: 150,
             render: (id) =>
                 id ? (
-                    <Tag color="volcano" icon={<SwapOutlined />}>
-                        Thay item #{id}
+                    <Tag color="volcano" icon={<SwapOutlined />} className="m-0 font-mono text-xs">
+                        Thay bản ghi #{id}
                     </Tag>
                 ) : (
-                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                    <span className="text-slate-400 text-xs">—</span>
                 ),
         },
     ];
@@ -130,31 +122,20 @@ export default function PublicationHistoryModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            width={1000}
+            width={1020}
             destroyOnHidden
             title={
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginRight: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div
-                            style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 'var(--radius)',
-                                background: '#F0FDFA',
-                                color: '#0F766E',
-                                display: 'grid',
-                                placeItems: 'center',
-                                fontSize: 18,
-                            }}
-                        >
+                <div className="flex items-center justify-between gap-3 mr-7">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200/80 text-[#0F766E] grid place-items-center text-lg shrink-0">
                             <HistoryOutlined />
                         </div>
                         <div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
-                                Sổ Lưu Chiểu Snapshot & Lịch Sử Công Bố Kết Quả
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
-                                Học kỳ: <strong style={{ color: 'var(--fg)' }}>{semesterName || `ID #${semesterId}`}</strong>
+                            <h3 className="font-display text-base font-bold text-slate-900 m-0 leading-snug">
+                                Lịch sử công bố kết quả
+                            </h3>
+                            <div className="text-xs text-slate-500 font-normal mt-0.5">
+                                Đợt học kỳ: <strong className="text-slate-800">{semesterName || `Học kỳ #${semesterId}`}</strong>
                             </div>
                         </div>
                     </div>
@@ -170,55 +151,50 @@ export default function PublicationHistoryModal({
             }
         >
             <ContentRefreshIndicator refreshing={Boolean(historyQuery.data) && historyQuery.isFetching} />
-            {historyQuery.isError && <QueryErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} retrying={historyQuery.isFetching} />}
-            {historyQuery.isPending ? <ContentSkeleton variant="table" /> : historyQuery.data ? <>
-                {history.length === 0 ? (
+            {historyQuery.isError && (
+                <QueryErrorState
+                    error={historyQuery.error}
+                    onRetry={() => historyQuery.refetch()}
+                    retrying={historyQuery.isFetching}
+                />
+            )}
+            {historyQuery.isPending ? (
+                <ContentSkeleton variant="table" />
+            ) : historyQuery.data ? (
+                history.length === 0 ? (
                     <Empty
-                        style={{ padding: '40px 0' }}
+                        className="py-10"
                         description="Chưa có phiên công bố kết quả nào được ban hành trong học kỳ này."
                     />
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, marginTop: 12 }}>
-                        {/* Cột trái: Danh sách các phiên công bố */}
-                        <div
-                            style={{
-                                borderRight: '1px solid var(--border)',
-                                paddingRight: 14,
-                                maxHeight: 520,
-                                overflowY: 'auto',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 10,
-                            }}
-                        >
+                    <div className="grid grid-cols-1 lg:grid-cols-[310px_1fr] gap-4 mt-3">
+                        <div className="lg:border-r lg:border-slate-200/80 lg:pr-3.5 max-h-[520px] overflow-y-auto flex flex-col gap-2.5">
                             {history.map((pub) => {
                                 const isSelected = selectedPublication?.id === pub.id;
                                 const tagInfo = TYPE_TAG_PROPS[pub.type] || { color: 'default', text: pub.type };
 
                                 return (
-                                    <div
+                                    <button
                                         key={pub.id}
+                                        type="button"
                                         onClick={() => setSelectedPublicationId(pub.id)}
-                                        style={{
-                                            border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                            background: isSelected ? 'var(--primary-light)' : '#FFFFFF',
-                                            borderRadius: 'var(--radius)',
-                                            padding: '12px 14px',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease',
-                                        }}
+                                        className={`text-left rounded-xl p-3.5 transition-all border cursor-pointer ${
+                                            isSelected
+                                                ? 'border-[#0F766E] bg-teal-50/60 ring-1 ring-[#0F766E]/20'
+                                                : 'border-slate-200/80 bg-white hover:border-teal-300 hover:bg-slate-50/70'
+                                        }`}
                                     >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>
-                                                VĂN BẢN #{pub.id}
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-mono tabular-nums font-bold text-xs text-slate-900">
+                                                ĐỢT #{pub.id}
                                             </span>
-                                            <Tag color={tagInfo.color} style={{ fontSize: 10, margin: 0 }}>
+                                            <Tag color={tagInfo.color} className="m-0 text-[10.5px] font-semibold">
                                                 {tagInfo.text}
                                             </Tag>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                                            <CalendarOutlined style={{ fontSize: 11 }} />
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono tabular-nums mt-2">
+                                            <CalendarOutlined className="text-[11px]" />
                                             <span>
                                                 {new Date(pub.publishedAt).toLocaleString('vi-VN', {
                                                     day: '2-digit',
@@ -230,59 +206,81 @@ export default function PublicationHistoryModal({
                                             </span>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                            <UserOutlined style={{ fontSize: 11 }} />
-                                            <span>Ký duyệt: <strong>{pub.publishedBy?.fullName || 'Viện trưởng'}</strong></span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTop: '1px dashed var(--border)' }}>
-                                            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Quy mô hồ sơ:</span>
-                                            <span style={{ fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
-                                                {pub.items?.length || 0} Sinh viên
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-1">
+                                            <UserOutlined className="text-[11px] text-slate-400" />
+                                            <span>
+                                                Ký duyệt: <strong className="text-slate-800">{pub.publishedBy?.fullName || 'Lãnh đạo Viện'}</strong>
                                             </span>
                                         </div>
-                                    </div>
+
+                                        <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-dashed border-slate-200">
+                                            <span className="text-[11.5px] text-slate-500">Quy mô hồ sơ</span>
+                                            <span className="font-mono tabular-nums font-bold text-[#0F766E] text-xs">
+                                                {pub.items?.length || 0} sinh viên
+                                            </span>
+                                        </div>
+                                    </button>
                                 );
                             })}
                         </div>
 
-                        {/* Cột phải: Chi tiết phiên công bố đã chọn */}
                         {selectedPublication ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                <div style={{ background: '#F8FAFC', border: '1px solid var(--border)', padding: 14, borderRadius: 'var(--radius)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div className="flex flex-col gap-3.5 min-w-0">
+                                <div className="bg-slate-50/80 border border-slate-200/80 p-3.5 rounded-xl">
+                                    <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>
-                                                    Snapshot Niêm Phong Đợt #{selectedPublication.id}
-                                                </span>
-                                                <Tag color={TYPE_TAG_PROPS[selectedPublication.type]?.color || 'default'}>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h4 className="font-display text-sm font-bold text-slate-900 m-0">
+                                                    Đợt công bố <span className="font-mono tabular-nums">#{selectedPublication.id}</span>
+                                                </h4>
+                                                <Tag color={TYPE_TAG_PROPS[selectedPublication.type]?.color || 'default'} className="m-0 font-semibold">
                                                     {TYPE_TAG_PROPS[selectedPublication.type]?.text || selectedPublication.type}
                                                 </Tag>
                                             </div>
-                                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                                Người ký ban hành: <strong>{selectedPublication.publishedBy?.fullName || 'Viện trưởng'}</strong> · Thời điểm: {new Date(selectedPublication.publishedAt).toLocaleString('vi-VN')}
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                Người ký ban hành:{' '}
+                                                <strong className="text-slate-800">{selectedPublication.publishedBy?.fullName || 'Lãnh đạo Viện'}</strong>
+                                                {' · '}
+                                                <span className="font-mono tabular-nums">
+                                                    {new Date(selectedPublication.publishedAt).toLocaleString('vi-VN')}
+                                                </span>
                                             </div>
                                         </div>
-                                        <Badge count={`${selectedPublication.items?.length || 0} hồ sơ`} style={{ backgroundColor: '#0F766E' }} />
+                                        <Badge
+                                            count={`${selectedPublication.items?.length || 0} hồ sơ`}
+                                            style={{ backgroundColor: '#0F766E', fontFamily: 'var(--font-mono)' }}
+                                        />
                                     </div>
 
                                     {selectedPublication.previousPublication && (
-                                        <div style={{ marginTop: 8, fontSize: 12, color: '#D97706' }}>
-                                            <SwapOutlined style={{ marginRight: 4 }} />
-                                            Đính chính cho đợt công bố: <strong>#{selectedPublication.previousPublication.id} - {TYPE_TAG_PROPS[selectedPublication.previousPublication.type]?.text || selectedPublication.previousPublication.type}</strong> lúc {new Date(selectedPublication.previousPublication.publishedAt).toLocaleDateString('vi-VN')}
+                                        <div className="mt-2 text-xs text-amber-700 flex items-center gap-1.5 flex-wrap">
+                                            <SwapOutlined />
+                                            <span>
+                                                Đợt tiền nhiệm:{' '}
+                                                <strong className="font-mono">
+                                                    #{selectedPublication.previousPublication.id}
+                                                </strong>
+                                                {' · '}
+                                                <strong>
+                                                    {TYPE_TAG_PROPS[selectedPublication.previousPublication.type]?.text || selectedPublication.previousPublication.type}
+                                                </strong>
+                                                {' · '}
+                                                <span className="font-mono tabular-nums">
+                                                    {new Date(selectedPublication.previousPublication.publishedAt).toLocaleDateString('vi-VN')}
+                                                </span>
+                                            </span>
                                         </div>
                                     )}
 
                                     {selectedPublication.reason && (
-                                        <div style={{ marginTop: 10, background: '#FFFFFF', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: 'var(--radius)', fontSize: 12.5 }}>
-                                            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Căn cứ văn bản: </span>
-                                            <span style={{ color: 'var(--fg)' }}>{selectedPublication.reason}</span>
+                                        <div className="mt-2.5 bg-white border border-slate-200/80 px-3 py-2 rounded-lg text-xs">
+                                            <span className="text-slate-500 font-semibold">Ghi chú ban hành: </span>
+                                            <span className="text-slate-800">{selectedPublication.reason}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                                <div className="border border-slate-200/80 rounded-xl overflow-hidden">
                                     <Table
                                         rowKey="id"
                                         size="small"
@@ -296,8 +294,8 @@ export default function PublicationHistoryModal({
                             <Empty description="Chọn một đợt công bố để xem chi tiết" />
                         )}
                     </div>
-                )}
-            </> : null}
+                )
+            ) : null}
         </Modal>
     );
 }

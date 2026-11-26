@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Tag, Alert, Select, Radio, Input, Space, Popconfirm, message } from 'antd';
+import { Button, Tag, Alert, Select, Radio, Input, Space, Popconfirm, Tooltip, message } from 'antd';
 import {
     PlusOutlined,
     CheckCircleOutlined,
@@ -32,6 +32,7 @@ import taskService from '../../services/taskService';
 import meetingLogService from '../../services/meetingLogService';
 import archiveService from '../../services/archiveService';
 import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
+import ArchiveDeadlineBanner from '../../components/forms/ArchiveDeadlineBanner';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
@@ -46,7 +47,7 @@ import { useProjectCatalogs } from '../../queries/topicQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
 import { useTasksByRegistration, useTaskMutation } from '../../queries/taskQueries';
 import { useMeetingLogs, useBM03Record, useMeetingMutation } from '../../queries/meetingQueries';
-import { useStudentArchive } from '../../queries/archiveQueries';
+import { useStudentArchive, useDefenseDossier } from '../../queries/archiveQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 
@@ -203,6 +204,8 @@ export default function ProgressTrackingPage() {
     const meetingLogsQuery = useMeetingLogs(scope, selectedRegId, isStudentSelected);
     const bm03Query = useBM03Record(scope, selectedRegId, isStudentSelected);
     const archiveQuery = useStudentArchive(scope, selectedRegId, isStudentSelected);
+    const dossierQuery = useDefenseDossier(scope, selectedRegId, { enabled: isStudentSelected });
+    const dossierData = dossierQuery.data?.data || null;
 
     const taskMutation = useTaskMutation(scope, selectedRegId);
     const meetingMutation = useMeetingMutation(scope, selectedRegId);
@@ -303,8 +306,9 @@ export default function ProgressTrackingPage() {
             meetingLogsQuery.refetch(),
             bm03Query.refetch(),
             archiveQuery.refetch(),
+            dossierQuery.refetch(),
         ]);
-    }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, archiveQuery]);
+    }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, archiveQuery, dossierQuery]);
 
     const handleCreateTask = async () => {
         if (!taskTitle.trim()) {
@@ -529,10 +533,7 @@ export default function ProgressTrackingPage() {
     };
 
     const reg = selectedStudent;
-    const bm04Status = reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' || reg?.status === 'DEFENSE_READY';
-    const regWaitingBM04 = reg?.status === 'BM03_PASSED' || reg?.status === 'BM04_REVIEW' || Boolean(reg?.bm03Record?.advisorSignedAt);
-    const progress = reg?.progressPercent ?? reg?.progress ?? (bm04Status ? 100 : 0);
-    const isAtRisk = !bm04Status && !regWaitingBM04 && (Boolean(reg?.isMeetingWarning) || progress < 50);
+    const bm04Status = ['COMPLETED', 'DEFENDED', 'DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE', 'DEFENSE_PASSED'].includes(reg?.status);
 
     const stageEvals = bm03Record?.stageEvaluations || [];
     const midtermEval = bm03Record?.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM') || null;
@@ -548,6 +549,11 @@ export default function ProgressTrackingPage() {
     const isLegacyPassed = reg?.status === 'BM03_PASSED' && (!bm03Record?.id || bm03Record?.isVirtualProjection);
     const isBM03Finalized = (isAdvisorSigned && isStudentAckProcessed) || isLegacyPassed;
     const isMeetingReadOnly = isStopReviewPending || isClosedEarly || isAdvisorSigned;
+
+    const regWaitingBM04 = !bm04Status && (reg?.status === 'BM03_PASSED' || reg?.status === 'BM04_REVIEW' || isBM03Finalized);
+    const canOpenBM04 = bm04Status || regWaitingBM04 || Boolean(reg?.bm04Evaluation);
+    const progress = reg?.progressPercent ?? reg?.progress ?? (bm04Status ? 100 : 0);
+    const isAtRisk = !bm04Status && !regWaitingBM04 && (Boolean(reg?.isMeetingWarning) || progress < 50);
 
     const { midtermOpenAt, finalOpenAt } = resolveBM03StageWindows(reg, semesters, bm03Record);
     const nowMs = Date.now();
@@ -639,8 +645,9 @@ export default function ProgressTrackingPage() {
                             ) : (
                                 filteredStudents.map((s) => {
                                     const isSel = s.id === reg?.id;
-                                    const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
-                                    const sBm03Done = s.status === 'BM03_PASSED' || s.status === 'BM04_REVIEW' || Boolean(s.bm03Record?.advisorSignedAt);
+                                    const sPassed = ['COMPLETED', 'DEFENDED', 'DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE', 'DEFENSE_PASSED'].includes(s.status);
+                                    const sStudentAckProcessed = ['ACKNOWLEDGED', 'ACKNOWLEDGED_WITH_COMMENT', 'DECLINED_TO_ACKNOWLEDGE', 'ACKNOWLEDGEMENT_TIMEOUT'].includes(s.bm03Record?.studentAckStatus);
+                                    const sBm03Done = s.status === 'BM03_PASSED' || s.status === 'BM04_REVIEW' || (Boolean(s.bm03Record?.advisorSignedAt) && sStudentAckProcessed);
                                     const sProgress = s.progressPercent ?? s.progress ?? (sPassed ? 100 : sBm03Done ? 75 : 0);
                                     const sRisk = !sPassed && !sBm03Done && (Boolean(s.isMeetingWarning) || sProgress < 50);
                                     const logCount = s.totalMeetings ?? s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
@@ -694,7 +701,7 @@ export default function ProgressTrackingPage() {
                                 </span>
                                 <span className={`tag ${bm04Status ? 'green' : regWaitingBM04 ? 'blue' : 'yellow'}`}>
                                     {bm04Status
-                                        ? '✓ Đã duyệt phiếu nhận xét — Đủ điều kiện bảo vệ'
+                                        ? 'Đã duyệt phiếu nhận xét — Đủ điều kiện bảo vệ'
                                         : regWaitingBM04
                                             ? 'Đã hoàn thành BM03 — Chờ lập phiếu BM04'
                                             : 'Đang thực hiện'}
@@ -732,13 +739,16 @@ export default function ProgressTrackingPage() {
                             >
                                 Xem Báo cáo PDF
                             </Button>
-                            <Button
-                                type="primary"
-                                icon={<FileDoneOutlined />}
-                                onClick={() => setBm04ModalOpen(true)}
-                            >
-                                Lập / Cập nhật Phiếu nhận xét
-                            </Button>
+                            <Tooltip title={!canOpenBM04 ? 'Cần hoàn tất chốt cuối kỳ BM03 và xác nhận của sinh viên trước khi lập phiếu BM04.' : ''}>
+                                <Button
+                                    type="primary"
+                                    icon={<FileDoneOutlined />}
+                                    disabled={!canOpenBM04}
+                                    onClick={() => setBm04ModalOpen(true)}
+                                >
+                                    Lập / Cập nhật Phiếu nhận xét
+                                </Button>
+                            </Tooltip>
                         </div>
                     </div>
 
@@ -834,7 +844,7 @@ export default function ProgressTrackingPage() {
                                             <Alert
                                                 type="warning"
                                                 showIcon
-                                                message="Nhật ký BM03 đang ở trạng thái chỉ đọc"
+                                                title="Nhật ký BM03 đang ở trạng thái chỉ đọc"
                                                 description="Hồ sơ đang chờ Viện thẩm định đề nghị dừng đề tài. Không thể thêm, sửa hoặc ký buổi hướng dẫn trong thời gian này."
                                             />
                                         )}
@@ -842,7 +852,7 @@ export default function ProgressTrackingPage() {
                                             <Alert
                                                 type="error"
                                                 showIcon
-                                                message="Hồ sơ BM03 đã đóng sớm"
+                                                title="Hồ sơ BM03 đã đóng sớm"
                                                 description="Đề tài đã dừng theo quyết định thẩm định của Viện. Nhật ký được lưu ở chế độ chỉ đọc."
                                             />
                                         )}
@@ -983,7 +993,7 @@ export default function ProgressTrackingPage() {
                                                                     <Alert
                                                                         type="warning"
                                                                         showIcon
-                                                                        message="Cảnh báo quy trình thẩm định cấp Viện"
+                                                                        title="Cảnh báo quy trình thẩm định cấp Viện"
                                                                         description="Đề nghị dừng đề tài sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
                                                                     />
                                                                 )}
@@ -1009,7 +1019,7 @@ export default function ProgressTrackingPage() {
                                                             <Alert
                                                                 type="info"
                                                                 showIcon
-                                                                message={
+                                                                title={
                                                                     !isMidtermConfigured
                                                                         ? 'Đợt đồ án chưa cấu hình ngày mở đánh giá giữa kỳ. Vui lòng liên hệ học vụ.'
                                                                         : `Chưa đến ngày mở đánh giá giữa kỳ BM03 (Mở từ ${dayjs(midtermOpenAt).format('DD/MM/YYYY')}).`
@@ -1066,7 +1076,7 @@ export default function ProgressTrackingPage() {
                                                                     <Alert
                                                                         type="warning"
                                                                         showIcon
-                                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
+                                                                        title="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
                                                                         description="Đề nghị dừng đề tài cuối kỳ sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
                                                                     />
                                                                 )}
@@ -1092,7 +1102,7 @@ export default function ProgressTrackingPage() {
                                                             <Alert
                                                                 type="info"
                                                                 showIcon
-                                                                message={
+                                                                title={
                                                                     isStopReviewPending
                                                                         ? 'Đang có đề nghị dừng chờ Viện thẩm định, chưa thể đánh giá cuối kỳ.'
                                                                         : !midtermEval
@@ -1226,13 +1236,16 @@ export default function ProgressTrackingPage() {
                                                 >
                                                     In Phiếu BM04
                                                 </Button>
-                                                <Button
-                                                    type="primary"
-                                                    icon={<FileDoneOutlined />}
-                                                    onClick={() => setBm04ModalOpen(true)}
-                                                >
-                                                    Xem / Sửa Phiếu nhận xét
-                                                </Button>
+                                                <Tooltip title={!canOpenBM04 ? 'Cần hoàn tất chốt cuối kỳ BM03 và xác nhận của sinh viên trước khi lập phiếu BM04.' : ''}>
+                                                    <Button
+                                                        type="primary"
+                                                        icon={<FileDoneOutlined />}
+                                                        disabled={!canOpenBM04}
+                                                        onClick={() => setBm04ModalOpen(true)}
+                                                    >
+                                                        Xem / Sửa Phiếu nhận xét
+                                                    </Button>
+                                                </Tooltip>
                                             </div>
                                         </div>
                                         <div style={{ padding: '16px 20px', fontSize: 13 }}>
@@ -1291,6 +1304,17 @@ export default function ProgressTrackingPage() {
                                             </div>
                                         </div>
 
+                                        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: '#FFFFFF' }}>
+                                            <ArchiveDeadlineBanner
+                                                dossier={dossierData}
+                                                archive={archiveData}
+                                                registrationStatus={reg?.status}
+                                                variant="compact"
+                                                audience="lecturer"
+                                                showAction={false}
+                                            />
+                                        </div>
+
                                         <div className="table-wrap">
                                             <table>
                                                 <thead>
@@ -1303,12 +1327,18 @@ export default function ProgressTrackingPage() {
                                                 </thead>
                                                 <tbody>
                                                     {[
-                                                        { key: 'REPORT_WORD', label: '1. Báo cáo Word', ext: '.docx' },
-                                                        { key: 'REPORT_PDF', label: '2. Báo cáo đóng cuốn PDF', ext: '.pdf' },
-                                                        { key: 'DEMO_VIDEO', label: '3. Video demo sản phẩm', ext: '.mp4 / url' },
-                                                        { key: 'SLIDE_PPTX', label: '4. Slide thuyết trình PPTX', ext: '.pptx' },
+                                                        { key: 'REPORT_WORD', label: '1. Báo cáo Word', ext: '.docx', fallbackUrl: archiveData?.reportWordFileUrl },
+                                                        { key: 'REPORT_PDF', label: '2. Báo cáo đóng cuốn PDF', ext: '.pdf', fallbackUrl: archiveData?.reportPdfFileUrl || archiveData?.reportFileUrl },
+                                                        { key: 'DEMO_VIDEO', label: '3. Video demo sản phẩm', ext: '.mp4 / url', fallbackUrl: archiveData?.demoVideoUrl },
+                                                        { key: 'SLIDE_PPTX', label: '4. Slide thuyết trình PPTX', ext: '.pptx', fallbackUrl: archiveData?.slideFileUrl },
                                                     ].map((item) => {
-                                                        const doc = archiveData?.dossierFiles?.find(f => f.docType === item.key);
+                                                        const doc = dossierData?.currentFiles?.[item.key]
+                                                            || archiveData?.dossierFiles?.find(f => (f.docType || f.documentType) === item.key)
+                                                            || null;
+                                                        const resolvedUrl = doc?.demoVideoExternalUrl || doc?.fileUrl || item.fallbackUrl || null;
+                                                        const hasContent = Boolean(doc || resolvedUrl);
+                                                        const checksum = doc?.checksum || doc?.checksumSha256 || null;
+                                                        const versionNum = doc?.versionNumber || doc?.version || 1;
                                                         return (
                                                             <tr key={item.key}>
                                                                 <td>
@@ -1316,12 +1346,14 @@ export default function ProgressTrackingPage() {
                                                                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>Loại chuẩn: <code>{item.key}</code></div>
                                                                 </td>
                                                                 <td>
-                                                                    {doc ? (
+                                                                    {hasContent ? (
                                                                         <div>
-                                                                            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{doc.fileName || 'Tệp đính kèm'}</span>
-                                                                            {doc.checksumSha256 && (
+                                                                            <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                                                                                {doc?.fileName || (item.key === 'DEMO_VIDEO' ? resolvedUrl : 'Tệp đính kèm')}
+                                                                            </span>
+                                                                            {checksum && (
                                                                                 <div style={{ fontSize: 10.5, fontFamily: 'monospace', color: 'var(--muted)' }}>
-                                                                                    SHA-256: {doc.checksumSha256.substring(0, 16)}...
+                                                                                    SHA-256: {checksum.substring(0, 16)}...
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -1330,17 +1362,17 @@ export default function ProgressTrackingPage() {
                                                                     )}
                                                                 </td>
                                                                 <td>
-                                                                    {doc ? (
+                                                                    {hasContent ? (
                                                                         <div>
-                                                                            <Tag color="cyan">v{doc.version || 1}</Tag>
+                                                                            <Tag color="cyan">v{versionNum}</Tag>
                                                                             <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                                                                {doc.uploadedAt ? dayjs(doc.uploadedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                                                                {doc?.uploadedAt ? dayjs(doc.uploadedAt).format('DD/MM/YYYY HH:mm') : '—'}
                                                                             </span>
                                                                         </div>
                                                                     ) : '—'}
                                                                 </td>
                                                                 <td style={{ textAlign: 'right' }}>
-                                                                    {doc?.fileUrl || doc?.assetId ? (
+                                                                    {resolvedUrl || doc?.assetId ? (
                                                                         <Button
                                                                             size="small"
                                                                             icon={<FilePdfOutlined />}
@@ -1354,8 +1386,8 @@ export default function ProgressTrackingPage() {
                                                                                         console.error('Failed to get asset download url:', err);
                                                                                     }
                                                                                 }
-                                                                                if (doc?.fileUrl) {
-                                                                                    window.open(doc.fileUrl, '_blank');
+                                                                                if (resolvedUrl) {
+                                                                                    window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
                                                                                 }
                                                                             }}
                                                                         >
@@ -1599,7 +1631,7 @@ export default function ProgressTrackingPage() {
                                 <Alert
                                     type="error"
                                     showIcon
-                                    message="Vui lòng kiểm tra lại các trường thông tin bắt buộc"
+                                    title="Vui lòng kiểm tra lại các trường thông tin bắt buộc"
                                     description={
                                         <ul className="list-disc pl-4 mt-1 space-y-0.5 text-xs">
                                             {meetingErrors.meetingContent && (
@@ -1887,10 +1919,16 @@ export default function ProgressTrackingPage() {
                     open={bm04ModalOpen}
                     onClose={() => setBm04ModalOpen(false)}
                     registration={reg}
+                    archive={archiveData}
                     currentLecturerName={currentUser?.fullName || currentUser?.name || ''}
-                    onSuccess={() => {
-                        message.success('Đã cập nhật phiếu nhận xét của người hướng dẫn!');
+                    onSuccess={async () => {
                         setBm04ModalOpen(false);
+                        await Promise.all([
+                            registrationsQuery.refetch(),
+                            bm03Query.refetch(),
+                            archiveQuery.refetch(),
+                            queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                        ]);
                     }}
                 />
             )}

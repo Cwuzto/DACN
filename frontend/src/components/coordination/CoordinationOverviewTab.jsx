@@ -2,6 +2,7 @@ import { useCoordinationOverview } from '../../queries/lecturerAssignmentQueries
 import { queryKeys } from '../../query/queryKeys';
 import useAuthStore from '../../stores/authStore';
 import QueryPanel from '../common/QueryPanel';
+import EmptyState from '../common/EmptyState';
 
 import { Card, Progress, Tag, Alert, Button, Spin, Row, Col } from 'antd';
 import {
@@ -64,6 +65,14 @@ export function CoordinationOverviewTab({
 
     const criticalAlerts = overloadAlerts.filter((a) => a.severity === 'CRITICAL');
     const warningAlerts = overloadAlerts.filter((a) => a.severity !== 'CRITICAL');
+
+    if (!semesterId) {
+        return (
+            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-xs">
+                <EmptyState description="Chưa chọn đợt đồ án để xem tổng quan điều phối." />
+            </div>
+        );
+    }
 
     return (
         <QueryPanel query={overviewQuery}>

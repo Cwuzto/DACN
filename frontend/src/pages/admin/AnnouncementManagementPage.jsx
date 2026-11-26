@@ -27,6 +27,8 @@ import {
     EyeOutlined,
     EyeInvisibleOutlined,
     CloseOutlined,
+    NotificationOutlined,
+    CheckCircleOutlined,
 } from '@ant-design/icons';
 import { announcementService } from '../../services/announcementService';
 import uploadService from '../../services/uploadService';
@@ -35,6 +37,7 @@ import { queryKeys } from '../../query/queryKeys';
 import { useAnnouncements, useAnnouncementMutation } from '../../queries/announcementQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
+import PageHeader from '../../components/common/PageHeader';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const { TextArea } = Input;
@@ -337,38 +340,39 @@ function AnnouncementManagementPage() {
     ];
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <p className="eyebrow">PUBLIC PORTAL BROADCAST • TRANG CHỦ CỔNG THÔNG TIN</p>
-                    <h1 className="h1">Bản Tin &amp; Quyết Định Học Vụ Portal</h1>
-                </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <Button
-                        icon={<ReloadOutlined />}
-                        onClick={() => announcementsQuery.refetch()}
-                    >
-                        Làm mới
-                    </Button>
-                    <AuthorizedAction feature="announcements" action="create">
+        <div className="space-y-5">
+            <PageHeader
+                icon={<NotificationOutlined />}
+                accent="rose"
+                title="Bản tin & Quyết định Học vụ Portal"
+                subtitle="Soạn thảo, ghim ưu tiên và công bố thông báo, quyết định học vụ trực tiếp lên trang chủ Portal."
+                actions={
+                    <>
                         <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={openCreateModal}
+                            icon={<ReloadOutlined />}
+                            onClick={() => announcementsQuery.refetch()}
                         >
-                            Soạn bản tin Portal
+                            Làm mới
                         </Button>
-                    </AuthorizedAction>
-                </div>
-            </div>
+                        <AuthorizedAction feature="announcements" action="create">
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={openCreateModal}
+                            >
+                                Soạn bản tin Portal
+                            </Button>
+                        </AuthorizedAction>
+                    </>
+                }
+            />
 
             {/* Quick Navigation Banner to BM01-BM05 Templates */}
             <Alert
                 type="info"
                 showIcon
-                className="rounded-xl border-blue-200 bg-blue-50/80"
-                message={
+                className="rounded-2xl border-blue-200/80 bg-blue-50/70"
+                title={
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-xs sm:text-sm text-slate-700">
                             <b>Đang ở: Quản lý Bản tin &amp; Quyết định Portal.</b> Nếu bạn cần tạo, tải lên file Word/PDF hoặc công bố <b>Biểu mẫu BM01–BM05</b> để sinh viên tải về ở chân trang, hãy chuyển sang khu vực Biểu mẫu Portal.
@@ -377,7 +381,7 @@ function AnnouncementManagementPage() {
                             type="primary"
                             size="small"
                             onClick={() => navigate('/admin/portal?tab=TEMPLATE')}
-                            className="bg-primary hover:bg-primary-hover text-white text-xs font-semibold shrink-0"
+                            className="shrink-0"
                         >
                             Quản lý Biểu mẫu BM01–BM05
                         </Button>
@@ -386,26 +390,41 @@ function AnnouncementManagementPage() {
             />
 
             {/* 3 KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng số bản tin / quyết định</span>
-                    <p className="h2 num" style={{ marginTop: 2 }}>{pagination.total || announcements.length}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Tất cả các chuyên mục</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng số bản tin / QĐ</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{pagination.total || announcements.length}</div>
+                        <div className="text-xs text-slate-500 mt-1">Tất cả các chuyên mục</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center justify-center shrink-0 text-rose-600 text-lg">
+                        <NotificationOutlined />
+                    </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Bản tin được ghim</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--warning)' }}>{pinnedCount}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--warning)' }}>Ưu tiên hiển thị đầu trang Portal</div>
+                <div className="bg-white rounded-2xl border border-amber-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Bản tin được ghim</div>
+                        <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">{pinnedCount}</div>
+                        <div className="text-xs text-slate-500 mt-1">Ưu tiên hiển thị đầu trang Portal</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center shrink-0 text-amber-600 text-lg">
+                        <PushpinOutlined />
+                    </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Đang công khai</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>{publishedCount}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Hiển thị trực tiếp trên trang chủ Portal</div>
+                <div className="bg-white rounded-2xl border border-emerald-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Đang công khai</div>
+                        <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{publishedCount}</div>
+                        <div className="text-xs text-slate-500 mt-1">Hiển thị trực tiếp trên trang chủ</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 text-emerald-600 text-lg">
+                        <CheckCircleOutlined />
+                    </div>
                 </div>
             </div>
 
             {/* Content Table Card */}
-            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 lg:p-5 space-y-4">
                 {/* Filter Toolbar */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -470,7 +489,7 @@ function AnnouncementManagementPage() {
                 cancelText="Hủy"
                 width={680}
                 centered
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={form} layout="vertical" className="pt-2">
                     <Form.Item

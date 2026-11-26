@@ -18,6 +18,7 @@ import {
 } from '@ant-design/icons';
 import { useDelegations, useDelegationMutation } from '../../queries/delegationQueries';
 import { usePublicLecturers } from '../../queries/periodQueries';
+import { LECTURER_DEPARTMENT_OPTIONS } from '../../constants/academicUnits';
 
 const DELEGATABLE_CAPABILITIES = [
     { value: 'BM02_REVIEW', label: 'Thẩm định BM02' },
@@ -122,7 +123,11 @@ export default function AcademicDelegationDrawer({
                             <Select placeholder="Chọn quyền..." options={DELEGATABLE_CAPABILITIES} />
                         </Form.Item>
                         <Form.Item name="department" label="Phạm vi bộ môn (tùy chọn)">
-                            <Input placeholder="Ví dụ: CNPM" />
+                            <Select
+                                options={LECTURER_DEPARTMENT_OPTIONS}
+                                allowClear
+                                placeholder="Chọn bộ môn áp dụng"
+                            />
                         </Form.Item>
                         <Form.Item name="reason" label="Lý do ủy quyền">
                             <Input placeholder="Nhập lý do..." />
@@ -142,7 +147,7 @@ export default function AcademicDelegationDrawer({
                     <Alert
                         type="error"
                         showIcon
-                        message={delegationsQuery.error?.message || 'Không thể tải danh sách ủy quyền'}
+                        title={delegationsQuery.error?.message || 'Không thể tải danh sách ủy quyền'}
                     />
                 )}
 

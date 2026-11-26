@@ -449,7 +449,13 @@ router.get(
 router.get(
     ['/checkpoint/:registrationId', '/registrations/:registrationId/checkpoints'],
     [
-        authorizePermission(PERMISSIONS.VIEW_MY_SUBMISSIONS, PERMISSIONS.VIEW_CHECKPOINTS, PERMISSIONS.BM03_REVIEW),
+        authorizePermission(
+            PERMISSIONS.VIEW_MY_SUBMISSIONS,
+            PERMISSIONS.VIEW_CHECKPOINTS,
+            PERMISSIONS.BM03_REVIEW,
+            PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+            PERMISSIONS.DEFENSE_SCORE_VIEW,
+        ),
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,
     ],

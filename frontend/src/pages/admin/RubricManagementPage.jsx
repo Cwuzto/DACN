@@ -5,31 +5,41 @@ import {
     message,
     Modal,
     Popconfirm,
+    Select,
     Tag,
     Tooltip,
 } from 'antd';
 import {
+    AuditOutlined,
+    BarChartOutlined,
     CheckCircleOutlined,
+    ClockCircleOutlined,
     CopyOutlined,
     DeleteOutlined,
     DownloadOutlined,
     ExclamationCircleOutlined,
     EyeOutlined,
+    FileTextOutlined,
     InfoCircleOutlined,
     LockOutlined,
     PlusOutlined,
     ReloadOutlined,
     SaveOutlined,
+    SearchOutlined,
     SettingOutlined,
+    UserOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import rubricService from '../../services/rubricService';
 import portalContentService from '../../services/portalContentService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useRubricVersions, useRubricDetail, useRubricMutation } from '../../queries/rubricQueries';
+import { useSemesters } from '../../queries/semesterQueries';
 import { usePublicPortalContent } from '../../queries/portalQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
+import PageHeader from '../../components/common/PageHeader';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
@@ -247,6 +257,15 @@ export default function RubricManagementPage() {
 
     const versionsQuery = useRubricVersions(scope);
     const rubricMutation = useRubricMutation(scope);
+    const semestersQuery = useSemesters(scope);
+    const semesters = useMemo(
+        () => (Array.isArray(semestersQuery.data) ? semestersQuery.data : []),
+        [semestersQuery.data]
+    );
+    const defaultSemester = useMemo(
+        () => semesters.find((s) => s.isActive || s.status === 'ACTIVE') || semesters[0] || null,
+        [semesters]
+    );
     // Queries portal templates via portalContentService.getPublicContent
     const portalContentQuery = usePublicPortalContent(scope);
 
@@ -273,6 +292,12 @@ export default function RubricManagementPage() {
     const [formScoreLevelPolicy, setFormScoreLevelPolicy] = useState(cloneDefaultScoreLevelPolicy);
     const [saveError, setSaveError] = useState('');
     const [saving, setSaving] = useState(false);
+
+    // Lock Rubric Modal state
+    const [lockModalOpen, setLockModalOpen] = useState(false);
+    const [lockTargetId, setLockTargetId] = useState(null);
+    const [lockSemesterId, setLockSemesterId] = useState(null);
+    const [locking, setLocking] = useState(false);
 
     // Clone Modal state
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
@@ -473,22 +498,37 @@ export default function RubricManagementPage() {
         );
     };
 
-    const handleLockRubric = async (id) => {
+    const handleLockRubric = (id) => {
         const targetId = id || activeRubricId;
         if (!targetId) {
             message.warning('Vui lòng chọn một phiên bản Rubric để khóa.');
             return;
         }
+        const targetVer = versions.find((v) => v.id === targetId) || currentRubric;
+        setLockTargetId(targetId);
+        setLockSemesterId(targetVer?.semesterId || defaultSemester?.id || null);
+        setLockModalOpen(true);
+    };
+
+    const handleConfirmLockRubric = async () => {
+        if (!lockTargetId) return;
+        if (!lockSemesterId) {
+            message.warning('Vui lòng chọn học kỳ áp dụng trước khi khóa Rubric.');
+            return;
+        }
         try {
-            const semesterId = currentRubric?.semesterId;
+            setLocking(true);
             await rubricMutation.mutateAsync({
                 action: 'lockRubric',
-                args: [targetId, semesterId ? { semesterId } : {}],
+                args: [lockTargetId, { semesterId: Number(lockSemesterId) }],
             });
-            message.success('Đã khóa phiên bản Rubric cho đợt bảo vệ!');
+            message.success('Đã kích hoạt & khóa phiên bản Rubric cho học kỳ thành công!');
+            setLockModalOpen(false);
             lastLoadedRubricIdRef.current = null;
         } catch (error) {
-            message.error(error.message || 'Không thể khóa phiên bản Rubric');
+            message.error(error?.response?.data?.message || error?.message || 'Không thể khóa phiên bản Rubric');
+        } finally {
+            setLocking(false);
         }
     };
 
@@ -877,147 +917,135 @@ export default function RubricManagementPage() {
     };
 
     return (
-        <div style={{ padding: '24px 32px' }} data-od-id="view-forms">
-            {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <p className="eyebrow">ACADEMIC SPECIFICATIONS & FORM TEMPLATES · 2026</p>
-                    <h1 className="h1">Quản lý Biểu mẫu Học vụ & Tiêu chuẩn Rubric Đánh giá</h1>
-                    <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                        Hệ thống quản lý, biên tập và ban hành các biểu mẫu chuẩn (BM01 – BM05) cùng bảng tiêu chí Rubric đánh giá khóa luận tốt nghiệp toàn Viện.
-                    </p>
-                </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <AuthorizedAction feature="rubric-config" action="manage">
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                                hasAutoSelectedRef.current = true;
-                                lastLoadedRubricIdRef.current = null;
-                                setActiveRubricId(null);
-                                setFormTitle('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
-                                setFormDescription('Barem đánh giá chuẩn hóa theo quy chế học vụ.');
-                                setFormScoreLevelPolicy(cloneDefaultScoreLevelPolicy());
-                                setSaveError('');
-                                handleResetToDefault();
-                                setActiveTab('rubric');
-                            }}
-                        >
-                            Thêm Phiên Bản Mới
-                        </Button>
-                    </AuthorizedAction>
-                    <AuthorizedAction feature="rubric-config" action="lock">
-                        <Button
-                            icon={<CheckCircleOutlined />}
-                            onClick={() => {
-                                if (activeRubricId) {
-                                    handleActivate(activeRubricId);
-                                } else {
-                                    message.info('Vui lòng chọn một phiên bản để ban hành.');
-                                }
-                            }}
-                        >
-                            Ban Hành Phiên Bản
-                        </Button>
-                    </AuthorizedAction>
-                </div>
-            </div>
+        <div className="space-y-5" data-od-id="view-forms">
+            <PageHeader
+                icon={<AuditOutlined />}
+                accent="amber"
+                title="Quản lý Biểu mẫu Học vụ & Tiêu chuẩn Rubric"
+                subtitle="Hệ thống quản lý, biên tập và ban hành các biểu mẫu chuẩn (BM01 – BM06) cùng bảng tiêu chí Rubric đánh giá khóa luận tốt nghiệp toàn Viện."
+                actions={
+                    <>
+                        <AuthorizedAction feature="rubric-config" action="manage">
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    hasAutoSelectedRef.current = true;
+                                    lastLoadedRubricIdRef.current = null;
+                                    setActiveRubricId(null);
+                                    setFormTitle('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
+                                    setFormDescription('Barem đánh giá chuẩn hóa theo quy chế học vụ.');
+                                    setFormScoreLevelPolicy(cloneDefaultScoreLevelPolicy());
+                                    setSaveError('');
+                                    handleResetToDefault();
+                                    setActiveTab('rubric');
+                                }}
+                            >
+                                Thêm Phiên Bản Mới
+                            </Button>
+                        </AuthorizedAction>
+                        <AuthorizedAction feature="rubric-config" action="lock">
+                            <Button
+                                icon={<LockOutlined />}
+                                onClick={() => {
+                                    if (activeRubricId) {
+                                        handleLockRubric(activeRubricId);
+                                    } else {
+                                        message.info('Vui lòng chọn một phiên bản để kích hoạt và khóa cho học kỳ.');
+                                    }
+                                }}
+                            >
+                                Kích hoạt &amp; Khóa cho học kỳ
+                            </Button>
+                        </AuthorizedAction>
+                    </>
+                }
+            />
 
             {/* KPI Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 24 }}>
-                <div className="card" style={{ padding: 16 }}>
-                    <div className="meta" style={{ marginBottom: 4 }}>Biểu mẫu Học vụ Chuẩn</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <div className="num" style={{ fontSize: 24, fontBold: 700, color: 'var(--institutional)', fontWeight: 700 }}>
-                            {DEFAULT_FORMS.length} Biểu mẫu
-                        </div>
-                        <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-                            Đang hiệu lực 100%
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl border border-teal-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Biểu mẫu chuẩn</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shrink-0">
+                            Hiệu lực 100%
                         </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>BM01 → BM06 & Rubric V1 chuẩn hóa</div>
+                    <div className="text-2xl font-bold text-teal-800 mt-2 tabular-nums whitespace-nowrap">{DEFAULT_FORMS.length} Biểu mẫu</div>
+                    <div className="text-xs text-slate-500 mt-1.5">BM01 → BM06 & Rubric V1 chuẩn hóa</div>
                 </div>
 
-                <div className="card" style={{ padding: 16 }}>
-                    <div className="meta" style={{ marginBottom: 4 }}>Thang Điểm Rubric Khóa Luận</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <div className="num" style={{ fontSize: 24, fontWeight: 700, color: isScoreValid ? 'var(--accent)' : 'var(--danger)' }}>
-                            {totalScore.toFixed(2)}đ
-                        </div>
+                <div className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between ${isScoreValid ? 'border-sky-200/80' : 'border-rose-200/80 bg-rose-50/30'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Thang điểm Rubric</span>
                         <span
-                            className="status-badge"
-                            style={{
-                                background: isScoreValid ? 'var(--accent-soft)' : 'var(--danger-soft)',
-                                color: isScoreValid ? 'var(--accent)' : 'var(--danger)',
-                            }}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border shrink-0 ${
+                                isScoreValid
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200/80'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200/80'
+                            }`}
                         >
-                            {isScoreValid ? '✓ Chuẩn Thang 10' : '⚠ Lệch Điểm'}
+                            {isScoreValid ? <CheckCircleOutlined /> : <WarningOutlined />}
+                            <span>{isScoreValid ? 'Chuẩn 10đ' : 'Lệch điểm'}</span>
                         </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
+                    <div className={`text-2xl font-bold mt-2 tabular-nums whitespace-nowrap ${isScoreValid ? 'text-sky-700' : 'text-rose-600'}`}>
+                        {totalScore.toFixed(2)}đ
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5">
                         {totalCriteriaCount} tiêu chí · {formCategories.length} nhóm đánh giá
                     </div>
                 </div>
 
-                <div className="card" style={{ padding: 16 }}>
-                    <div className="meta" style={{ marginBottom: 4 }}>Quy chuẩn Nộp Hồ sơ</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--fg)' }}>Nộp Hybrid</div>
-                        <span className="status-badge" style={{ background: '#F1F5F9', color: 'var(--muted)' }}>
+                <div className="bg-white rounded-2xl border border-indigo-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quy chuẩn nộp</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
                             Số hóa & Chữ ký
                         </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>Form trực tuyến + Bản quét PDF có chữ ký</div>
+                    <div className="text-xl font-bold text-slate-900 mt-2 whitespace-nowrap">Nộp Hybrid</div>
+                    <div className="text-xs text-slate-500 mt-1.5">Form trực tuyến + Bản quét PDF có chữ ký</div>
                 </div>
 
-                <div className="card" style={{ padding: 16 }}>
-                    <div className="meta" style={{ marginBottom: 4 }}>Phiên bản Ban hành</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <div className="num" style={{ fontSize: 20, fontWeight: 700, color: 'var(--fg)' }}>
-                            {activeVersionObj?.version?.toUpperCase() || 'v2.4'}
-                        </div>
-                        <span className="status-badge" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}>
+                <div className="bg-white rounded-2xl border border-amber-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Phiên bản ban hành</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0">
                             Ban Chủ Nhiệm
                         </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>Áp dụng cho Học kỳ hiện hành (2026 - 2027)</div>
+                    <div className="text-xl font-bold text-amber-700 mt-2 tabular-nums whitespace-nowrap">
+                        {activeVersionObj?.version?.toUpperCase() || 'v2.4'}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5">Áp dụng cho Học kỳ hiện hành (2026 – 2027)</div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="council-phase-nav" style={{ marginBottom: 20 }}>
+            <div className="council-phase-nav">
                 <button
+                    type="button"
                     className={`phase-nav-btn ${activeTab === 'catalog' ? 'active' : ''}`}
                     onClick={() => setActiveTab('catalog')}
                 >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <line x1="16" y1="13" x2="8" y2="13" />
-                        <line x1="16" y1="17" x2="8" y2="17" />
-                    </svg>
+                    <FileTextOutlined aria-hidden="true" />
                     <span>1. Danh mục Biểu mẫu Học vụ (BM01 – BM06)</span>
                 </button>
                 <button
+                    type="button"
                     className={`phase-nav-btn ${activeTab === 'rubric' ? 'active' : ''}`}
                     onClick={() => setActiveTab('rubric')}
                 >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="20" x2="18" y2="10" />
-                        <line x1="12" y1="20" x2="12" y2="4" />
-                        <line x1="6" y1="20" x2="6" y2="14" />
-                    </svg>
+                    <BarChartOutlined aria-hidden="true" />
                     <span>2. Biên tập Tiêu chuẩn Rubric Đánh giá</span>
                 </button>
                 <button
+                    type="button"
                     className={`phase-nav-btn ${activeTab === 'history' ? 'active' : ''}`}
                     onClick={() => setActiveTab('history')}
                 >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <polyline points="12 6 12 12 16 14" />
-                    </svg>
+                    <ClockCircleOutlined aria-hidden="true" />
                     <span>3. Lịch sử Phiên bản & Quyết định Ban hành ({versions.length})</span>
                 </button>
             </div>
@@ -1027,48 +1055,22 @@ export default function RubricManagementPage() {
                 <QueryPanel query={portalContentQuery}>
                     <div>
                         {/* Search & Filter Controls */}
-                        <div
-                            style={{
-                                background: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-lg)',
-                                padding: '14px 18px',
-                                marginBottom: 18,
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                flexWrap: 'wrap',
-                                gap: 12,
-                            }}
-                        >
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 260 }}>
-                                <div style={{ position: 'relative', flex: 1, maxWidth: 380 }}>
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap gap-3 items-center flex-1 min-w-[260px]">
+                                <div className="relative flex-1 max-w-[380px] min-w-[220px]">
+                                    <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
                                     <input
                                         type="text"
-                                        className="input-field"
+                                        className="search-input"
                                         placeholder="Tìm theo mã BM, tên biểu mẫu, đối tượng..."
-                                        style={{ paddingLeft: 34, width: '100%' }}
                                         value={formsSearch}
                                         onChange={(e) => setFormsSearch(e.target.value)}
                                     />
-                                    <svg
-                                        style={{ position: 'absolute', left: 10, top: 11, color: 'var(--muted)', pointerEvents: 'none' }}
-                                        width="15"
-                                        height="15"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                    >
-                                        <circle cx="11" cy="11" r="8" />
-                                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                    </svg>
                                 </div>
                                 <select
-                                    className="select-field"
+                                    className="select-dropdown w-48"
                                     value={formsRoleFilter}
                                     onChange={(e) => setFormsRoleFilter(e.target.value)}
-                                    style={{ width: 180, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)' }}
                                 >
                                     <option value="all">Tất cả đối tượng</option>
                                     <option value="student">Dành cho Sinh viên</option>
@@ -1076,9 +1078,8 @@ export default function RubricManagementPage() {
                                     <option value="council">Dành cho Hội đồng</option>
                                 </select>
                             </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
+                            <div className="flex gap-2">
                                 <Button
-                                    size="small"
                                     icon={<ReloadOutlined />}
                                     onClick={() => {
                                         setFormsSearch('');
@@ -1109,9 +1110,9 @@ export default function RubricManagementPage() {
                                     <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 14 }}>{form.sub}</p>
 
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                                        <span className="form-field-badge">👤 {form.role}</span>
-                                        <span className="form-field-badge">⏱ {form.period}</span>
-                                        <span className="form-field-badge">⚖ {form.reviewCouncil}</span>
+                                        <span className="form-field-badge"><UserOutlined aria-hidden="true" /> {form.role}</span>
+                                        <span className="form-field-badge"><ClockCircleOutlined aria-hidden="true" /> {form.period}</span>
+                                        <span className="form-field-badge"><AuditOutlined aria-hidden="true" /> {form.reviewCouncil}</span>
                                     </div>
 
                                     <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '10px 12px', marginBottom: 16 }}>
@@ -1183,46 +1184,21 @@ export default function RubricManagementPage() {
                     <QueryPanel query={activeRubricId ? detailQuery : { isPending: false, isError: false, isFetching: false, data: true }}>
                         <div>
                     {/* High Privilege Admin Notice Banner */}
-                    <div
-                        style={{
-                            background: '#F0FDFA',
-                            border: '1px solid #CCFBF1',
-                            borderRadius: 'var(--radius-lg)',
-                            padding: '14px 18px',
-                            marginBottom: 20,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: 14,
-                            flexWrap: 'wrap',
-                        }}
-                    >
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                            <div
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 8,
-                                    background: '#CCFBF1',
-                                    color: '#0F766E',
-                                    display: 'grid',
-                                    placeItems: 'center',
-                                    flexShrink: 0,
-                                    fontWeight: 700,
-                                }}
-                            >
-                                <SettingOutlined style={{ color: '#0F766E', fontSize: 18 }} />
+                    <div className="rounded-2xl bg-gradient-to-r from-teal-50/90 via-white to-emerald-50/50 border border-teal-200/80 p-4 mb-5 flex justify-between items-center gap-3.5 flex-wrap shadow-sm">
+                        <div className="flex gap-3 items-start flex-1 min-w-[260px]">
+                            <div className="w-9 h-9 rounded-xl bg-teal-100/90 border border-teal-200 text-teal-700 grid place-items-center shrink-0">
+                                <SettingOutlined className="text-base" />
                             </div>
                             <div>
-                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: 14 }}>
+                                <div className="font-bold text-teal-800 text-sm">
                                     Thẩm quyền Quản trị viên Viện & Ban Chủ Nhiệm
                                 </div>
-                                <p style={{ fontSize: 12.5, color: '#115E59', marginTop: 2 }}>
+                                <p className="text-xs text-teal-900/80 mt-0.5 leading-relaxed">
                                     Chỉ tài khoản Quản trị viên mới có quyền điều chỉnh tên tiêu chí, hướng dẫn và điểm tối đa của từng mục. Toàn bộ thay đổi sẽ lập tức đồng bộ thời gian thực đến giao diện chấm điểm của các Hội đồng và Giảng viên.
                                 </p>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div className="flex gap-2 flex-wrap">
                             <AuthorizedAction feature="rubric-config" action="manage">
                                 <Button
                                     type="primary"
@@ -1253,56 +1229,41 @@ export default function RubricManagementPage() {
                     </div>
 
                     {/* Scale Integrity Validation Card */}
-                    <div
-                        className="card"
-                        style={{
-                            padding: '16px 20px',
-                            marginBottom: 20,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: 14,
-                        }}
-                    >
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 mb-5 flex justify-between items-center flex-wrap gap-4">
                         <div>
-                            <span className="eyebrow">SCALE INTEGRITY VALIDATION</span>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Kiểm định thang điểm</div>
+                            <div className="text-base font-bold text-slate-900 mt-0.5">
                                 Tổng Điểm Thang Rubric Hiện Tại
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                            <div className="text-xs text-slate-500 mt-0.5">
                                 Quy chế yêu cầu tổng điểm tối đa của toàn bộ các tiêu chí phải đạt chính xác 10.00đ
                             </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ textAlign: 'right' }}>
+                        <div className="flex items-center gap-4">
+                            <div className="text-right">
                                 <div
-                                    className="num"
-                                    style={{
-                                        fontSize: 32,
-                                        fontWeight: 900,
-                                        color: isScoreValid ? 'var(--institutional)' : 'var(--danger)',
-                                        lineHeight: 1,
-                                    }}
+                                    className={`text-3xl font-extrabold leading-none tabular-nums ${isScoreValid ? 'text-teal-700' : 'text-rose-600'}`}
                                 >
                                     {totalScore.toFixed(2)}đ
                                 </div>
                                 <div
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        color: isScoreValid ? 'var(--success)' : 'var(--danger)',
-                                        marginTop: 4,
-                                    }}
+                                    className={`mt-1.5 inline-flex items-center gap-1 text-xs font-bold ${isScoreValid ? 'text-emerald-600' : 'text-rose-600'}`}
                                 >
-                                    {isScoreValid
-                                        ? '✓ Tổng điểm chính xác 10.00đ'
-                                        : `⚠ Chênh lệch: ${(totalScore - 10).toFixed(2)}đ so với thang chuẩn 10.0đ`}
+                                    {isScoreValid ? (
+                                        <>
+                                            <CheckCircleOutlined aria-hidden="true" />
+                                            <span>Tổng điểm chính xác 10.00đ</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <WarningOutlined aria-hidden="true" />
+                                            <span>Chênh lệch: {(totalScore - 10).toFixed(2)}đ so với thang chuẩn 10.0đ</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <AuthorizedAction feature="rubric-config" action="manage">
                                 <Button
-                                    size="small"
                                     icon={<PlusOutlined />}
                                     onClick={handleAddCategory}
                                 >
@@ -1862,9 +1823,21 @@ export default function RubricManagementPage() {
                                                 >
                                                     Nhân bản
                                                 </button>
+                                                {!ver.isLocked && (
+                                                    <AuthorizedAction feature="rubric-config" action="lock">
+                                                        <Button
+                                                            size="small"
+                                                            type="primary"
+                                                            icon={<LockOutlined />}
+                                                            onClick={() => handleLockRubric(ver.id)}
+                                                        >
+                                                            Khóa cho học kỳ
+                                                        </Button>
+                                                    </AuthorizedAction>
+                                                )}
                                                 {!ver.isActive && (
                                                     <button
-                                                        className="btn btn-primary btn-sm"
+                                                        className="btn btn-secondary btn-sm"
                                                         onClick={() => handleActivate(ver.id)}
                                                     >
                                                         Kích hoạt
@@ -1975,6 +1948,39 @@ export default function RubricManagementPage() {
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            {/* LOCK RUBRIC FOR SEMESTER MODAL */}
+            <Modal
+                title="Kích hoạt & Khóa Rubric cho Học kỳ"
+                open={lockModalOpen}
+                onCancel={() => setLockModalOpen(false)}
+                onOk={handleConfirmLockRubric}
+                confirmLoading={locking}
+                okText="Xác nhận khóa Rubric"
+                cancelText="Hủy"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10 }}>
+                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>
+                        Thao tác này sẽ gắn và khóa phiên bản Rubric chuẩn <strong>10.0đ</strong> cho học kỳ được chọn (<code>POST /api/rubrics/:id/lock</code>) để mở quyền lập lịch và chấm điểm Hội đồng bảo vệ.
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                            Chọn học kỳ áp dụng:
+                        </label>
+                        <Select
+                            style={{ width: '100%' }}
+                            placeholder="Chọn học kỳ cần khóa Rubric..."
+                            value={lockSemesterId}
+                            onChange={(val) => setLockSemesterId(val)}
+                            loading={semestersQuery.isLoading}
+                            options={semesters.map((s) => ({
+                                value: s.id,
+                                label: `${s.name}${s.isActive || s.status === 'ACTIVE' ? ' (Đang hoạt động)' : ''}`,
+                            }))}
+                        />
+                    </div>
+                </div>
             </Modal>
 
             {/* CLONE MODAL */}

@@ -120,7 +120,7 @@ function StudentThesisProgressCard({ user, scope }) {
                 <Alert
                     type="error"
                     showIcon
-                    message="Cảnh báo tiến độ: Đề xuất dừng thực hiện đề tài"
+                    title="Cảnh báo tiến độ: Đề xuất dừng thực hiện đề tài"
                     description="Hồ sơ của bạn đang được Viện xem xét do tiến độ đánh giá giữa kỳ không đạt hoặc vắng các buổi gặp hướng dẫn. Vui lòng liên hệ ngay với Giảng viên hướng dẫn để được hỗ trợ."
                     className="rounded-xl border-red-200"
                 />

@@ -572,7 +572,7 @@ export default function TitleAdjustmentPage() {
                     <Alert
                         type="warning"
                         showIcon
-                        message="Lưu ý quy định trả lại BM02-A"
+                        title="Lưu ý quy định trả lại BM02-A"
                         description={
                             returningRole === 'ADVISOR'
                                 ? 'Nếu đây là phiên bản v1 và còn trong hạn 168 giờ, sinh viên sẽ được nộp lại bản sửa v2 duy nhất 01 lần.'

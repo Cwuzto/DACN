@@ -45,9 +45,13 @@ const registrationService = {
         }
     },
 
-    registerTopic: async (topicId, semesterId) => {
+    registerTopic: async (topicId, semesterId, notes) => {
         try {
-            return await api.post('/registrations', { topicId, semesterId });
+            const payload = { topicId, semesterId };
+            if (notes && String(notes).trim()) {
+                payload.notes = String(notes).trim();
+            }
+            return await api.post('/registrations', payload);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi đăng ký đề tài');
         }

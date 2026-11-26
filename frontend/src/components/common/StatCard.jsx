@@ -1,4 +1,19 @@
 import React from 'react';
+import {
+    CalendarOutlined,
+    ClockCircleOutlined,
+    ExclamationCircleOutlined,
+    FileTextOutlined,
+    TeamOutlined,
+} from '@ant-design/icons';
+
+const STAT_ICON_MAP = {
+    pending_actions: ClockCircleOutlined,
+    group_off: TeamOutlined,
+    assignment_late: ExclamationCircleOutlined,
+    event_upcoming: CalendarOutlined,
+    description: FileTextOutlined,
+};
 
 /**
  * StatCard — Nordic Institute Clean KPI Metric Card
@@ -16,6 +31,15 @@ export default function StatCard({
     className = '',
 }) {
     const isClickable = Boolean(onClick);
+    const renderIcon = () => {
+        if (!icon) return null;
+        if (React.isValidElement(icon)) {
+            return <span className={`inline-flex items-center justify-center text-[18px] ${iconColor}`}>{icon}</span>;
+        }
+        const IconComponent = typeof icon === 'string' ? (STAT_ICON_MAP[icon] || FileTextOutlined) : null;
+        if (!IconComponent) return null;
+        return <IconComponent className={`text-[18px] ${iconColor}`} />;
+    };
 
     return (
         <div
@@ -41,10 +65,8 @@ export default function StatCard({
                     )}
                 </div>
                 {icon && (
-                    <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                        <span className={`material-symbols-outlined text-[19px] ${iconColor}`}>
-                            {icon}
-                        </span>
+                    <div className={`w-9 h-9 rounded-lg ${iconBg} border border-slate-200 flex items-center justify-center shrink-0`}>
+                        {renderIcon()}
                     </div>
                 )}
             </div>

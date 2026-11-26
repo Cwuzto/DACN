@@ -36,6 +36,76 @@ const computeBm01DeadlineState = (dueAt, now = new Date()) => {
     return now.getTime() >= new Date(dueAt).getTime() ? 'OVERDUE' : 'ON_TRACK';
 };
 
+const isBm01Task = (task) => {
+    if (!task) return false;
+    const type = String(task.taskType || '').toUpperCase();
+    const title = String(task.title || '').toUpperCase();
+    return type.startsWith('BM01') || title.includes('BM01') || title.includes('ĐỀ CƯƠNG');
+};
+
+const resolveNextMilestoneByStatus = (reg, semester = null) => {
+    const status = reg?.status;
+    const tasks = Array.isArray(reg?.tasks) ? reg.tasks : [];
+    const bm01Task = tasks.find(isBm01Task) || null;
+    const nonBm01Task = tasks.find((t) => !isBm01Task(t)) || null;
+
+    switch (status) {
+        case 'PENDING':
+            return { nextMilestone: 'Chờ GVHD duyệt đăng ký', nextMilestoneAt: null };
+        case 'MENTOR_APPROVED':
+        case 'APPROVED':
+        case 'BM01_REVISION':
+        case 'BM01_NEEDS_REVISION':
+            return {
+                nextMilestone: 'BM01 - Nộp & thẩm định đề cương',
+                nextMilestoneAt: bm01Task?.dueDate || semester?.outlineSubmissionDeadline || null,
+            };
+        case 'BM01_SUBMITTED':
+        case 'BM01_RESUBMITTED':
+            return {
+                nextMilestone: 'Thẩm định đề cương BM01',
+                nextMilestoneAt: bm01Task?.dueDate || null,
+            };
+        case 'BM01_PASSED':
+        case 'BM02_SUBMITTED':
+        case 'BM02_REVISION':
+            return { nextMilestone: 'BM02 - Hoàn thiện đơn giao đề tài', nextMilestoneAt: null };
+        case 'BM02_APPROVED':
+            return { nextMilestone: 'Ban hành Quyết định giao đề tài', nextMilestoneAt: null };
+        case 'DECISION_ISSUED':
+        case 'IN_PROGRESS_BM03':
+        case 'IN_PROGRESS':
+            return {
+                nextMilestone: 'BM03 - Theo dõi tiến độ & đánh giá',
+                nextMilestoneAt: nonBm01Task?.dueDate || null,
+            };
+        case 'BM03_SIGNATURE_PENDING':
+            return { nextMilestone: 'Chờ sinh viên xác nhận BM03', nextMilestoneAt: null };
+        case 'BM03_PASSED':
+        case 'BM04_REVIEW':
+            return { nextMilestone: 'BM04 - Phiếu nhận xét GVHD', nextMilestoneAt: null };
+        case 'DEFENSE_READY':
+        case 'DEFENSE_ELIGIBLE':
+        case 'ELIGIBLE_BY_INSTITUTE':
+            return { nextMilestone: 'Bảo vệ trước Hội đồng', nextMilestoneAt: null };
+        case 'AWAITING_FINAL_APPROVAL':
+            return { nextMilestone: 'Chờ phê duyệt kết quả bảo vệ', nextMilestoneAt: null };
+        case 'DEFENSE_PASSED':
+        case 'ARCHIVE_INCOMPLETE':
+        case 'ARCHIVE_REJECTED':
+            return { nextMilestone: 'Hoàn thiện hồ sơ lưu chiểu sau bảo vệ', nextMilestoneAt: null };
+        case 'DEFENSE_FAILED':
+            return { nextMilestone: 'Không đạt bảo vệ', nextMilestoneAt: null };
+        case 'COMPLETED':
+            return { nextMilestone: null, nextMilestoneAt: null };
+        default:
+            return {
+                nextMilestone: nonBm01Task?.title || null,
+                nextMilestoneAt: nonBm01Task?.dueDate || null,
+            };
+    }
+};
+
 const extractBm01RegistrationId = (dedupeKey) => {
     if (!dedupeKey || typeof dedupeKey !== 'string') return null;
     const parts = dedupeKey.split(':');
@@ -354,7 +424,7 @@ async function buildMentorOverview({ actorId, semesterId, semester = null, now =
     }
 
     const students = regList.map((reg) => {
-        const nextTask = Array.isArray(reg.tasks) && reg.tasks.length > 0 ? reg.tasks[0] : null;
+        const { nextMilestone, nextMilestoneAt } = resolveNextMilestoneByStatus(reg, resolvedSemester);
         const pendingReq = pendingBm02aByRegId.get(reg.id) || null;
         const bm02aRequestId = pendingReq?.id || null;
         const allowedActions = [];
@@ -369,8 +439,8 @@ async function buildMentorOverview({ actorId, semesterId, semester = null, now =
             studentCode: reg.student?.code || '',
             topicTitle: reg.adjustedTitle || reg.topic?.title || '',
             status: reg.status,
-            nextMilestone: nextTask?.title || null,
-            nextMilestoneAt: nextTask?.dueDate || null,
+            nextMilestone,
+            nextMilestoneAt,
             bm02aRequestId,
             allowedActions,
         };
@@ -480,6 +550,7 @@ async function buildUnifiedLecturerOverview({ actor, semesterId, semester = null
 module.exports = {
     MAX_STUDENTS_PER_MENTOR,
     computePriority,
+    resolveNextMilestoneByStatus,
     resolveLecturerSemester,
     buildMentorOverview,
     buildUnifiedLecturerOverview,

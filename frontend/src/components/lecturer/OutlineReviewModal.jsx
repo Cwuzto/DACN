@@ -177,14 +177,14 @@ export default function OutlineReviewModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            destroyOnClose
+            destroyOnHidden
             width={720}
         >
             <div className="space-y-4 pt-2">
                 <Alert
                     type="info"
                     showIcon
-                    message={alertMessage}
+                    title={alertMessage}
                     description={alertDescription}
                 />
 
@@ -268,7 +268,7 @@ export default function OutlineReviewModal({
                         onFinish={handleSubmit}
                         initialValues={{ decision: 'PASSED' }}
                     >
-                        <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
+                        <Divider titlePlacement="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                             Kết Luận Thẩm Định
                         </Divider>
 

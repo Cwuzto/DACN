@@ -330,14 +330,22 @@ export default function OutlineReviewPage() {
                             </span>
                         </div>
                         <div className="bento-council-meta">
-                            <span>
-                                Quyết định số: 128/QĐ-ĐHTDM của Viện Công nghệ Số (Ban hành ngày 15/09/2026)
-                            </span>
+                            {(activeCouncil?.decisionCode || activeCouncil?.decisionNumber) && (
+                                <span>
+                                    Quyết định số: {activeCouncil.decisionCode || activeCouncil.decisionNumber}
+                                </span>
+                            )}
                             {activeCouncil?.location && (
-                                <span>· Địa điểm: {activeCouncil.location}</span>
+                                <span>
+                                    {(activeCouncil?.decisionCode || activeCouncil?.decisionNumber) ? '· ' : ''}
+                                    Địa điểm: {activeCouncil.location}
+                                </span>
                             )}
                             {activeCouncil?.meetingMode && (
-                                <span>· Hình thức: {activeCouncil.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp'}</span>
+                                <span>
+                                    {(activeCouncil?.decisionCode || activeCouncil?.decisionNumber || activeCouncil?.location) ? '· ' : ''}
+                                    Hình thức: {activeCouncil.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp'}
+                                </span>
                             )}
                         </div>
                     </div>

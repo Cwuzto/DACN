@@ -1743,8 +1743,10 @@ function ProjectOversightPage() {
     }, [auditTopic]);
 
     return (
-        <div className="py-2 space-y-5">
+        <div className="space-y-5">
             <PageHeader
+                icon={<SafetyCertificateOutlined />}
+                accent="indigo"
                 breadcrumb={[
                     { label: 'Quản trị hệ thống' },
                     { label: 'Đào tạo & Đề tài' },
@@ -1785,13 +1787,13 @@ function ProjectOversightPage() {
             )}
 
             {/* Health Radar Cảnh Báo Sớm Widget */}
-            <div className="bg-[#0A2540] border border-teal-900/40 rounded-lg p-5 text-white shadow-xs relative overflow-hidden">
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-[#0F2942] to-indigo-950 border border-indigo-500/25 p-5 text-white shadow-md relative overflow-hidden">
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none"></span>
                             <span className="text-xs font-semibold uppercase tracking-wider text-teal-300">
-                                Health Radar • Hệ Thống Cảnh Báo Sớm Toàn Khóa
+                                Health Radar · Hệ Thống Cảnh Báo Sớm Toàn Khóa
                             </span>
                         </div>
                         <h3 className="text-lg font-bold text-white mb-0.5">
@@ -1803,7 +1805,7 @@ function ProjectOversightPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2.5 border border-white/15 flex items-center gap-3">
                             <div className="text-rose-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.overdueArchiveCount ?? 0}
                             </div>
@@ -1813,7 +1815,7 @@ function ProjectOversightPage() {
                             </div>
                         </div>
 
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2.5 border border-white/15 flex items-center gap-3">
                             <div className="text-amber-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.atRiskInactiveCount ?? 0}
                             </div>
@@ -1823,7 +1825,7 @@ function ProjectOversightPage() {
                             </div>
                         </div>
 
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2.5 border border-white/15 flex items-center gap-3">
                             <div className="text-sky-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.pendingArchiveReviewCount ?? 0}
                             </div>
@@ -1907,7 +1909,7 @@ function ProjectOversightPage() {
                                             <Alert
                                                 showIcon
                                                 type="warning"
-                                                message={`Có ${warningStats.pendingRegistrations} hồ sơ đăng ký đang chờ xét duyệt`}
+                                                title={`Có ${warningStats.pendingRegistrations} hồ sơ đăng ký đang chờ xét duyệt`}
                                                 description="Vui lòng xử lý phê duyệt sớm để sinh viên và GVHD có thể triển khai nộp đề cương chi tiết kịp tiến độ."
                                                 className="rounded-xl border border-amber-200"
                                             />
@@ -1916,7 +1918,7 @@ function ProjectOversightPage() {
                                             <Alert
                                                 showIcon
                                                 type="warning"
-                                                message={`Có ${warningStats.unassignedCouncil} sinh viên đủ điều kiện nhưng chưa được phân công hội đồng`}
+                                                title={`Có ${warningStats.unassignedCouncil} sinh viên đủ điều kiện nhưng chưa được phân công hội đồng`}
                                                 description="Vui lòng chuyển sang mục Phân công Hội đồng để gán nhóm bảo vệ hoặc hội đồng thẩm định."
                                                 className="rounded-xl border border-amber-200"
                                             />
@@ -1925,7 +1927,7 @@ function ProjectOversightPage() {
                                             <Alert
                                                 showIcon
                                                 type="error"
-                                                message={`Phát hiện ${warningStats.overdueTaskRegistrations} sinh viên có nhiệm vụ tiến độ quá hạn`}
+                                                title={`Phát hiện ${warningStats.overdueTaskRegistrations} sinh viên có nhiệm vụ tiến độ quá hạn`}
                                                 description="Khuyến nghị nhắc nhở GVHD phối hợp kiểm tra nguyên nhân trễ hạn nộp sản phẩm / biểu mẫu."
                                                 className="rounded-xl border border-rose-200"
                                             />
@@ -2708,7 +2710,7 @@ function ProjectOversightPage() {
                     <Alert
                         type={bm03DecisionType === 'APPROVE_STOP' ? 'error' : 'info'}
                         showIcon
-                        message={
+                        title={
                             bm03DecisionType === 'APPROVE_STOP'
                                 ? 'Học vụ sẽ chốt dừng đề tài và sinh viên không thể tiếp tục đồ án kỳ này.'
                                 : 'Học vụ bác bỏ đề xuất dừng và sinh viên tiếp tục thực hiện đề tài bình thường.'
@@ -2823,7 +2825,7 @@ function ProjectOversightPage() {
                     <Alert
                         type={bm04DecisionType === 'APPROVE_NOT_ELIGIBLE' ? 'error' : 'success'}
                         showIcon
-                        message={
+                        title={
                             bm04DecisionType === 'APPROVE_NOT_ELIGIBLE'
                                 ? 'Đồng ý không cho bảo vệ: Sinh viên không đủ điều kiện ra bảo vệ trước hội đồng.'
                                 : 'Cho phép ra bảo vệ: Sinh viên đủ điều kiện ra bảo vệ và phân công hội đồng.'

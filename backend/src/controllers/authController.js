@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
 const { resolveUserCapabilities } = require('../auth/capabilityResolver');
+const { normalizeLecturerDepartment } = require('../constants/academicUnits');
 
 /**
  * POST /api/auth/login
@@ -221,7 +222,23 @@ const updateProfile = async (req, res, next) => {
 
         // Sinh viên tuyệt đối không thể tự đổi department hay thông tin học vụ
         if (req.user?.role !== 'STUDENT' && department !== undefined) {
-            updateData.department = department;
+            if (req.user?.role === 'LECTURER') {
+                const trimmedDept = department === null ? '' : String(department).trim();
+                if (trimmedDept) {
+                    const canonicalDept = normalizeLecturerDepartment(trimmedDept);
+                    if (!canonicalDept) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Bộ môn không hợp lệ. Vui lòng chọn: Công Nghệ Thông Tin hoặc Hệ thống Thông tin.',
+                        });
+                    }
+                    updateData.department = canonicalDept;
+                } else {
+                    updateData.department = null;
+                }
+            } else {
+                updateData.department = department;
+            }
         }
 
         const isStudent = req.user?.role === 'STUDENT';

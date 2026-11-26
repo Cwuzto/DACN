@@ -55,6 +55,7 @@ import ContentSkeleton from '../../components/common/ContentSkeleton';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import AcademicRoadmapStepper from '../../components/common/AcademicRoadmapStepper';
+import ArchiveDeadlineBanner from '../../components/forms/ArchiveDeadlineBanner';
 
 const ACTIVE_FLOW_STATUSES = [
     'APPROVED',
@@ -304,7 +305,11 @@ export default function StudentDashboardPage() {
                     'Trong học kỳ',
                 state: step4State,
                 icon: <ScheduleOutlined />,
-                onClick: () => navigate('/student/submissions?work=BM03_ACK'),
+                onClick: () => navigate(
+                    currentRegistration?.status === 'BM03_SIGNATURE_PENDING' || bm03Record?.studentAckStatus === 'PENDING'
+                        ? '/student/submissions?work=BM03_ACK'
+                        : '/student/submissions?work=BM03'
+                ),
                 styleVars: {
                     '--step-color': '#7C3AED',
                     '--step-soft': '#F5F3FF',
@@ -339,7 +344,7 @@ export default function StudentDashboardPage() {
                 title: '6. Hội đồng bảo vệ',
                 subText: 'Điểm tổng hợp',
                 dateText:
-                    fmt(defenseDossier?.windows?.defenseDateYmd, 'BV') ||
+                    fmt(defenseDossier?.timeWindows?.defenseDateYmd || defenseDossier?.timeWindows?.defenseSnapshotAt, 'BV') ||
                     fmt(activeSemester?.defenseDate, 'Dự kiến') ||
                     fmt(activeSemester?.endDate, 'Kết thúc') ||
                     'Theo lịch Viện',
@@ -504,7 +509,7 @@ export default function StudentDashboardPage() {
                     showIcon
                     className="sd-animate-in"
                     style={{ '--sd-delay': 0, marginBottom: 20, borderRadius: 12 }}
-                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
+                    title={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
                     description={
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1.5">
                             <div>
@@ -614,7 +619,9 @@ export default function StudentDashboardPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                     <span className="sd-code-badge">
                                         <span className="sd-code-dot" aria-hidden="true" />
-                                        <span>MÃ ĐỀ TÀI: {currentRegistration.topic.code || 'Chưa cập nhật'}</span>
+                                        <span>
+                                            MÃ ĐỀ TÀI: {currentRegistration.topic?.topicCode || currentRegistration.topic?.code || (currentRegistration.topic?.id ? `DT-${String(currentRegistration.topic.id).padStart(3, '0')}` : 'Chưa cập nhật')}
+                                        </span>
                                     </span>
                                     {renderRegistrationStatusTag()}
                                 </div>
@@ -892,96 +899,47 @@ export default function StudentDashboardPage() {
                 </div>
             )}
 
-            {/* Post-Defense Archival & Defense Council Session Banner */}
-            {['DEFENSE_READY', 'DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'COMPLETED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && (
-                <div
-                    className="sd-panel sd-animate-in"
-                    style={{
-                        '--sd-delay': 1,
-                        marginBottom: 24,
-                        padding: '16px 20px',
-                        borderLeft: '6px solid',
-                        borderLeftColor: currentRegistration?.status === 'COMPLETED' ? '#10B981' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#EF4444' : '#0F766E',
-                        background: currentRegistration?.status === 'COMPLETED' ? '#F0FDF4' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#FEF2F2' : '#F0FDFA',
-                        borderColor: currentRegistration?.status === 'COMPLETED' ? '#BBF7D0' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#FECACA' : '#99F6E4',
-                    }}
-                >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                        <div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: currentRegistration?.status === 'COMPLETED' ? '#166534' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#991B1B' : '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                {currentRegistration?.status === 'COMPLETED' && (
-                                    <span>Đồ Án Tốt Nghiệp Đã Hoàn Tất — Giấy Xác Nhận Đã Được Ký</span>
-                                )}
-                                {currentRegistration?.status === 'DEFENSE_READY' && (
-                                    <span>Chuẩn Bị Bảo Vệ Khóa Luận Trước Hội Đồng</span>
-                                )}
-                                {['DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && (
-                                    <span>Cửa Sổ Nộp &amp; Hoàn Thiện Hồ Sơ Lưu Chiểu (14 Ngày Sau Bảo Vệ)</span>
-                                )}
-                            </div>
-
-                            <div style={{ marginTop: 6, fontSize: 13, color: '#0F172A', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                                {defenseDossier?.windows?.defenseDateYmd && (
-                                    <span>
-                                        Ngày bảo vệ: <strong>{dayjs(defenseDossier.windows.defenseDateYmd).format('DD/MM/YYYY')}</strong>
-                                    </span>
-                                )}
-                                {currentRegistration?.status === 'DEFENSE_READY' && defenseDossier?.windows?.softPreparationDeadlineAt && (
-                                    <span style={{ color: defenseDossier.windows.isSoftDeadlinePassed ? '#DC2626' : '#D97706' }}>
-                                        Hạn mềm nộp 4 tài liệu: <strong>{dayjs(defenseDossier.windows.softPreparationDeadlineAt).format('DD/MM/YYYY HH:mm')}</strong>
-                                        {defenseDossier.windows.isSoftDeadlinePassed && ' (Đã quá hạn mềm)'}
-                                    </span>
-                                )}
-                                {['DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && defenseDossier?.windows?.windowClosesAt && (
-                                    <span>
-                                        {defenseDossier.windows.isWindowClosed ? (
-                                            <span style={{ color: '#DC2626', fontWeight: 600 }}>
-                                                Cổng lưu chiểu đã đóng lúc: <strong>{dayjs(defenseDossier.windows.windowClosesAt).format('DD/MM/YYYY HH:mm')}</strong>
-                                            </span>
-                                        ) : (
-                                            <span style={{ color: '#0F766E' }}>
-                                                Hạn chót đóng cổng lưu chiểu: <strong>{dayjs(defenseDossier.windows.windowClosesAt).format('DD/MM/YYYY HH:mm')}</strong>
-                                                {' '}— Còn <strong>{Math.max(0, Math.ceil(dayjs(defenseDossier.windows.windowClosesAt).diff(dayjs(), 'day', true)))} ngày</strong>
-                                            </span>
-                                        )}
-                                    </span>
-                                )}
-                                {currentRegistration?.status === 'PENDING_INSTITUTE_SIGNATURE' && (
-                                    <span style={{ color: '#7C3AED', fontWeight: 600 }}>
-                                        GVHD và Giáo vụ đã thẩm định xong — Đang chờ Viện trưởng ký số
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            {currentRegistration?.status === 'COMPLETED' ? (
-                                <Button
-                                    type="primary"
-                                    size="small"
-                                    icon={<DownloadOutlined />}
-                                    onClick={handleDownloadCertificate}
-                                >
-                                    Tải Giấy Xác Nhận (PDF)
-                                </Button>
-                            ) : (
-                                <Button
-                                    type="primary"
-                                    size="small"
-                                    icon={<CloudUploadOutlined />}
-                                    onClick={() => navigate('/student/submissions?work=SUBMIT_ARCHIVE')}
-                                >
-                                    Vào Kho Lưu Chiểu 4 Tài Liệu
-                                </Button>
-                            )}
+            {/* Pre-Defense & Post-Defense Archive Deadline & Missing Documents Banner */}
+            {[
+                'BM03_PASSED',
+                'BM04_REVIEW',
+                'DEFENSE_READY',
+                'DEFENSE_ELIGIBLE',
+                'ELIGIBLE_BY_INSTITUTE',
+                'DEFENSE_PASSED',
+                'DEFENDED',
+                'PENDING_INSTITUTE_SIGNATURE',
+                'ARCHIVE_INCOMPLETE',
+                'ARCHIVE_REJECTED',
+                'COMPLETED',
+            ].includes(currentRegistration?.status) && (
+                <div className="sd-animate-in space-y-3" style={{ '--sd-delay': 1, marginBottom: 24 }}>
+                    <ArchiveDeadlineBanner
+                        dossier={defenseDossier}
+                        archiveSummary={dashboardData?.archiveSummary}
+                        registrationStatus={currentRegistration?.status}
+                        variant="prominent"
+                        onAction={() => navigate('/student/grades')}
+                        actionLabel="Vào kho lưu chiểu"
+                        showAction={currentRegistration?.status !== 'COMPLETED'}
+                    />
+                    {currentRegistration?.status === 'COMPLETED' && (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button
-                                size="small"
+                                type="primary"
+                                icon={<DownloadOutlined />}
+                                onClick={handleDownloadCertificate}
+                            >
+                                Tải Giấy Xác Nhận (PDF)
+                            </Button>
+                            <Button
+                                icon={<TrophyOutlined />}
                                 onClick={() => navigate('/student/grades')}
                             >
-                                Xem Điểm Bảo Vệ
+                                Xem điểm bảo vệ
                             </Button>
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 
@@ -1037,9 +995,30 @@ export default function StudentDashboardPage() {
                     </div>
                     <div>
                         <div className="sd-kpi-label">Điểm đánh giá GVHD</div>
-                        <div className="sd-kpi-value" style={{ fontSize: dashboardData?.mentorScore != null ? 22 : 18 }}>
-                            {dashboardData?.mentorScore != null ? `${Number(dashboardData.mentorScore).toFixed(1)} / 10` : 'Chưa đánh giá'}
-                        </div>
+                        {(() => {
+                            const rawMentorScore = dashboardData?.mentorScore;
+                            const hasNumericScore = rawMentorScore !== null
+                                && rawMentorScore !== undefined
+                                && rawMentorScore !== ''
+                                && Number.isFinite(Number(rawMentorScore));
+                            const rawConclusion = dashboardData?.mentorConclusion || bm04Record?.conclusion || bm04Record?.decision || null;
+                            const conclusionLabelMap = {
+                                ELIGIBLE: 'Đủ điều kiện BV',
+                                DEFENSE_ELIGIBLE: 'Đủ điều kiện BV',
+                                APPROVED: 'Đủ điều kiện BV',
+                                ALLOW_DEFENSE: 'Đủ điều kiện BV',
+                                NOT_ELIGIBLE: 'Chưa đủ điều kiện',
+                                REJECTED: 'Chưa đủ điều kiện',
+                            };
+                            const displayConclusion = rawConclusion
+                                ? (conclusionLabelMap[rawConclusion] || String(rawConclusion))
+                                : (bm04Record?.status === 'SIGNED_APPROVED' || bm04Record?.status === 'COMPLETED' ? 'Đã nhận xét' : 'Chưa có');
+                            return (
+                                <div className="sd-kpi-value" style={{ fontSize: hasNumericScore ? 22 : 16 }}>
+                                    {hasNumericScore ? `${Number(rawMentorScore).toFixed(1)} / 10` : displayConclusion}
+                                </div>
+                            );
+                        })()}
                         <div className="sd-kpi-hint">Phiếu nhận xét BM04</div>
                     </div>
                 </div>
@@ -1093,7 +1072,11 @@ export default function StudentDashboardPage() {
                                 <Button
                                     size="small"
                                     icon={<FileDoneOutlined />}
-                                    onClick={() => navigate('/student/submissions?work=BM03_ACK')}
+                                    onClick={() => navigate(
+                                        currentRegistration?.status === 'BM03_SIGNATURE_PENDING' || bm03Record?.studentAckStatus === 'PENDING'
+                                            ? '/student/submissions?work=BM03_ACK'
+                                            : '/student/submissions?work=BM03'
+                                    )}
                                 >
                                     Xem sổ theo dõi tiến độ BM03
                                 </Button>
@@ -1281,7 +1264,7 @@ export default function StudentDashboardPage() {
                     <Alert
                         type="info"
                         showIcon
-                        message="Thời hạn phản hồi: 48 giờ"
+                        title="Thời hạn phản hồi: 48 giờ"
                         description={`Biểu mẫu BM03 đã được GVHD hoàn tất và ký số lúc ${bm03Record?.advisorSignedAt ? dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm') : '---'}. Sinh viên vui lòng đọc kỹ nội dung và chọn 1 trong 3 hình thức phản hồi.`}
                     />
 

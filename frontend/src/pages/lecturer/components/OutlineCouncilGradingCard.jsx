@@ -576,7 +576,7 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
             <div className="p-4 overflow-x-auto">
                 {loading ? (
                     <div className="py-12 text-center">
-                        <Spin tip="Đang tải dữ liệu hội đồng..." />
+                        <Spin description="Đang tải dữ liệu hội đồng..." />
                     </div>
                 ) : candidates.length === 0 ? (
                     <div className="py-8 text-center text-slate-500 text-sm">
@@ -803,7 +803,7 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
                 onOk={handlePublishSchedule}
                 okText="Công bố Lịch"
                 confirmLoading={submittingAction}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-3 py-2 text-xs">
                     <div>
@@ -858,7 +858,7 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
                 onOk={handleSetRevisionDeadline}
                 okText="Cập nhật Hạn nộp"
                 confirmLoading={submittingAction}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-3 py-2 text-xs">
                     <p className="text-slate-600">
@@ -890,7 +890,7 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
                 okText="Xác nhận Trả lại"
                 okButtonProps={{ danger: true }}
                 confirmLoading={submittingAction}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-3 py-2 text-xs">
                     <p className="text-slate-600">
@@ -922,8 +922,8 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
                 }
                 open={isReviewDrawerVisible}
                 onClose={() => setIsReviewDrawerVisible(false)}
-                width={560}
-                destroyOnClose
+                size={560}
+                destroyOnHidden
                 footer={
                     <div className="flex justify-end gap-2">
                         <Button onClick={() => setIsReviewDrawerVisible(false)} disabled={submittingAction}>

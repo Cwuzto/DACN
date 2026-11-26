@@ -5,6 +5,7 @@ const { COMPLETED_GRADUATION_STATUSES } = require('../utils/studentAccountRestri
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { validateStudentPayload, normalizeStudentPayload } = require('../services/studentProfileService');
 const { normalizeExpertiseAreas } = require('../services/lecturerExpertiseService');
+const { normalizeLecturerDepartment } = require('../constants/academicUnits');
 
 const generateUserCode = async (role) => {
     let prefix = 'US';
@@ -60,7 +61,22 @@ const getAllUsers = async (req, res, next) => {
 
         const conditions = [];
 
-        if (role) {
+        if (role === 'ADMIN') {
+            conditions.push({
+                OR: [
+                    { role: 'ADMIN' },
+                    {
+                        permissionGroups: {
+                            some: {
+                                permissionGroup: {
+                                    code: { in: ['VIEN_TRUONG', 'GIAO_VU'] },
+                                },
+                            },
+                        },
+                    },
+                ],
+            });
+        } else if (role) {
             conditions.push({ role });
         }
 
@@ -356,6 +372,10 @@ const createUser = async (req, res, next) => {
         }
 
         let normalizedExpertise = [];
+        let normalizedDepartment =
+            department !== undefined && department !== null
+                ? String(department).trim() || null
+                : null;
         if (role === 'LECTURER') {
             normalizedExpertise = normalizeExpertiseAreas(req.body.expertiseAreas);
             if (normalizedExpertise.length === 0) {
@@ -364,6 +384,16 @@ const createUser = async (req, res, next) => {
                     code: 'LECTURER_EXPERTISE_REQUIRED',
                     message: 'Chuyên môn giảng viên không được để trống.',
                 });
+            }
+            if (normalizedDepartment) {
+                const canonicalDept = normalizeLecturerDepartment(normalizedDepartment);
+                if (!canonicalDept) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Bộ môn không hợp lệ. Vui lòng chọn: Công Nghệ Thông Tin hoặc Hệ thống Thông tin.',
+                    });
+                }
+                normalizedDepartment = canonicalDept;
             }
         }
 
@@ -399,7 +429,7 @@ const createUser = async (req, res, next) => {
                     fullName,
                     code,
                     role,
-                    department: department || null,
+                    department: normalizedDepartment,
                     academicTitle: role === 'LECTURER' ? academicTitle : null,
                     expertiseAreas: role === 'LECTURER' ? normalizedExpertise : [],
                     phone: phone || null,
@@ -752,6 +782,21 @@ const updateUser = async (req, res, next) => {
         if (department !== undefined) updateData.department = department;
         if (phone !== undefined) updateData.phone = phone;
         if (effectiveRole === 'LECTURER') {
+            if (department !== undefined) {
+                const trimmedDept = department === null ? '' : String(department).trim();
+                if (trimmedDept) {
+                    const canonicalDept = normalizeLecturerDepartment(trimmedDept);
+                    if (!canonicalDept) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Bộ môn không hợp lệ. Vui lòng chọn: Công Nghệ Thông Tin hoặc Hệ thống Thông tin.',
+                        });
+                    }
+                    updateData.department = canonicalDept;
+                } else {
+                    updateData.department = null;
+                }
+            }
             if (academicTitle !== undefined) updateData.academicTitle = academicTitle;
             if (req.body.expertiseAreas !== undefined) {
                 const normalized = normalizeExpertiseAreas(req.body.expertiseAreas);
@@ -1296,6 +1341,7 @@ const importUsersExcel = async (req, res, next) => {
             const phone = item.phone || item['Số điện thoại'] || item['SĐT'] || null;
             const department = item.department || item['Bộ môn / Khoa'] || item['Bộ môn'] || item['Khoa'] || null;
             const rawTitle = item.academicTitle || item['Học vị (*)'] || item['Học vị'] || null;
+            const rawExpertise = item.expertiseAreas ?? item['Chuyên môn (*)'] ?? item['Chuyên môn'] ?? item['Lĩnh vực chuyên môn'] ?? null;
 
             if (!code || !String(code).trim()) {
                 errorRows.push({ row: rowIdx, code: '', message: 'Thiếu mã số (code)' });
@@ -1318,6 +1364,7 @@ const importUsersExcel = async (req, res, next) => {
             const cleanPhone = phone ? String(phone).trim() : null;
             const cleanDept = department ? String(department).trim() : null;
             const academicTitle = validRole === 'LECTURER' ? normalizeAcademicTitle(rawTitle) : null;
+            const expertiseAreas = validRole === 'LECTURER' ? normalizeExpertiseAreas(rawExpertise) : [];
 
             validatedItems.push({
                 rowIdx,
@@ -1327,6 +1374,7 @@ const importUsersExcel = async (req, res, next) => {
                 phone: cleanPhone,
                 department: cleanDept,
                 academicTitle,
+                expertiseAreas,
             });
         });
 
@@ -1375,6 +1423,7 @@ const importUsersExcel = async (req, res, next) => {
                                 phone: row.phone || existing.phone,
                                 department: row.department || existing.department,
                                 ...(!isExistingAdmin && validRole === 'LECTURER' && row.academicTitle ? { academicTitle: row.academicTitle } : {}),
+                                ...(!isExistingAdmin && validRole === 'LECTURER' && row.expertiseAreas?.length ? { expertiseAreas: row.expertiseAreas } : {}),
                             },
                         });
                         updatedCount++;
@@ -1392,6 +1441,7 @@ const importUsersExcel = async (req, res, next) => {
                             phone: row.phone,
                             department: row.department,
                             academicTitle: row.academicTitle,
+                            expertiseAreas: validRole === 'LECTURER' ? (row.expertiseAreas || []) : [],
                             passwordHash,
                             isActive: true,
                         },

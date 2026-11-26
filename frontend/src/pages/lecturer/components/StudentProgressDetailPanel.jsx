@@ -243,7 +243,7 @@ function StudentProgressDetailPanel({
                                             <Alert
                                                 type="warning"
                                                 showIcon
-                                                message={`Có ${taskOverview.overdue} nhiệm vụ quá hạn cần theo dõi`}
+                                                title={`Có ${taskOverview.overdue} nhiệm vụ quá hạn cần theo dõi`}
                                                 className="text-xs"
                                             />
                                         )}
@@ -460,7 +460,7 @@ function StudentProgressDetailPanel({
                                             <Alert
                                                 type="info"
                                                 showIcon
-                                                message="Sinh viên chưa nộp hồ sơ lưu chiểu"
+                                                title="Sinh viên chưa nộp hồ sơ lưu chiểu"
                                                 description="Sinh viên sau khi bảo vệ trước Hội đồng cần nộp lưu chiểu trên hệ thống để được cấp Giấy xác nhận tốt nghiệp."
                                                 className="text-xs"
                                             />

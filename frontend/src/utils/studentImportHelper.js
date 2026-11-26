@@ -1,3 +1,5 @@
+import { STUDENT_MAJORS } from '../constants/academicUnits';
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[0-9+() -]{8,20}$/;
 const DD_MM_YYYY_REGEX = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
@@ -42,7 +44,7 @@ export const STUDENT_SAMPLE_ROWS = [
         'Số điện thoại (*)': '0912345678',
         'Lớp (*)': 'D20HTTT01',
         'Email (*)': 'sv20260003@student.tdmu.edu.vn',
-        'Ngành (*)': 'Công nghệ Thông tin',
+        'Ngành (*)': 'Công Nghệ Thông Tin',
     },
     {
         'MSSV (*)': 'SV20260004',
@@ -60,9 +62,9 @@ export const STUDENT_SAMPLE_ROWS = [
         'Giới tính (*)': 'Nữ',
         'Ngày sinh (*)': '28/02/2003',
         'Số điện thoại (*)': '0933456789',
-        'Lớp (*)': 'D20KTPM02',
+        'Lớp (*)': 'D20TTNT01',
         'Email (*)': 'sv20260005@student.tdmu.edu.vn',
-        'Ngành (*)': 'Khoa học Máy tính',
+        'Ngành (*)': 'Trí Tuệ Nhân Tạo',
     },
 ];
 
@@ -160,6 +162,15 @@ export const parseAndValidateDateOfBirth = (rawDate) => {
 };
 
 /**
+ * Maps raw student major string to canonical major name (case-insensitive)
+ */
+export const normalizeStudentMajor = (rawMajor) => {
+    if (!rawMajor || typeof rawMajor !== 'string') return null;
+    const lower = rawMajor.trim().toLowerCase();
+    return STUDENT_MAJORS.find((m) => m.toLowerCase() === lower) || null;
+};
+
+/**
  * Validates a single student row
  */
 export const validateStudentRow = (row, seenCodes = new Set(), seenEmails = new Set()) => {
@@ -225,6 +236,8 @@ export const validateStudentRow = (row, seenCodes = new Set(), seenEmails = new 
     const major = String(row.major || '').trim();
     if (!major) {
         errors.push('Thiếu ngành');
+    } else if (!normalizeStudentMajor(major)) {
+        errors.push(`Ngành không hợp lệ (chỉ chấp nhận: ${STUDENT_MAJORS.join(', ')})`);
     }
 
     return errors;

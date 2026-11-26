@@ -120,7 +120,7 @@ export default function RegistrationTimelineDrawer({
     return (
         <Drawer
             title="Lịch sử Tiến trình Đề tài"
-            width={520}
+            size={520}
             open={open}
             onClose={onClose}
             extra={

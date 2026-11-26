@@ -47,7 +47,7 @@ export default function BM04AiSuggestionDrawer({
             }
             open={open}
             onClose={onClose}
-            width={640}
+            size={640}
             destroyOnHidden
             footer={
                 <div className="flex justify-between items-center py-1">

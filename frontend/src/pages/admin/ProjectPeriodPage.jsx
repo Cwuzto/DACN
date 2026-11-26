@@ -5,7 +5,7 @@ import { useDecisionAppendices, useBm02aQueue, useBm02aMutation } from '../../qu
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Badge,
@@ -47,6 +47,7 @@ import {
     HistoryOutlined,
     PlusOutlined,
     ReloadOutlined,
+    UnlockOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -55,7 +56,6 @@ import { uploadGovernedAsset } from '../../services/resumableUploadService';
 
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, buildSemesterCode, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
-import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
 import { getStatusTagConfig } from '../../components/common/statusMap';
 
 const EMPTY_LIST = [];
@@ -102,57 +102,165 @@ const getToggleWindowWarning = (period) => {
     return null;
 };
 
-function PeriodTimeline({ milestones, status }) {
-    let currentStep = -1;
-    let stepStatus = 'process';
+const TIMELINE_STEP_THEMES = [
+    {
+        gradient: 'from-teal-500 to-emerald-500',
+        ring: 'ring-teal-500/25',
+        ping: 'bg-teal-400',
+        text: 'text-teal-700',
+        pill: 'bg-teal-50 text-teal-800 border-teal-200',
+        icon: <CalendarOutlined />,
+    },
+    {
+        gradient: 'from-sky-500 to-cyan-500',
+        ring: 'ring-sky-500/25',
+        ping: 'bg-sky-400',
+        text: 'text-sky-700',
+        pill: 'bg-sky-50 text-sky-800 border-sky-200',
+        icon: <UnlockOutlined />,
+    },
+    {
+        gradient: 'from-indigo-500 to-blue-500',
+        ring: 'ring-indigo-500/25',
+        ping: 'bg-indigo-400',
+        text: 'text-indigo-700',
+        pill: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+        icon: <AuditOutlined />,
+    },
+    {
+        gradient: 'from-purple-600 to-fuchsia-500',
+        ring: 'ring-purple-500/25',
+        ping: 'bg-purple-400',
+        text: 'text-purple-700',
+        pill: 'bg-purple-50 text-purple-800 border-purple-200',
+        icon: <FileDoneOutlined />,
+    },
+    {
+        gradient: 'from-emerald-500 to-teal-500',
+        ring: 'ring-emerald-500/25',
+        ping: 'bg-emerald-400',
+        text: 'text-emerald-700',
+        pill: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        icon: <CheckCircleOutlined />,
+    },
+];
 
-    if (status === 'REGISTRATION') currentStep = 1;
-    if (status === 'ONGOING') currentStep = 2;
-    if (status === 'DEFENSE') currentStep = 3;
-    if (status === 'COMPLETED') {
-        currentStep = 4;
-        stepStatus = 'finish';
-    }
+function PeriodTimeline({ milestones = [], status }) {
+    const activeIndex =
+        status === 'COMPLETED' ? 4 :
+        status === 'DEFENSE' ? 3 :
+        status === 'ONGOING' ? 2 :
+        status === 'REGISTRATION' ? 1 :
+        0;
 
-    const colorHexMap = {
-        green: '#10B981',
-        orange: '#F59E0B',
-        blue: '#0F766E',
-        purple: '#7C3AED',
-        default: '#64748B',
-    };
-    const activeHex = colorHexMap[statusConfig[status]?.color] || '#0F766E';
+    const isUpcoming = status === 'UPCOMING';
+    const isCompleted = status === 'COMPLETED';
+    const totalSegments = Math.max(milestones.length - 1, 1);
+    const fillPercent = isUpcoming ? 0 : Math.min(100, Math.round((activeIndex / totalSegments) * 100));
 
     return (
-        <ConfigProvider theme={{ token: { colorPrimary: activeHex } }}>
-            <Steps
-                size="small"
-                labelPlacement="vertical"
-                current={currentStep}
-                status={stepStatus}
-                items={milestones.map((milestone) => ({
-                    title: <span className="text-xs font-semibold text-slate-700">{milestone.title}</span>,
-                    description: milestone.date ? (
-                        <span className="text-[11px] text-slate-500 font-semibold">{milestone.date}</span>
-                    ) : null,
-                }))}
-                style={{ width: '100%', maxWidth: 580, margin: '0 auto' }}
-            />
-        </ConfigProvider>
+        <div className="w-full max-w-[600px] mx-auto px-2 py-1 select-none">
+            <div className="relative flex items-start justify-between">
+                {/* Background Rail */}
+                <div
+                    className="absolute top-4 left-6 right-6 h-1.5 rounded-full bg-slate-200/80 overflow-hidden"
+                    aria-hidden="true"
+                >
+                    {/* Animated Gradient Progress Fill */}
+                    <div
+                        className="h-full rounded-full bg-gradient-to-r from-teal-500 via-sky-500 via-indigo-500 to-emerald-500 transition-all duration-700 ease-out relative"
+                        style={{ width: `${fillPercent}%` }}
+                    >
+                        {!isCompleted && fillPercent > 0 && (
+                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/45 to-transparent animate-pulse motion-reduce:animate-none" />
+                        )}
+                    </div>
+                </div>
+
+                {milestones.map((milestone, idx) => {
+                    const theme = TIMELINE_STEP_THEMES[idx] || TIMELINE_STEP_THEMES[0];
+                    const stepDone = isCompleted || (!isUpcoming && idx < activeIndex);
+                    const stepActive = !isCompleted && (isUpcoming ? idx === 0 : idx === activeIndex);
+
+                    return (
+                        <div
+                            key={milestone.title || idx}
+                            className="relative z-10 flex flex-col items-center text-center flex-1 min-w-[78px] group"
+                        >
+                            {/* Step Node */}
+                            <div className="relative flex items-center justify-center">
+                                {stepActive && (
+                                    <span
+                                        className={`absolute inline-flex h-9 w-9 rounded-full opacity-40 animate-ping motion-reduce:animate-none ${theme.ping}`}
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                <div
+                                    className={`relative w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 group-hover:scale-110 ${
+                                        stepDone
+                                            ? `bg-gradient-to-br ${theme.gradient} text-white shadow-sm`
+                                            : stepActive
+                                            ? `bg-gradient-to-br ${theme.gradient} text-white shadow-md ring-4 ${theme.ring}`
+                                            : 'bg-white text-slate-400 border-2 border-slate-200 group-hover:border-slate-300'
+                                    }`}
+                                >
+                                    {stepDone ? <CheckCircleOutlined /> : theme.icon}
+                                </div>
+                            </div>
+
+                            {/* Title */}
+                            <span
+                                className={`mt-2 text-[11.5px] leading-tight transition-colors ${
+                                    stepActive
+                                        ? `font-extrabold ${theme.text}`
+                                        : stepDone
+                                        ? 'font-bold text-slate-800'
+                                        : 'font-semibold text-slate-500'
+                                }`}
+                            >
+                                {milestone.title}
+                            </span>
+
+                            {/* Date Pill */}
+                            {milestone.date && (
+                                <span
+                                    className={`mt-1 inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all ${
+                                        stepActive || stepDone
+                                            ? theme.pill
+                                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                                    }`}
+                                >
+                                    {milestone.date}
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
 function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onViewDecisionList, onManageAppendices, isAdmin = true }) {
     const isCompleted = period.status === 'COMPLETED';
     const cfg = statusConfig[period.status] || statusConfig.UPCOMING;
+    const topAccentMap = {
+        UPCOMING: 'bg-amber-400',
+        REGISTRATION: 'bg-sky-500',
+        ONGOING: 'bg-[#0F766E]',
+        DEFENSE: 'bg-purple-600',
+        COMPLETED: 'bg-slate-400',
+    };
+    const topAccent = topAccentMap[period.status] || 'bg-[#0F766E]';
 
     return (
         <div
-            className={`bg-white rounded-lg border border-slate-200 shadow-xs p-5 hover:border-slate-300 transition-all duration-150 ${
-                isCompleted ? 'opacity-80 bg-slate-50/40' : ''
+            className={`group relative overflow-hidden bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-teal-300/80 transition-all duration-200 ${
+                isCompleted ? 'opacity-85 bg-slate-50/40' : ''
             }`}
         >
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className={`h-1 w-full ${topAccent}`} />
+            <div className="p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 {/* Period Identity */}
                 <div className="w-full xl:w-64 shrink-0 space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -367,6 +475,7 @@ function ProjectPeriodPage() {
     useEffect(() => {
         setDefaultSemesterId(current => periods.some(period => period.id === current) ? current : periods[0]?.id || null);
     }, [periods]);
+    const navigate = useNavigate();
     const [updatingToggle, setUpdatingToggle] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalMode, setModalMode] = useState('add');
@@ -378,6 +487,69 @@ function ProjectPeriodPage() {
     const watchedOutlineTemplateFileUrl = Form.useWatch('outlineTemplateFileUrl', form);
     const watchedOutlineTemplateAssetId = Form.useWatch('outlineTemplateAssetId', form);
     const hasConfiguredTemplate = Boolean(watchedOutlineTemplateFileUrl || watchedOutlineTemplateAssetId || uploadedTemplateName);
+
+    const getDisabledDateForField = (fieldName) => (current) => {
+        if (!current) return false;
+        const cur = current.startOf('day');
+        const getDay = (name) => {
+            const val = form.getFieldValue(name);
+            return val ? val.startOf('day') : null;
+        };
+        const minDates = [];
+        const maxDates = [];
+        const start = getDay('startDate');
+        const end = getDay('endDate');
+        const reg = getDay('registrationDeadline');
+        const midterm = getDay('midtermReportDate');
+        const defense = getDay('defenseDate');
+        const outlineOpen = getDay('outlineSubmissionOpenAt');
+        const outlineDeadline = getDay('outlineSubmissionDeadline');
+        const bm03Mid = getDay('bm03MidtermEvaluationOpenAt');
+        const bm03Final = getDay('bm03FinalizationOpenAt');
+
+        if (fieldName === 'startDate') {
+            if (end) maxDates.push(end.subtract(1, 'day'));
+            [reg, midterm, defense, outlineOpen, outlineDeadline, bm03Mid, bm03Final].forEach((d) => {
+                if (d) maxDates.push(d);
+            });
+        } else if (fieldName === 'endDate') {
+            if (start) minDates.push(start.add(1, 'day'));
+            [reg, midterm, defense, outlineOpen, outlineDeadline, bm03Mid, bm03Final].forEach((d) => {
+                if (d) minDates.push(d);
+            });
+        } else {
+            if (start) minDates.push(start);
+            if (end) maxDates.push(end);
+            if (fieldName === 'registrationDeadline') {
+                if (midterm) maxDates.push(midterm);
+                if (outlineDeadline) maxDates.push(outlineDeadline);
+                if (defense) maxDates.push(defense);
+            } else if (fieldName === 'midtermReportDate') {
+                if (reg) minDates.push(reg);
+                if (defense) maxDates.push(defense);
+            } else if (fieldName === 'defenseDate') {
+                if (reg) minDates.push(reg);
+                if (outlineDeadline) minDates.push(outlineDeadline);
+                if (midterm) minDates.push(midterm);
+                if (bm03Final) minDates.push(bm03Final);
+            } else if (fieldName === 'outlineSubmissionOpenAt') {
+                if (outlineDeadline) maxDates.push(outlineDeadline);
+            } else if (fieldName === 'outlineSubmissionDeadline') {
+                if (outlineOpen) minDates.push(outlineOpen);
+                if (reg) minDates.push(reg);
+                if (defense) maxDates.push(defense);
+            } else if (fieldName === 'bm03MidtermEvaluationOpenAt') {
+                if (bm03Final) maxDates.push(bm03Final.subtract(1, 'day'));
+            } else if (fieldName === 'bm03FinalizationOpenAt') {
+                if (bm03Mid) minDates.push(bm03Mid.add(1, 'day'));
+                if (defense) maxDates.push(defense);
+            }
+        }
+
+        if (minDates.some((d) => cur.isBefore(d))) return true;
+        if (maxDates.some((d) => cur.isAfter(d))) return true;
+        return false;
+    };
 
     const [decisionModalVisible, setDecisionModalVisible] = useState(false);
     const [decisionPeriod, setDecisionPeriod] = useState(null);
@@ -406,7 +578,6 @@ function ProjectPeriodPage() {
         try {
             const tabParam = searchParams.get('tab');
             if (tabParam === 'delegations') return 'delegations';
-            if (tabParam === 'bm02') return 'bm02Queue';
             if (tabParam === 'decisions') return 'periods';
         } catch { /* Optional URL state. */ }
         return 'periods';
@@ -416,8 +587,6 @@ function ProjectPeriodPage() {
         const tabParam = searchParams.get('tab');
         if (tabParam === 'delegations') {
             setActiveTab('delegations');
-        } else if (tabParam === 'bm02') {
-            setActiveTab('bm02Queue');
         } else if (tabParam === 'decisions') {
             setActiveTab('periods');
             if (periods.length > 0 && !openedDecisionsFromQueryRef.current) {
@@ -454,8 +623,6 @@ function ProjectPeriodPage() {
         setActiveTab(key);
         if (key === 'delegations') {
             setSearchParams({ tab: 'delegations' });
-        } else if (key === 'bm02Queue') {
-            setSearchParams({ tab: 'bm02' });
         } else {
             setSearchParams({});
         }
@@ -507,12 +674,6 @@ function ProjectPeriodPage() {
         return delegations.filter((d) => d.status === 'ACTIVE').length;
     }, [delegations]);
 
-    // BM02 Review Queue state
-    const [bm02SemesterFilter, setBm02SemesterFilter] = useState('ALL');
-    const [bm02StatusFilter, setBm02StatusFilter] = useState('PENDING');
-    const [bm02DrawerOpen, setBm02DrawerOpen] = useState(false);
-    const [selectedBm02Registration, setSelectedBm02Registration] = useState(null);
-
     // Decision Amendment state
     const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
     const [selectedDecisionRecord, setSelectedDecisionRecord] = useState(null);
@@ -527,49 +688,6 @@ function ProjectPeriodPage() {
                 (reg.decisionNumber || reg.status === 'DECISION_ISSUED')
         );
     }, [allRegistrations, selectedPeriodForDecisions]);
-
-    // Danh sách BM02 đang chờ duyệt
-    const pendingBm02List = useMemo(() => {
-        return allRegistrations.filter((reg) =>
-            ['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(reg.status)
-        );
-    }, [allRegistrations]);
-
-    // Danh sách hiển thị trong hàng đợi BM02
-    const bm02QueueList = useMemo(() => {
-        return allRegistrations.filter((reg) => {
-            if (bm02SemesterFilter !== 'ALL' && reg.semesterId !== Number(bm02SemesterFilter)) {
-                return false;
-            }
-            if (bm02StatusFilter === 'PENDING') {
-                return ['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(reg.status);
-            }
-            if (bm02StatusFilter === 'REVISION') {
-                return reg.status === 'BM02_NEEDS_REVISION';
-            }
-            if (bm02StatusFilter === 'APPROVED') {
-                return ['APPROVED', 'DECISION_ISSUED'].includes(reg.status)
-                    || reg.currentBM02Submission?.outcome === 'APPROVED';
-            }
-            // 'ALL'
-            return [
-                'BM02_SUBMITTED',
-                'BM02_RESUBMITTED',
-                'BM02_NEEDS_REVISION',
-                'APPROVED',
-                'DECISION_ISSUED',
-            ].includes(reg.status) || Boolean(reg.currentBM02Submission);
-        });
-    }, [allRegistrations, bm02SemesterFilter, bm02StatusFilter]);
-
-    const handleOpenBm02Review = (record) => {
-        setSelectedBm02Registration(record);
-        setBm02DrawerOpen(true);
-    };
-
-    const handleBm02ReviewSuccess = () => {
-        fetchSemesters();
-    };
 
     const handleOpenAmendmentModal = (record) => {
         setSelectedDecisionRecord(record);
@@ -758,7 +876,8 @@ function ProjectPeriodPage() {
         setModalMode('add');
         form.resetFields();
         setUploadedTemplateName(null);
-        const currentYear = dayjs().year();
+        const today = dayjs().startOf('day');
+        const currentYear = today.year();
         form.setFieldsValue({
             status: 'UPCOMING',
             registrationOpen: true,
@@ -766,13 +885,15 @@ function ProjectPeriodPage() {
             term: 1,
             academicStartYear: currentYear,
             code: buildSemesterCode({ projectCode: 'DATN', term: 1, academicYear: `${currentYear}-${currentYear + 1}` }),
-            outlineAllowedFormat: 'pdf',
-            bm03MidtermEvaluationOpenAt: null,
-            bm03FinalizationOpenAt: null,
-            outlineSubmissionOpenAt: null,
-            outlineSubmissionDeadline: null,
-            outlineTemplateAssetId: null,
-            outlineTemplateFileUrl: null,
+            startDate: today,
+            registrationDeadline: today.add(14, 'day'),
+            outlineSubmissionOpenAt: today.add(15, 'day'),
+            outlineSubmissionDeadline: today.add(30, 'day'),
+            bm03MidtermEvaluationOpenAt: today.add(50, 'day'),
+            midtermReportDate: today.add(55, 'day'),
+            bm03FinalizationOpenAt: today.add(85, 'day'),
+            defenseDate: today.add(95, 'day'),
+            endDate: today.add(105, 'day'),
         });
         setIsModalVisible(true);
     };
@@ -929,82 +1050,120 @@ function ProjectPeriodPage() {
             if (response.success) {
                 message.success(modalMode === 'add' ? 'Khởi tạo đợt thành công' : 'Cập nhật đợt thành công');
                 setIsModalVisible(false);
+                if (modalMode === 'add') {
+                    const createdSemesterId = response.data?.id;
+                    const createdName = response.data?.name || payload.name;
+                    Modal.confirm({
+                        title: 'Nhắc nhở: Gán sinh viên & giảng viên vào đợt',
+                        content: `Đợt "${createdName}" vừa được tạo nhưng chưa có sinh viên và giảng viên tham gia. Bạn có muốn chuyển sang trang Điều phối để gán ngay không?`,
+                        okText: 'Gán SV & GV ngay',
+                        cancelText: 'Để sau',
+                        onOk: () => {
+                            navigate(
+                                createdSemesterId
+                                    ? `/admin/project-enrollments?semesterId=${createdSemesterId}`
+                                    : '/admin/project-enrollments'
+                            );
+                        },
+                    });
+                }
             }
         } catch (error) {
             message.error(error?.message || 'Có lỗi xảy ra');
         }
     };
 
-    const activeCount = useMemo(() => periods.filter((p) => ['ONGOING', 'REGISTRATION'].includes(p.status)).length, [periods]);
+    const activeCount = useMemo(() => periods.filter((p) => ['ONGOING', 'REGISTRATION', 'DEFENSE'].includes(p.status)).length, [periods]);
+    const upcomingCount = useMemo(() => periods.filter((p) => p.status === 'UPCOMING').length, [periods]);
+    const completedCount = useMemo(() => periods.filter((p) => p.status === 'COMPLETED').length, [periods]);
 
     return (
         <QueryPanel query={semestersQuery}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="space-y-5 pb-6">
             {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
+            <div className="flex flex-wrap items-end justify-between gap-3 pb-3 border-b border-slate-200/80">
                 <div>
-                    <p className="eyebrow">ACADEMIC PERIODS & TIMELINE MANAGEMENT</p>
                     <h1 className="h1">{isAdmin ? 'Quản lý Đợt Đồ án & Học kỳ Học vụ' : 'Đợt Đồ án & Ban hành Quyết định'}</h1>
+                    <p className="text-xs text-slate-600 mt-1">
+                        Khởi tạo, điều chỉnh mốc thời gian học vụ, mở/đóng cổng đăng ký và ban hành quyết định giao đề tài.
+                    </p>
                 </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div className="flex items-center gap-2.5 flex-wrap">
                     <Button icon={<ReloadOutlined />} onClick={fetchSemesters}>
                         Làm mới
                     </Button>
                     {isAdmin && (
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleAdd}
+                            className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold"
+                        >
                             Khởi tạo Đợt Đồ án mới
                         </Button>
                     )}
                 </div>
             </div>
 
-            {/* 4 KPI Cards — Aligned with Overview KPI Typography Standards */}
+            {/* 4 Bento KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex items-start justify-between gap-3">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng số đợt đồ án</div>
-                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{periods.length}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng số đợt đồ án</div>
+                        <div className="text-2xl font-extrabold font-mono text-slate-900 mt-1.5 tabular-nums">{periods.length}</div>
                         <div className="text-xs text-slate-500 mt-1">Toàn bộ các khóa học vụ</div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-teal-200 bg-teal-50/40 p-4 shadow-sm flex flex-col justify-between">
-                    <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đợt đang hoạt động</div>
-                        <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{activeCount}</div>
-                        <div className="text-xs text-teal-700 font-medium mt-1">Đang mở ĐK hoặc thực hiện</div>
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-lg shrink-0">
+                        <CalendarOutlined aria-hidden="true" />
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-between" onClick={() => handleTabChange('bm02Queue')}>
+                <div className="bg-gradient-to-br from-teal-50/70 to-white rounded-2xl border border-teal-200/90 p-4 shadow-xs flex items-start justify-between gap-3">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đơn BM02 chờ thẩm định</div>
-                        <div className={`text-2xl font-bold mt-1 tabular-nums ${pendingBm02List.length > 0 ? 'text-rose-700' : 'text-teal-800'}`}>
-                            {registrationsQuery.data ? pendingBm02List.length : '—'}
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-teal-800/80">Đợt đang hoạt động</div>
+                        <div className="text-2xl font-extrabold font-mono text-[#0F766E] mt-1.5 tabular-nums">{activeCount}</div>
+                        <div className="text-xs text-teal-700 font-medium mt-1">Đang mở ĐK, thực hiện hoặc bảo vệ</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-teal-100 text-[#0F766E] flex items-center justify-center text-lg shrink-0">
+                        <CheckCircleOutlined aria-hidden="true" />
+                    </div>
+                </div>
+                <div className="bg-gradient-to-br from-amber-50/60 to-white rounded-2xl border border-amber-200/90 p-4 shadow-xs flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800/80">Sắp tới / Đã kết thúc</div>
+                        <div className="text-2xl font-extrabold font-mono text-slate-900 mt-1.5 tabular-nums">
+                            {upcomingCount} <span className="text-sm font-normal text-slate-400">/</span> {completedCount}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">Đợt sắp mở &amp; đợt đã lưu trữ</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                        <ClockCircleOutlined aria-hidden="true" />
+                    </div>
+                </div>
+                <div className="bg-gradient-to-br from-sky-50/60 to-white rounded-2xl border border-sky-200/90 p-4 shadow-xs flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-800/80">Quy mô đợt hiện hành</div>
+                        <div className="text-2xl font-extrabold font-mono text-slate-900 mt-1.5 tabular-nums">
+                            {selectedPeriod ? `${selectedPeriod.topics} · ${selectedPeriod.students}` : '0 · 0'}
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
-                            {registrationsQuery.data ? (pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng') : 'Chưa tải được hồ sơ'}
+                            {selectedPeriod ? `${selectedPeriod.topics} đề tài · ${selectedPeriod.students} SV đã ĐK` : 'Chưa có đợt đồ án'}
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm flex flex-col justify-between">
-                    <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quy mô đợt hiện hành</div>
-                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                            {selectedPeriod ? `${selectedPeriod.topics} đề tài · ${selectedPeriod.students} SV` : '0'}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">Sinh viên đã có đề tài</div>
+                    <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center text-lg shrink-0">
+                        <FileDoneOutlined aria-hidden="true" />
                     </div>
                 </div>
             </div>
 
             {/* Registration Quick Switch Card */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 flex items-center justify-between gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 bg-amber-50 text-amber-700 rounded-md border border-amber-200 flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[20px]">edit_notifications</span>
+                        <div className="w-10 h-10 bg-amber-50 text-amber-700 rounded-xl border border-amber-200 flex items-center justify-center text-lg shrink-0">
+                            <UnlockOutlined aria-hidden="true" />
                         </div>
                         <div>
-                            <p className="text-sm font-semibold text-slate-900">Cho phép đăng ký đề tài</p>
+                            <p className="text-sm font-bold text-slate-900">Cho phép đăng ký đề tài</p>
                             <p className="text-xs text-slate-500 mt-0.5">
                                 Bật/tắt mở cổng đăng ký cho học kỳ đang chọn.
                             </p>
@@ -1012,14 +1171,15 @@ function ProjectPeriodPage() {
                     </div>
                     <div className="flex items-center gap-2.5 shrink-0">
                         <Switch
+                            aria-label="Cho phép đăng ký đề tài"
                             checked={!!selectedPeriod?.registrationOpen}
                             onChange={handleRegistrationToggle}
                             loading={updatingToggle}
                             disabled={!selectedPeriod}
                         />
-                        {selectedPeriod && (
+                        {selectedPeriod ? (
                             <span
-                                className={`text-xs font-semibold px-2 py-0.5 rounded border ${
+                                className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
                                     selectedPeriod.registrationOpen
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                         : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -1027,32 +1187,37 @@ function ProjectPeriodPage() {
                             >
                                 {selectedPeriod.registrationOpen ? 'Đang mở' : 'Đang đóng'}
                             </span>
+                        ) : (
+                            <span className="text-xs font-medium text-slate-400">Chưa có đợt</span>
                         )}
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 flex items-center justify-between gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 bg-teal-50 text-teal-700 rounded-md border border-teal-100 flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[20px]">dashboard_customize</span>
+                        <div className="w-10 h-10 bg-teal-50 text-[#0F766E] rounded-xl border border-teal-200 flex items-center justify-center text-lg shrink-0">
+                            <CalendarOutlined aria-hidden="true" />
                         </div>
                         <div>
-                            <p className="text-sm font-semibold text-slate-900">Học kỳ đang chọn</p>
+                            <p className="text-sm font-bold text-slate-900">Học kỳ đang chọn</p>
                             <p className="text-xs text-slate-500 mt-0.5">
                                 Cấu hình áp dụng cho đợt được chọn này.
                             </p>
                         </div>
                     </div>
                     <Select
+                        aria-label="Chọn đợt đồ án đang cấu hình"
                         value={defaultSemesterId}
                         onChange={setDefaultSemesterId}
-                        style={{ width: 220 }}
+                        disabled={periods.length === 0}
+                        placeholder="Chưa có đợt đồ án"
+                        style={{ width: 230 }}
                         options={periods.map((period) => ({ value: period.id, label: period.name }))}
                     />
                 </div>
             </div>
 
-            {/* Navigation Tabs: Quản lý Đợt đồ án & Hàng đợi Thẩm định BM02 */}
+            {/* Navigation Tabs: Quản lý Đợt đồ án & Ủy quyền chuyên môn */}
             <Tabs
                 activeKey={activeTab}
                 onChange={handleTabChange}
@@ -1073,7 +1238,7 @@ function ProjectPeriodPage() {
                                     <h3 className="text-base font-bold text-slate-900">
                                         Danh sách Các Đợt Đồ Án
                                     </h3>
-                                    <span className="text-xs text-slate-500 font-medium">
+                                    <span className="text-xs text-slate-500 font-mono font-semibold">
                                         Tổng cộng: {periods.length} đợt
                                     </span>
                                 </div>
@@ -1081,14 +1246,32 @@ function ProjectPeriodPage() {
                                 <QueryPanel query={topicsQuery}><QueryPanel query={registrationsQuery}>
                                     <div className="space-y-4 min-h-[160px]">
                                         {periods.length === 0 && !loading ? (
-                                            <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
-                                                <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">
-                                                    event_busy
-                                                </span>
-                                                <p className="text-sm text-slate-600 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
-                                                <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} className="mt-4">
-                                                    Tạo đợt đầu tiên
-                                                </Button>
+                                            <div className="relative overflow-hidden rounded-2xl border border-dashed border-teal-300/90 bg-gradient-to-br from-teal-50/70 via-white to-slate-50 p-8 shadow-xs">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="w-12 h-12 rounded-2xl bg-teal-100/80 border border-teal-200 flex items-center justify-center text-[#0F766E] text-xl shrink-0">
+                                                            <CalendarOutlined aria-hidden="true" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <h4 className="text-sm font-bold text-slate-900">
+                                                                Chưa có đợt đồ án nào được khởi tạo
+                                                            </h4>
+                                                            <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+                                                                Tạo đợt đồ án đầu tiên để thiết lập lịch trình học vụ, mở cổng đăng ký và gán sinh viên, giảng viên tham gia.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    {isAdmin && (
+                                                        <Button
+                                                            type="primary"
+                                                            icon={<PlusOutlined />}
+                                                            onClick={handleAdd}
+                                                            className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold shrink-0 self-start sm:self-center"
+                                                        >
+                                                            Tạo đợt đầu tiên
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
                                         ) : (
                                             periods.map((period) => (
@@ -1107,187 +1290,6 @@ function ProjectPeriodPage() {
                                         )}
                                     </div>
                                 </QueryPanel></QueryPanel>
-                            </div>
-                        ),
-                    },
-                    {
-                        key: 'bm02Queue',
-                        label: (
-                            <span className="flex items-center gap-2 font-medium px-1">
-                                <CheckCircleOutlined />
-                                <span>Hàng đợi Thẩm định Đơn đăng ký (BM02)</span>
-                                {pendingBm02List.length > 0 && (
-                                    <Badge count={registrationsQuery.data ? pendingBm02List.length : '—'} overflowCount={99} />
-                                )}
-                            </span>
-                        ),
-                        children: (
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                                    <div>
-                                        <h3 className="text-base font-bold text-slate-900">
-                                            Hàng đợi Thẩm định Đơn đăng ký (BM02)
-                                        </h3>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            Thẩm định đơn đăng ký đề tài (BM02) của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
-                                        </p>
-                                    </div>
-                                    <Space wrap>
-                                        <Select
-                                            value={bm02SemesterFilter}
-                                            onChange={setBm02SemesterFilter}
-                                            style={{ width: 220 }}
-                                            options={[
-                                                { value: 'ALL', label: 'Tất cả các học kỳ' },
-                                                ...periods.map((p) => ({ value: p.id, label: p.name })),
-                                            ]}
-                                        />
-                                        <Select
-                                            value={bm02StatusFilter}
-                                            onChange={setBm02StatusFilter}
-                                            style={{ width: 220 }}
-                                            options={[
-                                                { value: 'PENDING', label: 'Chờ thẩm định (Lần 1 & 2)' },
-                                                { value: 'ALL', label: 'Tất cả trạng thái đơn BM02' },
-                                                { value: 'REVISION', label: 'Cần chỉnh sửa bổ sung' },
-                                                { value: 'APPROVED', label: 'Đã duyệt đơn BM02 / Cấp QĐ' },
-                                            ]}
-                                        />
-                                    </Space>
-                                </div>
-
-                                <QueryPanel query={registrationsQuery}>
-                                <Table
-                                    dataSource={bm02QueueList}
-                                    rowKey="id"
-                                    size="middle"
-                                    pagination={{ pageSize: 10, showTotal: (total) => `Tổng cộng: ${total} hồ sơ` }}
-                                    columns={[
-                                        {
-                                            title: 'STT',
-                                            key: 'stt',
-                                            width: 55,
-                                            align: 'center',
-                                            render: (_, __, index) => index + 1,
-                                        },
-                                        {
-                                            title: 'Sinh viên',
-                                            key: 'student',
-                                            width: 220,
-                                            render: (_, record) => (
-                                                <div>
-                                                    <div className="font-bold text-slate-900">{record.student?.fullName || 'N/A'}</div>
-                                                    <div className="text-[11px] text-slate-600 font-mono font-medium">MSSV: {record.student?.code || 'N/A'}</div>
-                                                    {(record.student?.studentProfile?.className || record.student?.class) && (
-                                                        <div className="text-[11px] text-slate-500">
-                                                            Lớp: {record.student?.studentProfile?.className || record.student?.class}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ),
-                                        },
-                                        {
-                                            title: 'Tên đề tài',
-                                            key: 'topic',
-                                            render: (_, record) => (
-                                                <div>
-                                                    <div className="font-semibold text-slate-800 leading-snug">
-                                                        {record.adjustedTitle || record.topic?.title || 'Chưa có tên'}
-                                                    </div>
-                                                    {record.adjustedTitle && record.adjustedTitle !== record.topic?.title && (
-                                                        <div className="text-[11px] text-emerald-600 mt-0.5">
-                                                            (Đã điều chỉnh từ: <em>{record.topic?.title}</em>)
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ),
-                                        },
-                                        {
-                                            title: 'GVHD',
-                                            key: 'mentor',
-                                            width: 170,
-                                            render: (_, record) => (
-                                                <span className="text-xs text-slate-700 font-medium">
-                                                    {record.topic?.mentor?.fullName || 'Chưa phân công'}
-                                                </span>
-                                            ),
-                                        },
-                                        {
-                                            title: 'Lần nộp',
-                                            key: 'attempt',
-                                            width: 100,
-                                            align: 'center',
-                                            render: (_, record) => {
-                                                const attemptNo = record.currentBM02Submission?.attemptNo || record.attemptNo || 1;
-                                                return (
-                                                    <Tag color={attemptNo > 1 ? 'volcano' : 'blue'}>
-                                                        Lần {attemptNo}
-                                                    </Tag>
-                                                );
-                                            },
-                                        },
-                                        {
-                                            title: 'Trạng thái',
-                                            dataIndex: 'status',
-                                            key: 'status',
-                                            width: 160,
-                                            align: 'center',
-                                            render: (status, record) => {
-                                                const statusValue = typeof status === 'string' ? status : record?.status;
-                                                const statusMap = {
-                                                    BM02_SUBMITTED: { label: 'Chờ duyệt lần 1', color: 'blue' },
-                                                    BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
-                                                    BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa', color: 'orange' },
-                                                    APPROVED: { label: 'Đã duyệt đơn BM02', color: 'green' },
-                                                    DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'purple' },
-                                                };
-                                                const item = statusMap[statusValue] || getStatusTagConfig(statusValue);
-                                                return <Tag color={item.color}>{item.label}</Tag>;
-                                            },
-                                        },
-                                        {
-                                            title: 'Tệp đơn BM02',
-                                            key: 'file',
-                                            width: 110,
-                                            align: 'center',
-                                            render: (_, record) => {
-                                                const fileUrl = record.currentBM02Submission?.fileUrl;
-                                                if (!fileUrl) return <span className="text-slate-400 text-xs">—</span>;
-                                                return (
-                                                    <Tooltip title="Xem tệp đơn BM02">
-                                                        <a
-                                                            href={fileUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-teal-600 hover:text-teal-800 text-xs inline-flex items-center gap-1 font-medium bg-teal-50 px-2 py-1 rounded border border-teal-200"
-                                                        >
-                                                            <FilePdfOutlined />
-                                                            <span>Xem PDF</span>
-                                                        </a>
-                                                    </Tooltip>
-                                                );
-                                            },
-                                        },
-                                        {
-                                            title: 'Thao tác',
-                                            key: 'actions',
-                                            width: 150,
-                                            align: 'center',
-                                            render: (_, record) => (
-                                                <Button
-                                                    type="primary"
-                                                    size="small"
-                                                    icon={<CheckCircleOutlined />}
-                                                    className="!bg-teal-600 hover:!bg-teal-700 font-medium text-xs"
-                                                    onClick={() => handleOpenBm02Review(record)}
-                                                >
-                                                    Thẩm định đơn BM02
-                                                </Button>
-                                            ),
-                                        },
-                                    ]}
-                                />
-                                </QueryPanel>
                             </div>
                         ),
                     },
@@ -1481,7 +1483,7 @@ function ProjectPeriodPage() {
                 okText={modalMode === 'add' ? 'Lưu và khởi tạo' : 'Cập nhật'}
                 cancelText="Hủy"
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form
                     form={form}
@@ -1562,35 +1564,90 @@ function ProjectPeriodPage() {
                     </Row>
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item name="registrationDeadline" label="Ngày đóng đăng ký đề tài" rules={[{ required: true, message: 'Chọn ngày' }]}>
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            <Form.Item
+                                name="registrationDeadline"
+                                label="Ngày đóng đăng ký đề tài"
+                                dependencies={['startDate', 'endDate', 'midtermReportDate', 'defenseDate']}
+                                rules={[
+                                    { required: true, message: 'Chọn ngày' },
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            if (!value) return Promise.resolve();
+                                            const v = value.startOf('day');
+                                            const start = getFieldValue('startDate')?.startOf('day');
+                                            const end = getFieldValue('endDate')?.startOf('day');
+                                            const midterm = getFieldValue('midtermReportDate')?.startOf('day');
+                                            const defense = getFieldValue('defenseDate')?.startOf('day');
+                                            if (start && v.isBefore(start)) return Promise.reject(new Error('Không được trước ngày bắt đầu đợt'));
+                                            if (end && v.isAfter(end)) return Promise.reject(new Error('Không được sau ngày kết thúc đợt'));
+                                            if (midterm && v.isAfter(midterm)) return Promise.reject(new Error('Phải trước hoặc bằng hạn nộp báo cáo giữa kỳ'));
+                                            if (defense && v.isAfter(defense)) return Promise.reject(new Error('Phải trước hoặc bằng ngày dự kiến bảo vệ'));
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('registrationDeadline')} />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item name="midtermReportDate" label="Ngày hạn nộp báo cáo giữa kỳ">
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            <Form.Item
+                                name="midtermReportDate"
+                                label="Ngày hạn nộp báo cáo giữa kỳ"
+                                dependencies={['startDate', 'endDate', 'registrationDeadline', 'defenseDate']}
+                                rules={[
+                                    { required: true, message: 'Chọn ngày' },
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            if (!value) return Promise.resolve();
+                                            const v = value.startOf('day');
+                                            const start = getFieldValue('startDate')?.startOf('day');
+                                            const end = getFieldValue('endDate')?.startOf('day');
+                                            const reg = getFieldValue('registrationDeadline')?.startOf('day');
+                                            const defense = getFieldValue('defenseDate')?.startOf('day');
+                                            if (start && v.isBefore(start)) return Promise.reject(new Error('Không được trước ngày bắt đầu đợt'));
+                                            if (end && v.isAfter(end)) return Promise.reject(new Error('Không được sau ngày kết thúc đợt'));
+                                            if (reg && v.isBefore(reg)) return Promise.reject(new Error('Phải sau hoặc bằng ngày đóng đăng ký'));
+                                            if (defense && v.isAfter(defense)) return Promise.reject(new Error('Phải trước hoặc bằng ngày dự kiến bảo vệ'));
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('midtermReportDate')} />
                             </Form.Item>
                         </Col>
                     </Row>
                     <Row gutter={16}>
                         <Col span={24}>
-                            <Form.Item name="defenseDate" label="Ngày dự kiến bảo vệ">
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}>
                             <Form.Item
-                                name="outlineAllowedFormat"
-                                label="Định dạng đề cương BM01 (lượt nộp mới)"
-                                initialValue="pdf"
-                                tooltip="Chính sách hệ thống chỉ cho phép nộp đề cương BM01 bằng tệp PDF (.pdf). Tệp Word (.docx) lịch sử vẫn được giữ nguyên để tra cứu."
+                                name="defenseDate"
+                                label="Ngày dự kiến bảo vệ"
+                                dependencies={['startDate', 'endDate', 'registrationDeadline', 'outlineSubmissionDeadline', 'midtermReportDate', 'bm03FinalizationOpenAt']}
+                                rules={[
+                                    { required: true, message: 'Chọn ngày' },
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            if (!value) return Promise.resolve();
+                                            const v = value.startOf('day');
+                                            const start = getFieldValue('startDate')?.startOf('day');
+                                            const end = getFieldValue('endDate')?.startOf('day');
+                                            const reg = getFieldValue('registrationDeadline')?.startOf('day');
+                                            const outlineEnd = getFieldValue('outlineSubmissionDeadline')?.startOf('day');
+                                            const midterm = getFieldValue('midtermReportDate')?.startOf('day');
+                                            const finalOpen = getFieldValue('bm03FinalizationOpenAt')?.startOf('day');
+                                            if (start && v.isBefore(start)) return Promise.reject(new Error('Không được trước ngày bắt đầu đợt'));
+                                            if (end && v.isAfter(end)) return Promise.reject(new Error('Không được sau ngày kết thúc đợt'));
+                                            if (reg && v.isBefore(reg)) return Promise.reject(new Error('Phải sau hoặc bằng ngày đóng đăng ký'));
+                                            if (outlineEnd && v.isBefore(outlineEnd)) return Promise.reject(new Error('Phải sau hoặc bằng hạn nộp đề cương'));
+                                            if (midterm && v.isBefore(midterm)) return Promise.reject(new Error('Phải sau hoặc bằng hạn nộp báo cáo giữa kỳ'));
+                                            if (finalOpen && v.isBefore(finalOpen)) return Promise.reject(new Error('Phải sau hoặc bằng ngày mở chốt đánh giá cuối kỳ'));
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
                             >
-                                <Select
-                                    disabled
-                                    options={[{ value: 'pdf', label: 'Chỉ nhận PDF (.pdf) — Đã khóa' }]}
-                                />
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('defenseDate')} />
                             </Form.Item>
                         </Col>
                     </Row>
@@ -1598,16 +1655,17 @@ function ProjectPeriodPage() {
                         <Col span={12}>
                             <Form.Item
                                 name="outlineSubmissionOpenAt"
-                                label="Ngày mở nộp đề cương BM01"
+                                label="Ngày mở nộp đề cương chi tiết"
                                 dependencies={['outlineSubmissionDeadline']}
-                                tooltip="Thời điểm bắt đầu cho phép sinh viên nộp đề cương chi tiết BM01."
+                                tooltip="Thời điểm bắt đầu cho phép sinh viên nộp đề cương chi tiết."
                                 rules={[
+                                    { required: true, message: 'Chọn ngày' },
                                     ({ getFieldValue }) => ({
                                         validator(_, value) {
                                             const deadline = getFieldValue('outlineSubmissionDeadline');
                                             if (value && deadline && value.isAfter(deadline)) {
                                                 return Promise.reject(
-                                                    new Error('Ngày mở nộp đề cương BM01 phải trước hoặc bằng hạn nộp đề cương'),
+                                                    new Error('Ngày mở nộp đề cương phải trước hoặc bằng hạn nộp đề cương'),
                                                 );
                                             }
                                             return Promise.resolve();
@@ -1615,22 +1673,23 @@ function ProjectPeriodPage() {
                                     }),
                                 ]}
                             >
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn ngày mở nộp BM01" />
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn ngày mở nộp đề cương" disabledDate={getDisabledDateForField('outlineSubmissionOpenAt')} />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
                             <Form.Item
                                 name="outlineSubmissionDeadline"
-                                label="Hạn nộp đề cương BM01"
+                                label="Hạn nộp đề cương chi tiết"
                                 dependencies={['outlineSubmissionOpenAt']}
-                                tooltip="Hạn chót sinh viên phải hoàn thành nộp đề cương chi tiết BM01."
+                                tooltip="Hạn chót sinh viên phải hoàn thành nộp đề cương chi tiết."
                                 rules={[
+                                    { required: true, message: 'Chọn ngày' },
                                     ({ getFieldValue }) => ({
                                         validator(_, value) {
                                             const openAt = getFieldValue('outlineSubmissionOpenAt');
                                             if (value && openAt && value.isBefore(openAt)) {
                                                 return Promise.reject(
-                                                    new Error('Hạn nộp đề cương BM01 phải sau hoặc bằng ngày mở nộp đề cương'),
+                                                    new Error('Hạn nộp đề cương phải sau hoặc bằng ngày mở nộp đề cương'),
                                                 );
                                             }
                                             return Promise.resolve();
@@ -1638,88 +1697,7 @@ function ProjectPeriodPage() {
                                     }),
                                 ]}
                             >
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn hạn nộp BM01" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={24}>
-                            <Form.Item
-                                label="Tệp mẫu đề cương BM01 (.pdf)"
-                                tooltip="Tệp PDF mẫu đề cương BM01 được cung cấp cho sinh viên tải về để tham khảo/lập đề cương."
-                            >
-                                <Space direction="vertical" style={{ width: '100%' }}>
-                                    <Form.Item name="outlineTemplateAssetId" hidden>
-                                        <Input />
-                                    </Form.Item>
-                                    <Form.Item name="outlineTemplateFileUrl" hidden>
-                                        <Input />
-                                    </Form.Item>
-                                    <div className="flex items-center gap-2">
-                                        <Upload
-                                            accept=".pdf,application/pdf"
-                                            showUploadList={false}
-                                            beforeUpload={() => false}
-                                            onChange={async (info) => {
-                                                const file = info.file?.originFileObj || info.file;
-                                                if (!file) return;
-                                                if (file.type !== 'application/pdf' && !file.name?.toLowerCase().endsWith('.pdf')) {
-                                                    message.error('Chỉ chấp nhận tệp định dạng PDF (.pdf) làm mẫu đề cương');
-                                                    return;
-                                                }
-                                                try {
-                                                    setTemplateUploading(true);
-                                                    const res = await uploadGovernedAsset({
-                                                        file,
-                                                        documentType: 'PORTAL_TEMPLATE',
-                                                        resourceContext: { contextType: 'BM01_TEMPLATE' },
-                                                    });
-                                                    const assetId = res?.id || res?.assetId || res?.data?.id || res?.data?.data?.id;
-                                                    const fileUrl = res?.downloadUrl || res?.url || (assetId ? `/api/assets/${assetId}/download` : null);
-                                                    form.setFieldsValue({
-                                                        outlineTemplateAssetId: assetId || null,
-                                                        outlineTemplateFileUrl: fileUrl || null,
-                                                    });
-                                                    setUploadedTemplateName(file.name);
-                                                    message.success(`Đã tải lên tệp mẫu: ${file.name}`);
-                                                } catch (err) {
-                                                    message.error(err?.message || 'Không thể tải lên tệp mẫu đề cương');
-                                                } finally {
-                                                    setTemplateUploading(false);
-                                                }
-                                            }}
-                                        >
-                                            <Button
-                                                icon={<UploadOutlined />}
-                                                loading={templateUploading}
-                                            >
-                                                Tải lên mẫu đề cương (.pdf)
-                                            </Button>
-                                        </Upload>
-                                        {hasConfiguredTemplate && (
-                                            <div className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-                                                <FilePdfOutlined className="text-red-500 text-sm" />
-                                                <span className="font-medium truncate max-w-xs">
-                                                    {uploadedTemplateName || 'Mẫu đề cương BM01 đã cấu hình'}
-                                                </span>
-                                                <Button
-                                                    type="link"
-                                                    size="small"
-                                                    danger
-                                                    onClick={() => {
-                                                        form.setFieldsValue({
-                                                            outlineTemplateAssetId: null,
-                                                            outlineTemplateFileUrl: null,
-                                                        });
-                                                        setUploadedTemplateName(null);
-                                                    }}
-                                                >
-                                                    Gỡ bỏ
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Space>
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn hạn nộp đề cương" disabledDate={getDisabledDateForField('outlineSubmissionDeadline')} />
                             </Form.Item>
                         </Col>
                     </Row>
@@ -1727,16 +1705,17 @@ function ProjectPeriodPage() {
                         <Col span={12}>
                             <Form.Item
                                 name="bm03MidtermEvaluationOpenAt"
-                                label="Ngày mở đánh giá giữa kỳ BM03"
+                                label="Ngày mở đánh giá giữa kỳ"
                                 dependencies={['bm03FinalizationOpenAt']}
-                                tooltip="Mốc mở đánh giá giai đoạn giữa kỳ trên nhật ký BM03 (tách biệt với hạn nộp báo cáo giữa kỳ)."
+                                tooltip="Mốc mở đánh giá giai đoạn giữa kỳ trên nhật ký hướng dẫn (tách biệt với hạn nộp báo cáo giữa kỳ)."
                                 rules={[
+                                    { required: true, message: 'Chọn ngày' },
                                     ({ getFieldValue }) => ({
                                         validator(_, value) {
                                             const finalOpenAt = getFieldValue('bm03FinalizationOpenAt');
                                             if (value && finalOpenAt && !value.isBefore(finalOpenAt)) {
                                                 return Promise.reject(
-                                                    new Error('Ngày mở đánh giá giữa kỳ BM03 phải trước ngày bắt đầu chốt BM03 cuối kỳ'),
+                                                    new Error('Ngày mở đánh giá giữa kỳ phải trước ngày mở chốt đánh giá cuối kỳ'),
                                                 );
                                             }
                                             return Promise.resolve();
@@ -1744,22 +1723,23 @@ function ProjectPeriodPage() {
                                     }),
                                 ]}
                             >
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('bm03MidtermEvaluationOpenAt')} />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
                             <Form.Item
                                 name="bm03FinalizationOpenAt"
-                                label="Ngày bắt đầu chốt BM03 cuối kỳ"
+                                label="Ngày mở chốt đánh giá cuối kỳ"
                                 dependencies={['bm03MidtermEvaluationOpenAt']}
-                                tooltip="Mốc mở đánh giá cuối kỳ và ký chốt toàn bộ nhật ký BM03."
+                                tooltip="Mốc mở đánh giá cuối kỳ và ký chốt toàn bộ nhật ký hướng dẫn."
                                 rules={[
+                                    { required: true, message: 'Chọn ngày' },
                                     ({ getFieldValue }) => ({
                                         validator(_, value) {
                                             const midtermOpenAt = getFieldValue('bm03MidtermEvaluationOpenAt');
                                             if (value && midtermOpenAt && !midtermOpenAt.isBefore(value)) {
                                                 return Promise.reject(
-                                                    new Error('Ngày bắt đầu chốt BM03 cuối kỳ phải sau ngày mở đánh giá giữa kỳ BM03'),
+                                                    new Error('Ngày mở chốt đánh giá cuối kỳ phải sau ngày mở đánh giá giữa kỳ'),
                                                 );
                                             }
                                             return Promise.resolve();
@@ -1767,20 +1747,52 @@ function ProjectPeriodPage() {
                                     }),
                                 ]}
                             >
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('bm03FinalizationOpenAt')} />
                             </Form.Item>
                         </Col>
                     </Row>
                     <hr className="my-3 border-slate-100" />
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item name="startDate" label="Ngày khai mạc đợt" rules={[{ required: true, message: 'Chọn ngày' }]}>
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            <Form.Item
+                                name="startDate"
+                                label="Ngày bắt đầu đợt"
+                                dependencies={['endDate']}
+                                rules={[
+                                    { required: true, message: 'Chọn ngày' },
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const end = getFieldValue('endDate')?.startOf('day');
+                                            if (value && end && !value.startOf('day').isBefore(end)) {
+                                                return Promise.reject(new Error('Ngày bắt đầu đợt phải trước ngày kết thúc đợt'));
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabled />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item name="endDate" label="Ngày kết thúc đợt" rules={[{ required: true, message: 'Chọn ngày' }]}>
-                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            <Form.Item
+                                name="endDate"
+                                label="Ngày kết thúc đợt"
+                                dependencies={['startDate']}
+                                rules={[
+                                    { required: true, message: 'Chọn ngày' },
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const start = getFieldValue('startDate')?.startOf('day');
+                                            if (value && start && !value.startOf('day').isAfter(start)) {
+                                                return Promise.reject(new Error('Ngày kết thúc đợt phải sau ngày bắt đầu đợt'));
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} disabledDate={getDisabledDateForField('endDate')} />
                             </Form.Item>
                         </Col>
                     </Row>
@@ -1801,7 +1813,7 @@ function ProjectPeriodPage() {
                     setDecisionPeriod(null);
                 }}
                 footer={null}
-                destroyOnClose
+                destroyOnHidden
                 width={560}
             >
                 <div className="my-3 space-y-3">
@@ -1885,7 +1897,7 @@ function ProjectPeriodPage() {
                     </Button>
                 ]}
                 width={960}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={registrationsQuery}>
                 <div className="py-2 space-y-4">
@@ -2049,7 +2061,7 @@ function ProjectPeriodPage() {
                     </Button>,
                 ]}
                 width={680}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="py-2 space-y-4">
                     {selectedDecisionRecord && (
@@ -2070,7 +2082,7 @@ function ProjectPeriodPage() {
                     )}
 
                     <Alert
-                        message="Quy chuẩn Học vụ về Quyết định Điều chỉnh"
+                        title="Quy chuẩn Học vụ về Quyết định Điều chỉnh"
                         description="Quyết định gốc giữ nguyên tính toàn vẹn. Khi có thay đổi về tên đề tài, thông tin sinh viên hoặc người hướng dẫn, Viện trưởng ký ban hành Quyết định điều chỉnh bổ sung."
                         type="info"
                         showIcon
@@ -2167,14 +2179,14 @@ function ProjectPeriodPage() {
                 onCancel={() => setDelegationModalOpen(false)}
                 footer={null}
                 width={620}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={lecturersQuery}>
                 <div className="mb-4">
                     <Alert
                         type="info"
                         showIcon
-                        message="Chính sách ủy quyền chuyên môn"
+                        title="Chính sách ủy quyền chuyên môn"
                         description="Việc ủy quyền chỉ áp dụng cho giảng viên thuộc cùng khoa/viện và có hiệu lực trong khoảng thời gian xác định. Mọi hành động được thực hiện qua ủy quyền sẽ ghi nhận đầy đủ Audit Log."
                     />
                 </div>
@@ -2193,6 +2205,7 @@ function ProjectPeriodPage() {
                         rules={[{ required: true, message: 'Vui lòng chọn giảng viên nhận ủy quyền' }]}
                     >
                         <Select
+                            aria-label="Chọn giảng viên nhận ủy quyền"
                             placeholder={`Chọn giảng viên cùng khoa ${user?.department ? `(${user.department})` : ''}`}
                             showSearch
                             optionFilterProp="label"
@@ -2209,6 +2222,7 @@ function ProjectPeriodPage() {
                         rules={[{ required: true, message: 'Vui lòng chọn quyền ủy quyền' }]}
                     >
                         <Select
+                            aria-label="Chọn quyền chuyên môn ủy quyền"
                             placeholder="Chọn quyền chuyên môn ủy quyền"
                             options={GRANTABLE_CAPABILITIES}
                         />
@@ -2219,6 +2233,7 @@ function ProjectPeriodPage() {
                         label="Phạm vi Đợt đồ án / Học kỳ (Tùy chọn)"
                     >
                         <Select
+                            aria-label="Chọn phạm vi đợt đồ án ủy quyền"
                             allowClear
                             placeholder="Tất cả đợt đồ án thuộc khoa/viện"
                             options={periods.map((p) => ({ value: p.id, label: p.name }))}
@@ -2293,13 +2308,13 @@ function ProjectPeriodPage() {
                     </Button>,
                 ]}
                 width={800}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <Alert
                         type="info"
                         showIcon
-                        message="Quản lý Phụ lục điều chỉnh tên đề tài theo đợt"
+                        title="Quản lý Phụ lục điều chỉnh tên đề tài theo đợt"
                         description="Các phiếu đổi tên BM02-A sau khi được Phụ trách bộ môn phê duyệt sẽ được gom thành các đợt Phụ lục điều chỉnh. Sau khi ban hành (ISSUED), tên đề tài mới sẽ chính thức có hiệu lực học vụ."
                     />
 
@@ -2365,7 +2380,7 @@ function ProjectPeriodPage() {
                 onCancel={() => setCreateAppendixModalVisible(false)}
                 footer={null}
                 width={650}
-                destroyOnClose
+                destroyOnHidden
             >
                 <QueryPanel query={queueQuery}>
                 <Form form={appendixForm} layout="vertical" onFinish={handleCreateAppendixSubmit} className="pt-2">
@@ -2446,17 +2461,6 @@ function ProjectPeriodPage() {
                 </Form>
             </QueryPanel>
             </Modal>
-
-            {/* Drawer Thẩm định BM02 */}
-            <BM02ReviewDrawer
-                open={bm02DrawerOpen}
-                onClose={() => {
-                    setBm02DrawerOpen(false);
-                    setSelectedBm02Registration(null);
-                }}
-                registration={selectedBm02Registration}
-                onSuccess={handleBm02ReviewSuccess}
-            />
         </div>
         </QueryPanel>
     );

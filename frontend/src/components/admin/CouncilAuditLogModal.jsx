@@ -368,7 +368,7 @@ export default function CouncilAuditLogModal({
                 </Button>,
             ]}
             width={850}
-            destroyOnClose
+            destroyOnHidden
         >
             <div className="mb-3 flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
                 <div className="flex items-center gap-2 flex-wrap">

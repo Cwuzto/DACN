@@ -55,6 +55,7 @@ class WorkflowTransitionError extends Error {
         this.name = 'WorkflowTransitionError';
         this.code = code;
         this.status = status;
+        this.statusCode = status;
     }
 }
 

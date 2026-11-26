@@ -1,4 +1,5 @@
 const { StudentGender } = require('@prisma/client');
+const { normalizeStudentMajor } = require('../constants/academicUnits');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[0-9+() -]{8,20}$/;
@@ -244,6 +245,16 @@ const validateStudentPayload = (input = {}, options = {}) => {
     // 8. Major
     if (!normalized.studentProfile.major) {
         errors.push('Ngành là bắt buộc.');
+    } else {
+        const canonicalMajor = normalizeStudentMajor(normalized.studentProfile.major);
+        if (!canonicalMajor) {
+            errors.push(
+                'Ngành học không hợp lệ. Vui lòng chọn một trong các ngành: Công Nghệ Thông Tin, Kỹ thuật Phần mềm, Hệ thống Thông tin, Trí Tuệ Nhân Tạo.'
+            );
+        } else {
+            normalized.studentProfile.major = canonicalMajor;
+            normalized.major = canonicalMajor;
+        }
     }
 
     if (errors.length > 0) {

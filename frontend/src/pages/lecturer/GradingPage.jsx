@@ -441,7 +441,7 @@ export default function GradingPage() {
                 confirmLoading={submittingAbsent}
                 okText="Xác nhận vắng mặt"
                 okButtonProps={{ danger: true }}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <p className="text-xs text-slate-600">
@@ -475,7 +475,7 @@ export default function GradingPage() {
                     </Button>,
                 ]}
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 {dossierLoading ? (
                     <div className="p-8 text-center">Đang tải hồ sơ...</div>

@@ -1202,6 +1202,12 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                 },
                 memberScores: true,
                 defenseResult: true,
+                semester: {
+                    select: {
+                        id: true,
+                        lockedDefenseRubricVersion: { select: { version: true } },
+                    },
+                },
             },
         });
 
@@ -1670,6 +1676,12 @@ async function lockDefenseScores(input, options = {}) {
                 },
                 memberScores: true,
                 defenseResult: true,
+                semester: {
+                    select: {
+                        id: true,
+                        lockedDefenseRubricVersion: { select: { version: true } },
+                    },
+                },
             },
         });
 
@@ -1796,18 +1808,32 @@ async function lockDefenseScores(input, options = {}) {
                 },
             });
 
+            const rawAverageScore = aggregateFinalScore;
+            const roundedFinalScore = roundDefenseScoreOneDecimal(rawAverageScore);
+            const effectiveRubricVersion =
+                registration.semester?.lockedDefenseRubricVersion?.version
+                || (registration.memberScores || []).find((s) => s.scoreRubricVersion)?.scoreRubricVersion
+                || registration.defenseResult?.scoreRubricVersion
+                || 'v1';
+
             await tx.defenseResult.upsert({
                 where: { registrationId },
                 create: {
                     registrationId,
-                    finalScore: aggregateFinalScore,
+                    rawAverageScore,
+                    roundedFinalScore,
+                    finalScore: roundedFinalScore,
+                    scoreRubricVersion: effectiveRubricVersion,
                     scoreLocked: true,
                     lockedAt: new Date(),
                     lockedBy: actorId,
                     evaluatorId: actorId,
                 },
                 update: {
-                    finalScore: aggregateFinalScore,
+                    rawAverageScore,
+                    roundedFinalScore,
+                    finalScore: roundedFinalScore,
+                    scoreRubricVersion: effectiveRubricVersion,
                     scoreLocked: true,
                     lockedAt: new Date(),
                     lockedBy: actorId,

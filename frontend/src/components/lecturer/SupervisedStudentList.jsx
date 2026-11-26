@@ -6,7 +6,6 @@ import {
     Input,
     Progress,
     Segmented,
-    Space,
     Table,
     Tag,
     Tooltip,
@@ -15,14 +14,12 @@ import {
     AppstoreOutlined,
     BarsOutlined,
     BookOutlined,
-    CalendarOutlined,
     CheckCircleFilled,
     ClockCircleOutlined,
     EditOutlined,
     ExclamationCircleOutlined,
-    FolderOpenOutlined,
+    RightOutlined,
     SearchOutlined,
-    UserOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getStatusTagConfig } from '../common/statusMap';
@@ -135,8 +132,12 @@ export default function SupervisedStudentList({
                             {getStudentInitials(student.studentName)}
                         </div>
                         <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 text-sm">{student.studentName}</div>
-                            <div className="text-xs font-mono text-slate-500">{student.studentCode}</div>
+                            <div className="font-semibold text-slate-900 text-sm group-hover:text-teal-700 transition-colors">
+                                {student.studentName}
+                            </div>
+                            <div className="text-xs font-mono tabular-nums text-slate-500">
+                                {student.studentCode}
+                            </div>
                         </div>
                     </div>
                 );
@@ -159,13 +160,41 @@ export default function SupervisedStudentList({
             render: (_, student) => {
                 const statusCfg = getStatusTagConfig(student.status);
                 const step = getAcademicStep(student.status);
+                const bm02aRequestId =
+                    student.bm02aRequestId ??
+                    (bm02aByRegistrationId instanceof Map
+                        ? bm02aByRegistrationId.get(student.registrationId)
+                        : bm02aByRegistrationId?.[student.registrationId]) ??
+                    null;
                 return (
                     <div className="space-y-1">
-                        <Tag color={statusCfg.color} className="m-0 font-medium text-xs">
-                            {statusCfg.label}
-                        </Tag>
-                        <div className="text-[11px] text-slate-500">
-                            Chặng {step}/5: {ACADEMIC_STEPS[step - 1]?.label}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Tag color={statusCfg.color} className="m-0 font-medium text-xs">
+                                {statusCfg.label}
+                            </Tag>
+                            {bm02aRequestId && (
+                                <Tooltip title="Sinh viên có yêu cầu điều chỉnh tên đề tài BM02-A đang chờ duyệt">
+                                    <Tag
+                                        color="warning"
+                                        className="m-0 text-[11px] font-medium border-amber-300 text-amber-800 bg-amber-50 cursor-pointer"
+                                        onClick={(e) => {
+                                            if (onOpenTitleAdjustment) {
+                                                e.stopPropagation();
+                                                onOpenTitleAdjustment({
+                                                    ...student,
+                                                    bm02aRequestId,
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        <EditOutlined className="mr-1 text-amber-600" />
+                                        BM02-A
+                                    </Tag>
+                                </Tooltip>
+                            )}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+                            Chặng {step}/5: <span className="font-sans">{ACADEMIC_STEPS[step - 1]?.label}</span>
                         </div>
                     </div>
                 );
@@ -176,71 +205,37 @@ export default function SupervisedStudentList({
             key: 'milestone',
             render: (_, student) => (
                 <div className="text-xs text-slate-600">
-                    {student.nextMilestone ? (
+                    {student.nextMilestone && student.status !== 'COMPLETED' ? (
                         <div className="flex items-center gap-1.5">
                             <ClockCircleOutlined className="text-amber-500" />
                             <span>{student.nextMilestone}</span>
                             {student.nextMilestoneAt && (
-                                <span className="text-slate-400 font-mono text-[11px]">
+                                <span className="text-slate-400 font-mono tabular-nums text-[11px]">
                                     ({dayjs(student.nextMilestoneAt).format('DD/MM')})
                                 </span>
                             )}
                         </div>
                     ) : (
-                        <span className="text-slate-400 italic">Đúng tiến độ</span>
+                        <span className="text-slate-400 italic">
+                            {student.status === 'COMPLETED' ? 'Đã hoàn thành' : 'Đúng tiến độ'}
+                        </span>
                     )}
                 </div>
             ),
         },
         {
-            title: 'Thao tác',
-            key: 'actions',
+            title: '',
+            key: 'navigate',
+            width: 36,
             align: 'right',
-            render: (_, student) => {
-                const bm02aRequestId =
-                    student.bm02aRequestId ??
-                    (bm02aByRegistrationId instanceof Map
-                        ? bm02aByRegistrationId.get(student.registrationId)
-                        : bm02aByRegistrationId?.[student.registrationId]) ??
-                    null;
-                return (
-                    <Space size="small">
-                        <Button
-                            size="small"
-                            icon={<FolderOpenOutlined />}
-                            onClick={() => onOpenGuidance?.(student)}
-                        >
-                            Xem quá trình
-                        </Button>
-                        <Button
-                            size="small"
-                            type="primary"
-                            ghost
-                            icon={<CalendarOutlined />}
-                            onClick={() => onOpenMeetingModal?.(student)}
-                        >
-                            Ghi nhật ký
-                        </Button>
-                        {bm02aRequestId && onOpenTitleAdjustment && (
-                            <Button
-                                size="small"
-                                icon={<EditOutlined />}
-                                onClick={() =>
-                                    onOpenTitleAdjustment({
-                                        ...student,
-                                        bm02aRequestId,
-                                    })
-                                }
-                                className="border-amber-400 text-amber-700 bg-amber-50/60 hover:bg-amber-100"
-                            >
-                                Đổi tên BM02-A
-                            </Button>
-                        )}
-                    </Space>
-                );
-            },
+            render: () => (
+                <RightOutlined
+                    className="text-slate-400 text-xs transition-transform group-hover:translate-x-0.5 group-hover:text-teal-600"
+                    aria-hidden="true"
+                />
+            ),
         },
-    ], [bm02aByRegistrationId, onOpenGuidance, onOpenMeetingModal, onOpenTitleAdjustment]);
+    ], [bm02aByRegistrationId, onOpenTitleAdjustment]);
 
     return (
         <Card
@@ -254,10 +249,10 @@ export default function SupervisedStudentList({
                         <div className="w-2.5 h-6 bg-gradient-to-b from-teal-500 to-emerald-600 rounded-full" />
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-base sm:text-lg font-bold text-slate-900 m-0 tracking-tight">
+                                <h2 className="font-display text-base sm:text-lg font-bold text-slate-900 m-0 tracking-tight">
                                     Sinh viên đang hướng dẫn
                                 </h2>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200/80">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono tabular-nums font-semibold bg-teal-50 text-teal-700 border border-teal-200/80">
                                     {students.length} sinh viên
                                 </span>
                             </div>
@@ -298,6 +293,7 @@ export default function SupervisedStudentList({
 
                         <div className="w-full sm:w-64">
                             <Input
+                                aria-label="Tìm kiếm sinh viên, MSSV hoặc tên đề tài"
                                 placeholder="Tìm sinh viên, MSSV, đề tài..."
                                 prefix={<SearchOutlined className="text-slate-400 text-xs" />}
                                 value={searchKeyword}
@@ -357,6 +353,18 @@ export default function SupervisedStudentList({
                         pagination={false}
                         size="middle"
                         className="border border-slate-100 rounded-xl overflow-hidden"
+                        onRow={(student) => ({
+                            role: 'button',
+                            tabIndex: 0,
+                            className: 'group cursor-pointer transition-colors hover:bg-teal-50/40',
+                            onClick: () => onOpenGuidance?.(student),
+                            onKeyDown: (e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    onOpenGuidance?.(student);
+                                }
+                            },
+                        })}
                     />
                 </div>
             ) : (
@@ -378,7 +386,17 @@ export default function SupervisedStudentList({
                         return (
                             <div
                                 key={student.registrationId}
-                                className="group relative bg-white rounded-2xl border border-slate-200/90 hover:border-teal-400/90 p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => onOpenGuidance?.(student)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        onOpenGuidance?.(student);
+                                    }
+                                }}
+                                aria-label={`Xem chi tiết quá trình của sinh viên ${student.studentName || ''}`}
+                                className="group relative cursor-pointer bg-white rounded-2xl border border-slate-200/90 hover:border-teal-400 p-4 sm:p-5 shadow-xs hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 transition-all duration-200 flex flex-col justify-between overflow-hidden"
                             >
                                 {/* Decorative ambient gradient corner */}
                                 <div className="absolute -right-8 -top-8 w-28 h-28 bg-gradient-to-br from-teal-50 to-emerald-100/50 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
@@ -394,23 +412,35 @@ export default function SupervisedStudentList({
 
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="font-bold text-slate-900 text-sm sm:text-base group-hover:text-teal-700 transition-colors truncate">
+                                                    <span className="font-display font-bold text-slate-900 text-sm sm:text-base group-hover:text-teal-700 transition-colors truncate">
                                                         {student.studentName}
                                                     </span>
                                                     {student.studentCode && (
-                                                        <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60">
+                                                        <span className="text-xs font-mono tabular-nums font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60">
                                                             {student.studentCode}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <Tag color={statusCfg.color} className="m-0 font-medium text-xs">
                                                         {statusCfg.label}
                                                     </Tag>
                                                     {bm02aRequestId && (
                                                         <Tooltip title="Sinh viên có yêu cầu điều chỉnh tên đề tài BM02-A đang chờ duyệt">
-                                                            <Tag color="warning" className="m-0 text-[11px] font-medium border-amber-300 text-amber-800 bg-amber-50">
-                                                                <ExclamationCircleOutlined className="mr-1 text-amber-600 animate-pulse" />
+                                                            <Tag
+                                                                color="warning"
+                                                                className="m-0 text-[11px] font-medium border-amber-300 text-amber-800 bg-amber-50"
+                                                                onClick={(e) => {
+                                                                    if (onOpenTitleAdjustment) {
+                                                                        e.stopPropagation();
+                                                                        onOpenTitleAdjustment({
+                                                                            ...student,
+                                                                            bm02aRequestId,
+                                                                        });
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <ExclamationCircleOutlined className="mr-1 text-amber-600" />
                                                                 Chờ duyệt BM02-A
                                                             </Tag>
                                                         </Tooltip>
@@ -418,6 +448,13 @@ export default function SupervisedStudentList({
                                                 </div>
                                             </div>
                                         </div>
+
+                                        <span
+                                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-slate-50/80 text-slate-400 transition-all group-hover:border-teal-300 group-hover:bg-teal-50 group-hover:text-teal-700"
+                                            aria-hidden="true"
+                                        >
+                                            <RightOutlined className="text-[11px] transition-transform group-hover:translate-x-0.5" />
+                                        </span>
                                     </div>
 
                                     {/* Topic Card Motif */}
@@ -433,7 +470,9 @@ export default function SupervisedStudentList({
                                     {/* Academic Milestones Stepper Bar */}
                                     <div className="mt-3.5 pt-3 border-t border-slate-100">
                                         <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5 font-medium">
-                                            <span>Tiến độ học vụ ({step}/5)</span>
+                                            <span>
+                                                Tiến độ học vụ (<span className="font-mono tabular-nums">{step}/5</span>)
+                                            </span>
                                             <span className="font-semibold text-teal-700">{ACADEMIC_STEPS[step - 1]?.label}</span>
                                         </div>
                                         <Progress
@@ -450,7 +489,7 @@ export default function SupervisedStudentList({
                                             {ACADEMIC_STEPS.map((s) => (
                                                 <div
                                                     key={s.step}
-                                                    className={`truncate ${
+                                                    className={`truncate font-mono ${
                                                         s.step < step
                                                             ? 'text-teal-700 font-semibold'
                                                             : s.step === step
@@ -468,54 +507,18 @@ export default function SupervisedStudentList({
                                     </div>
 
                                     {/* Next Milestone Notice */}
-                                    {student.nextMilestone && (
-                                        <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-amber-50/60 border border-amber-200/60 text-[11px]">
-                                            <div className="flex items-center gap-1.5 text-amber-900 font-medium">
-                                                <ClockCircleOutlined className="text-amber-600" />
-                                                <span>Mốc kế tiếp: {student.nextMilestone}</span>
+                                    {student.nextMilestone && student.status !== 'COMPLETED' && (
+                                        <div className="mt-3 flex items-center justify-between gap-2 p-2 rounded-lg bg-amber-50/60 border border-amber-200/60 text-[11px]">
+                                            <div className="flex items-center gap-1.5 text-amber-900 font-medium min-w-0">
+                                                <ClockCircleOutlined className="text-amber-600 shrink-0" />
+                                                <span className="truncate">Mốc kế tiếp: {student.nextMilestone}</span>
                                             </div>
                                             {student.nextMilestoneAt && (
-                                                <span className="font-mono text-amber-800 font-semibold">
+                                                <span className="font-mono tabular-nums text-amber-800 font-semibold shrink-0">
                                                     Hạn: {dayjs(student.nextMilestoneAt).format('DD/MM/YYYY')}
                                                 </span>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-
-                                {/* Action Buttons Footer (Rule 2.6 compliant) */}
-                                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
-                                    <Button
-                                        size="small"
-                                        icon={<FolderOpenOutlined />}
-                                        onClick={() => onOpenGuidance?.(student)}
-                                        className="text-xs border-slate-300 text-slate-700 hover:text-teal-700 hover:border-teal-500"
-                                    >
-                                        Xem quá trình
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        type="primary"
-                                        icon={<CalendarOutlined />}
-                                        onClick={() => onOpenMeetingModal?.(student)}
-                                        className="text-xs bg-teal-700 hover:bg-teal-800 text-white font-medium shadow-xs"
-                                    >
-                                        Ghi nhật ký
-                                    </Button>
-                                    {bm02aRequestId && onOpenTitleAdjustment && (
-                                        <Button
-                                            size="small"
-                                            icon={<EditOutlined />}
-                                            onClick={() =>
-                                                onOpenTitleAdjustment({
-                                                    ...student,
-                                                    bm02aRequestId,
-                                                })
-                                            }
-                                            className="text-xs border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 font-semibold"
-                                        >
-                                            Đổi tên BM02-A
-                                        </Button>
                                     )}
                                 </div>
                             </div>

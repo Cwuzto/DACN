@@ -51,7 +51,7 @@ export default function LinkManager({ form }) {
                 type="info"
                 showIcon
                 icon={<LinkOutlined />}
-                message={<span className="text-xs font-semibold">Cấu hình liên kết ngoài hoặc điều hướng chân trang</span>}
+                title={<span className="text-xs font-semibold">Cấu hình liên kết ngoài hoặc điều hướng chân trang</span>}
                 description={
                     <span className="text-xs text-slate-600">
                         {currentGroupMeta?.description || 'Liên kết sẽ tự động đồng bộ xuống khu vực Footer của Cổng thông tin công khai.'}

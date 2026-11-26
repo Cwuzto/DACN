@@ -3,11 +3,13 @@ import { useProjectCatalogs, useEnrollments, useEnrollmentAudit, useEnrollmentMu
 import { useLecturerAssignments } from '../../queries/lecturerAssignmentQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
+import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button, Form, message, Modal, Popconfirm, Select, Table, Tag, Tabs } from 'antd';
 import {
-    UploadOutlined,
+    CalendarOutlined,
     DownloadOutlined,
     UserAddOutlined,
     DeleteOutlined,
@@ -18,7 +20,6 @@ import {
     ReloadOutlined,
 } from '@ant-design/icons';
 
-import ExcelImportModal from '../../components/common/ExcelImportModal';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
 import { getEffectivePermissions, canPerformFeatureAction } from '../../auth/policyEvaluator';
 import projectEnrollmentService from '../../services/projectEnrollmentService';
@@ -27,10 +28,12 @@ import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import CoordinationOverviewTab from '../../components/coordination/CoordinationOverviewTab';
 import LecturerAssignmentTab from '../../components/coordination/LecturerAssignmentTab';
+import BulkAssignRosterModal from '../../components/coordination/BulkAssignRosterModal';
 
 const EMPTY_LIST = [];
 
 export function ProjectEnrollmentPage() {
+    const navigate = useNavigate();
     const { roundId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
@@ -93,7 +96,7 @@ export function ProjectEnrollmentPage() {
     const [saving, setSaving] = useState(false);
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
     const [showAssignPanel, setShowAssignPanel] = useState(false);
-    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+    const [bulkRosterOpen, setBulkRosterOpen] = useState(false);
     const [exporting, setExporting] = useState(false);
 
     // Audit state
@@ -221,16 +224,17 @@ export function ProjectEnrollmentPage() {
         }
     };
 
-    const handleAssignBulk = async () => {
+    const handleAssignBulk = async (overrideStudentIds = null) => {
         const targetSemesterId = form.getFieldValue('semesterId') || filterSemesterId;
         const targetCatalogId = form.getFieldValue('projectCatalogId') || filterCatalogId || catalogs[0]?.id;
+        const targetIds = Array.isArray(overrideStudentIds) ? overrideStudentIds : selectedStudentIds;
 
         if (!targetSemesterId || !targetCatalogId) {
             message.warning('Vui lòng chọn đợt đồ án và loại đồ án');
             return;
         }
 
-        if (!selectedStudentIds.length) {
+        if (!targetIds.length) {
             message.warning('Vui lòng chọn ít nhất 1 sinh viên để gán');
             return;
         }
@@ -240,10 +244,10 @@ export function ProjectEnrollmentPage() {
             const res = await enrollmentMutation.mutateAsync({ action: 'bulkAssign', args: [{
                 semesterId: targetSemesterId,
                 projectCatalogId: targetCatalogId,
-                studentIds: selectedStudentIds,
+                studentIds: targetIds,
             }] });
             if (res.success) {
-                message.success(`Đã gán ${res.data?.created || selectedStudentIds.length} sinh viên`);
+                message.success(`Đã gán ${res.data?.created || targetIds.length} sinh viên`);
                 setSelectedStudentIds([]);
             }
         } catch (error) {
@@ -428,15 +432,7 @@ export function ProjectEnrollmentPage() {
                                     icon={<UserAddOutlined />}
                                     onClick={() => setShowAssignPanel((prev) => !prev)}
                                 >
-                                    {showAssignPanel ? 'Ẩn form gán' : 'Gán thủ công'}
-                                </Button>
-                            </AuthorizedAction>
-                            <AuthorizedAction feature="project-enrollments" action="manageEnrollment">
-                                <Button
-                                    icon={<UploadOutlined />}
-                                    onClick={() => setIsExcelModalOpen(true)}
-                                >
-                                    Gán bằng Excel
+                                    {showAssignPanel ? 'Ẩn form gán' : 'Gán sinh viên vào đợt'}
                                 </Button>
                             </AuthorizedAction>
                             <Button
@@ -494,25 +490,59 @@ export function ProjectEnrollmentPage() {
                                             }
                                         />
                                     </Form.Item>
-                                    <div className="flex items-end gap-2 pb-1">
+                                    <div className="flex items-end gap-2 pb-1 flex-wrap">
                                         <Button type="primary" htmlType="submit" loading={saving}>
                                             Gán 1 SV
                                         </Button>
                                         <Button
-                                            onClick={handleAssignBulk}
+                                            onClick={() => handleAssignBulk()}
                                             loading={saving}
                                             disabled={selectedStudentIds.length === 0}
                                         >
                                             Gán hàng loạt ({selectedStudentIds.length})
+                                        </Button>
+                                        <Button
+                                            type="primary"
+                                            ghost
+                                            icon={<UserAddOutlined />}
+                                            loading={saving}
+                                            disabled={studentOptions.length === 0}
+                                            onClick={() => setBulkRosterOpen(true)}
+                                        >
+                                            Gán nhanh từ danh sách ({studentOptions.length})
                                         </Button>
                                     </div>
                                 </div>
                             </Form>
 
                             <div className="pt-2">
-                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Chọn nhiều sinh viên cùng lúc
-                                </label>
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                        Chọn nhiều sinh viên cùng lúc
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="link"
+                                            size="small"
+                                            className="p-0 h-auto text-xs font-semibold"
+                                            disabled={studentOptions.length === 0}
+                                            onClick={() => setSelectedStudentIds(studentOptions.map((o) => o.value))}
+                                        >
+                                            Chọn tất cả ({studentOptions.length})
+                                        </Button>
+                                        {selectedStudentIds.length > 0 && (
+                                            <Button
+                                                type="link"
+                                                size="small"
+                                                danger
+                                                className="p-0 h-auto text-xs font-semibold"
+                                                onClick={() => setSelectedStudentIds([])}
+                                            >
+                                                Bỏ chọn
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
                                 <Select
                                     mode="multiple"
                                     className="w-full"
@@ -618,29 +648,33 @@ export function ProjectEnrollmentPage() {
     return (
         <QueryPanel query={semestersQuery}><QueryPanel query={catalogsQuery}>
         <div className="space-y-5">
-            {/* Page Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <p className="eyebrow text-teal-700 font-bold tracking-wider">TRUNG TÂM ĐIỀU PHỐI ĐỢT ĐỒ ÁN</p>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Điều Phối Đợt Đồ Án & Phân Công
-                    </h1>
-                </div>
+            <PageHeader
+                icon={<TeamOutlined />}
+                accent="sky"
+                title="Điều phối Đợt đồ án & Phân công"
+                subtitle="Quản lý danh sách sinh viên tham gia, phân công giảng viên hướng dẫn và kiểm tra tiến độ điều phối theo đợt."
+            />
 
-                {/* Global Filters on Header */}
+            {/* Global Filters Strip */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Phạm vi điều phối
+                </div>
                 <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đợt đồ án:</span>
+                        <span className="text-xs font-semibold text-slate-500">Đợt đồ án:</span>
                         <Select
-                            placeholder="Chọn đợt đồ án"
+                            placeholder={semesters.length === 0 ? 'Chưa có đợt đồ án' : 'Chọn đợt đồ án'}
                             style={{ minWidth: 220 }}
+                            loading={semestersQuery.isPending}
+                            disabled={semesters.length === 0}
                             value={filterSemesterId}
                             onChange={updateFilterSemester}
                             options={semesterOptions}
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loại đồ án:</span>
+                        <span className="text-xs font-semibold text-slate-500">Loại đồ án:</span>
                         <Select
                             placeholder="Tất cả loại đồ án"
                             style={{ minWidth: 200 }}
@@ -653,14 +687,27 @@ export function ProjectEnrollmentPage() {
                 </div>
             </div>
 
-            {/* 3-Tab Coordination Hub */}
-            <Tabs
-                activeKey={activeTab}
-                onChange={handleTabChange}
-                items={tabItems}
-                type="card"
-                className="coordination-tabs bg-transparent"
-            />
+            {/* 3-Tab Coordination Hub or Empty State when no semesters */}
+            {!semestersQuery.isPending && semesters.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-8 shadow-sm flex flex-col items-center justify-center gap-4">
+                    <EmptyState description="Chưa có đợt đồ án nào được thiết lập. Hãy tạo đợt đồ án trước khi điều phối sinh viên và giảng viên." />
+                    <Button
+                        type="primary"
+                        icon={<CalendarOutlined />}
+                        onClick={() => navigate('/admin/project-periods')}
+                    >
+                        Đi tới Quản lý Đợt đồ án
+                    </Button>
+                </div>
+            ) : (
+                <Tabs
+                    activeKey={activeTab}
+                    onChange={handleTabChange}
+                    items={tabItems}
+                    type="card"
+                    className="coordination-tabs bg-transparent"
+                />
+            )}
 
             {/* Modal Sửa Đề tài thiếu catalog */}
             <Modal
@@ -671,7 +718,7 @@ export function ProjectEnrollmentPage() {
                 okText="Lưu cập nhật"
                 cancelText="Hủy"
                 confirmLoading={fixing}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-3">
                     <div className="text-sm text-slate-600">
@@ -687,15 +734,42 @@ export function ProjectEnrollmentPage() {
                 </div>
             </Modal>
 
-            {/* Modal Gán Bằng Excel */}
-            <ExcelImportModal
-                open={isExcelModalOpen}
-                onCancel={() => setIsExcelModalOpen(false)}
-                type="PROJECT_ENROLLMENT"
-                semesters={semesters}
-                catalogs={catalogs}
-                onDownloadTemplate={() => projectEnrollmentService.downloadTemplate()}
-                onExecuteImport={(payload) => enrollmentMutation.mutateAsync({ action: 'importEnrollmentsExcel', args: [payload] })}
+            <BulkAssignRosterModal
+                open={bulkRosterOpen}
+                onCancel={() => setBulkRosterOpen(false)}
+                title="Xác nhận gán danh sách Sinh viên vào đợt"
+                subtitle="Mặc định chọn tất cả sinh viên khả dụng. Bỏ tick những sinh viên không muốn gán trước khi xác nhận."
+                items={studentOptions.map((o) => o.raw)}
+                loading={loadingAvailableStudents}
+                submitting={saving}
+                searchPlaceholder="Tìm theo MSSV, họ tên, ngành, email..."
+                columns={[
+                    {
+                        title: 'MSSV',
+                        dataIndex: 'code',
+                        width: 120,
+                        render: (c) => <code className="text-xs font-mono font-bold text-teal-800">{c}</code>,
+                    },
+                    {
+                        title: 'Họ và tên',
+                        dataIndex: 'fullName',
+                        render: (name) => <span className="text-xs font-semibold text-slate-900">{name}</span>,
+                    },
+                    {
+                        title: 'Ngành',
+                        key: 'major',
+                        render: (_, r) => <span className="text-xs text-slate-600">{r.studentProfile?.major || '—'}</span>,
+                    },
+                    {
+                        title: 'Email',
+                        dataIndex: 'email',
+                        render: (e) => <span className="text-xs text-slate-500">{e}</span>,
+                    },
+                ]}
+                onConfirm={async (ids) => {
+                    await handleAssignBulk(ids);
+                    setBulkRosterOpen(false);
+                }}
             />
         </div>
         </QueryPanel></QueryPanel>

@@ -1,4 +1,12 @@
 import React, { useMemo } from 'react';
+import {
+    CloseOutlined,
+    InboxOutlined,
+    LeftOutlined,
+    LoadingOutlined,
+    RightOutlined,
+    SearchOutlined,
+} from '@ant-design/icons';
 
 /**
  * DataTable - Enterprise OpenDesign Data Table Component
@@ -113,23 +121,23 @@ export default function DataTable({
                 <div className="flex flex-wrap items-center gap-2.5 flex-1">
                     {/* Search box */}
                     <div className="relative flex-1 min-w-[200px] max-w-md">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">
-                            search
-                        </span>
+                        <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => onSearchChange(e.target.value)}
                             placeholder={searchPlaceholder}
+                            aria-label={searchPlaceholder}
                             className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 transition-all placeholder:text-slate-400 text-slate-800"
                         />
                         {searchQuery && (
                             <button
                                 type="button"
+                                aria-label="Xóa từ khóa tìm kiếm"
                                 onClick={() => onSearchChange('')}
                                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                             >
-                                <span className="material-symbols-outlined text-sm">close</span>
+                                <CloseOutlined className="text-xs" />
                             </button>
                         )}
                     </div>
@@ -161,9 +169,7 @@ export default function DataTable({
                 {loading && (
                     <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200 text-xs font-semibold text-slate-700">
-                            <span className="material-symbols-outlined animate-spin text-teal-600 text-base">
-                                progress_activity
-                            </span>
+                            <LoadingOutlined className="text-teal-600 text-base" spin />
                             Đang tải dữ liệu...
                         </div>
                     </div>
@@ -213,9 +219,7 @@ export default function DataTable({
                                     >
                                         <div className="max-w-xs mx-auto space-y-2">
                                             <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 mx-auto flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-xl">
-                                                    inbox
-                                                </span>
+                                                <InboxOutlined className="text-xl" />
                                             </div>
                                             <p className="text-sm font-semibold text-slate-800">
                                                 {emptyTitle}
@@ -297,22 +301,24 @@ export default function DataTable({
                             <div className="inline-flex items-center gap-1">
                                 <button
                                     type="button"
+                                    aria-label="Trang trước"
                                     disabled={pagination.page <= 1}
                                     onClick={() => pagination.onPageChange(pagination.page - 1)}
                                     className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    <span className="material-symbols-outlined text-sm">chevron_left</span>
+                                    <LeftOutlined className="text-xs" />
                                 </button>
                                 <span className="px-2 font-medium">
                                     Trang {pagination.page} / {pagination.totalPages}
                                 </span>
                                 <button
                                     type="button"
+                                    aria-label="Trang sau"
                                     disabled={pagination.page >= pagination.totalPages}
                                     onClick={() => pagination.onPageChange(pagination.page + 1)}
                                     className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                                    <RightOutlined className="text-xs" />
                                 </button>
                             </div>
                         )}
@@ -347,7 +353,7 @@ export default function DataTable({
                                 }`}
                             >
                                 {action.icon && (
-                                    <span className="material-symbols-outlined text-sm">
+                                    <span className="inline-flex items-center text-sm">
                                         {action.icon}
                                     </span>
                                 )}

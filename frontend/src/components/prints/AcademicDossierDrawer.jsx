@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Drawer, Tabs, Button, Tag, Space, Alert, Tooltip } from 'antd';
 import {
     PrinterOutlined,
@@ -32,13 +32,20 @@ export default function AcademicDossierDrawer({
     open,
     onClose,
     registration,
+    initialTab = 'BM01',
 }) {
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
     const regId = registration?.id;
 
     // Active tab in drawer
-    const [activeTabKey, setActiveTabKey] = useState('BM01');
+    const [activeTabKey, setActiveTabKey] = useState(initialTab || 'BM01');
+
+    useEffect(() => {
+        if (open && initialTab) {
+            setActiveTabKey(initialTab);
+        }
+    }, [open, initialTab]);
 
     // Print Modal State
     const [printModalConfig, setPrintModalConfig] = useState({
@@ -66,6 +73,13 @@ export default function AcademicDossierDrawer({
     const bm04Record = bm04Query.data || null;
     const bm02aRequests = bm02aQuery.data || [];
     const latestBm02a = bm02aRequests.length > 0 ? bm02aRequests[0] : null;
+    const hasSubmittedBm02a = Boolean(latestBm02a && latestBm02a.status !== 'STUDENT_PREPARING');
+
+    useEffect(() => {
+        if (activeTabKey === 'BM02-A' && !hasSubmittedBm02a) {
+            setActiveTabKey('BM01');
+        }
+    }, [activeTabKey, hasSubmittedBm02a]);
 
     const bm01Task = tasks.find(
         (t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION'
@@ -135,7 +149,7 @@ export default function AcademicDossierDrawer({
             BM02: bm02Submission
                 ? { eligible: true, reason: '' }
                 : { eligible: false, reason: 'Chưa có dữ liệu nộp BM02 để in.' },
-            'BM02-A': latestBm02a
+            'BM02-A': hasSubmittedBm02a
                 ? { eligible: true, reason: '' }
                 : { eligible: false, reason: 'Chưa có phiếu điều chỉnh tên đề tài BM02-A.' },
             BM03: bm03Finalized
@@ -148,7 +162,7 @@ export default function AcademicDossierDrawer({
                 ? { eligible: true, reason: '' }
                 : { eligible: false, reason: 'Kết quả BM05 chưa được công bố chính thức.' },
         };
-    }, [bm02Submission, latestBm02a, bm03Record, bm04Record, summaryRecord, registration?.status]);
+    }, [bm02Submission, hasSubmittedBm02a, bm03Record, bm04Record, summaryRecord, registration?.status]);
 
     const eligibleBundleKeys = useMemo(
         () => ['BM02', 'BM02-A', 'BM03', 'BM04', 'BM05'].filter((key) => printEligibility[key]?.eligible),
@@ -217,7 +231,7 @@ export default function AcademicDossierDrawer({
                         type="info"
                         showIcon
                         className="mb-3"
-                        message="BM01 là tệp PDF riêng do sinh viên tải lên"
+                        title="BM01 là tệp PDF riêng do sinh viên tải lên"
                         description="Vui lòng tải hoặc in trực tiếp tệp PDF BM01 đã nộp; không ghép BM01 vào lệnh in HTML của trình duyệt."
                         action={
                             <Button
@@ -245,7 +259,7 @@ export default function AcademicDossierDrawer({
             children: (
                 <div style={{ padding: '8px 0' }}>
                     {!printEligibility.BM02.eligible && (
-                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM02.reason} />
+                        <Alert type="warning" showIcon className="mb-3" title={printEligibility.BM02.reason} />
                     )}
                     <BM02PrintSheet
                         submission={bm02Submission}
@@ -255,23 +269,27 @@ export default function AcademicDossierDrawer({
                 </div>
             ),
         },
-        {
-            key: 'BM02-A',
-            label: (
-                <span>
-                    <EditOutlined style={{ marginRight: 6 }} />
-                    BM02-A (Đổi tên)
-                </span>
-            ),
-            children: (
-                <div style={{ padding: '8px 0' }}>
-                    {!printEligibility['BM02-A'].eligible && (
-                        <Alert type="warning" showIcon className="mb-3" message={printEligibility['BM02-A'].reason} />
-                    )}
-                    <BM02APrintSheet request={latestBm02a || {}} registration={registration} />
-                </div>
-            ),
-        },
+        ...(hasSubmittedBm02a
+            ? [
+                {
+                    key: 'BM02-A',
+                    label: (
+                        <span>
+                            <EditOutlined style={{ marginRight: 6 }} />
+                            BM02-A (Đổi tên)
+                        </span>
+                    ),
+                    children: (
+                        <div style={{ padding: '8px 0' }}>
+                            {!printEligibility['BM02-A'].eligible && (
+                                <Alert type="warning" showIcon className="mb-3" title={printEligibility['BM02-A'].reason} />
+                            )}
+                            <BM02APrintSheet request={latestBm02a || {}} registration={registration} />
+                        </div>
+                    ),
+                },
+            ]
+            : []),
         {
             key: 'BM03',
             label: (
@@ -283,7 +301,7 @@ export default function AcademicDossierDrawer({
             children: (
                 <div style={{ padding: '8px 0' }}>
                     {!printEligibility.BM03.eligible && (
-                        <Alert type="info" showIcon className="mb-3" message={printEligibility.BM03.reason} />
+                        <Alert type="info" showIcon className="mb-3" title={printEligibility.BM03.reason} />
                     )}
                     <BM03PrintSheet
                         meetingLogs={meetingLogs}
@@ -305,7 +323,7 @@ export default function AcademicDossierDrawer({
             children: (
                 <div style={{ padding: '8px 0' }}>
                     {!printEligibility.BM04.eligible && (
-                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM04.reason} />
+                        <Alert type="warning" showIcon className="mb-3" title={printEligibility.BM04.reason} />
                     )}
                     <BM04PrintSheet evaluation={bm04Record || {}} registration={registration} />
                 </div>
@@ -322,7 +340,7 @@ export default function AcademicDossierDrawer({
             children: (
                 <div style={{ padding: '8px 0' }}>
                     {!printEligibility.BM05.eligible && (
-                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM05.reason} />
+                        <Alert type="warning" showIcon className="mb-3" title={printEligibility.BM05.reason} />
                     )}
                     <BM05PrintSheet summaryRecord={summaryRecord} registration={registration} />
                 </div>
@@ -381,10 +399,10 @@ export default function AcademicDossierDrawer({
                     </div>
                 }
                 placement="right"
-                width={1040}
+                size={1040}
                 open={open}
                 onClose={onClose}
-                destroyOnClose
+                destroyOnHidden
             >
                 {/* Dossier Header Info */}
                 <div

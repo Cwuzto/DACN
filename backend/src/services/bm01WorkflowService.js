@@ -245,8 +245,12 @@ async function reviewBM01(input, options = {}) {
                 notifiedAt,
                 deadlineAt,
             };
-            const evaluation = (input.attemptNo === 1 || !latest || latest.attemptNo < 2)
-                ? await tx.bM01Evaluation.create({
+            const evaluation = (latest && latest.attemptNo === input.attemptNo)
+                ? await tx.bM01Evaluation.update({
+                    where: { id: latest.id },
+                    data: evaluationData,
+                })
+                : await tx.bM01Evaluation.create({
                     data: {
                         registrationId: input.registrationId,
                         attemptNo: input.attemptNo,
@@ -254,10 +258,6 @@ async function reviewBM01(input, options = {}) {
                         supersedesId: latest?.id || null,
                         ...evaluationData,
                     },
-                })
-                : await tx.bM01Evaluation.update({
-                    where: { id: latest.id },
-                    data: evaluationData,
                 });
 
             await tx.task.updateMany({

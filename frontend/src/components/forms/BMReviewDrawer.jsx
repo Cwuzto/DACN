@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Drawer, Form, Input, DatePicker, Button, Typography, Space, Tag, Divider, Alert, message, Radio } from 'antd';
 import {
+    AuditOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
     FileTextOutlined,
+    FormOutlined,
     UserOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
@@ -93,11 +95,11 @@ export default function BMReviewDrawer({
         <Drawer
             open={visible}
             onClose={onClose}
-            width={680}
+            size={680}
             title={
                 <div className="flex items-center justify-between gap-3 pr-4">
                     <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-blue-600 text-xl">fact_check</span>
+                        <AuditOutlined className="text-blue-600 text-xl" />
                         <span className="font-bold text-slate-800 text-base">Xét duyệt Biểu mẫu & Báo cáo</span>
                     </div>
                     {task?.taskType && (
@@ -107,7 +109,7 @@ export default function BMReviewDrawer({
                     )}
                 </div>
             }
-            destroyOnClose
+            destroyOnHidden
             className="bm-review-drawer"
         >
             <div className="space-y-6 pb-6">
@@ -167,7 +169,7 @@ export default function BMReviewDrawer({
                 {/* Lecturer Evaluation & Feedback Form */}
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                     <div className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-blue-600 text-[18px]">rate_review</span>
+                        <FormOutlined className="text-blue-600 text-[18px]" />
                         Đánh giá & Nhận xét của Giảng viên hướng dẫn
                     </div>
 
@@ -176,7 +178,7 @@ export default function BMReviewDrawer({
                             type="warning"
                             showIcon
                             icon={<ExclamationCircleOutlined className="text-rose-600" />}
-                            message={<span className="font-bold text-rose-900 text-xs">CẢNH BÁO QUY CHẾ CHECKPOINT TIẾN ĐỘ BẮT BUỘC</span>}
+                            title={<span className="font-bold text-rose-900 text-xs">CẢNH BÁO QUY CHẾ CHECKPOINT TIẾN ĐỘ BẮT BUỘC</span>}
                             description="Đồ án gồm 2 đợt đánh giá tiến độ. Chỉ có 2 kết quả: ĐẠT hoặc KHÔNG ĐẠT. Nếu đánh giá KHÔNG ĐẠT, hệ thống sẽ dừng thực hiện đề tài ngay lập tức theo quy chế đào tạo và sinh viên không đủ điều kiện ra bảo vệ."
                             className="mb-4 border-rose-300 bg-rose-50/70"
                         />

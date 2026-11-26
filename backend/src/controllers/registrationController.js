@@ -740,6 +740,7 @@ const getAllRegistrations = async (req, res, next) => {
         const registrations = await prisma.topicRegistration.findMany({
             where,
             include: {
+                semester: true,
                 student: {
                     select: {
                         id: true,
@@ -2126,6 +2127,7 @@ const getRegistrationById = async (req, res, next) => {
         const registration = await prisma.topicRegistration.findUnique({
             where: { id: idInt },
             include: {
+                semester: true,
                 student: {
                     select: {
                         id: true,

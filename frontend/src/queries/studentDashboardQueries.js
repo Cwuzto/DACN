@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { message } from 'antd';
 import dashboardService from '../services/dashboardService.js';
 import registrationService from '../services/registrationService.js';
 import evaluationService from '../services/evaluationService.js';
 import { queryKeys } from '../query/queryKeys.js';
+import { dashboardKeys } from './dashboardQueries.js';
 import { normalizeApiError } from '../utils/apiError.js';
 import { meetingKeys } from './meetingQueries.js';
 
@@ -49,7 +51,9 @@ export const useStudentAckBM03Mutation = (scope, registrationId) => {
     return useMutation({
         mutationFn: async ({ bm03RecordId, data }) => requireSuccess(await evaluationService.studentAcknowledgeBM03(bm03RecordId, data)),
         onSuccess: async () => {
+            message.success('Đã xác nhận sổ theo dõi tiến độ BM03 thành công!');
             const keys = [
+                dashboardKeys.studentDashboard(scope),
                 studentDashboardKeys.stats(scope),
                 meetingKeys.bm03(scope, registrationId),
                 queryKeys.registrations.current(scope),
@@ -65,6 +69,7 @@ export const useWithdrawRegistrationMutation = (scope, registrationId) => {
         mutationFn: async (reason) => requireSuccess(await registrationService.withdrawRegistration(registrationId, reason)),
         onSuccess: async () => {
             const keys = [
+                dashboardKeys.studentDashboard(scope),
                 studentDashboardKeys.stats(scope),
                 queryKeys.registrations.current(scope),
                 queryKeys.registrations.lists(scope),
@@ -82,8 +87,8 @@ export const useStudentRegistrationMutation = (scope) => {
             if (payload?.action && payload?.args) {
                 return requireSuccess(await registrationService[payload.action](...payload.args));
             }
-            const { topicId, semesterId } = payload;
-            return requireSuccess(await registrationService.registerTopic(topicId, semesterId));
+            const { topicId, semesterId, notes } = payload;
+            return requireSuccess(await registrationService.registerTopic(topicId, semesterId, notes));
         },
         onSuccess: async () => {
             const keys = [

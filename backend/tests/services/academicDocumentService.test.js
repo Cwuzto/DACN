@@ -29,6 +29,9 @@ function dbFor(registration, overrides = {}) {
             findUnique: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({}),
         },
+        electronicSignatureEvent: {
+            create: jest.fn().mockResolvedValue({ id: 999 }),
+        },
         ...overrides,
     };
     return {
@@ -76,7 +79,7 @@ describe('academicDocumentService BM02', () => {
         const crypto = require('crypto');
         const hash = crypto.createHash('sha256').update(JSON.stringify({
             registrationId: 1, studentId: 10, content: 'BM02 content',
-            fileUrl: 'https://example.test/bm02.pdf', fileName: 'bm02.pdf',
+            fileUrl: 'https://example.test/bm02.pdf', fileName: 'bm02.pdf', assetId: null,
         })).digest('hex');
         db.tx.idempotencyRecord.findUnique.mockResolvedValue({ commandHash: hash, response: priorResponse });
 

@@ -119,7 +119,9 @@ function isApprovalEvidenceCurrent(approval) {
         ? Number(registration.defenseResult.roundedFinalScore)
         : (registration?.defenseResult?.rawAverageScore != null
             ? roundDefenseScoreOneDecimal(registration.defenseResult.rawAverageScore)
-            : (registration?.defenseResult?.finalScore != null ? Number(registration.defenseResult.finalScore) : null));
+            : (registration?.defenseResult?.finalScore != null ? roundDefenseScoreOneDecimal(Number(registration.defenseResult.finalScore)) : null));
+
+    const currentRubricVersion = registration.defenseResult?.scoreRubricVersion || 'v1';
 
     return memberIds.size >= 3
         && validScores.length === memberIds.size
@@ -128,7 +130,7 @@ function isApprovalEvidenceCurrent(approval) {
         && approval.defenseResultId === registration.defenseResult.id
         && approval.defenseCouncilId === (registration.defenseCouncilId || registration.councilId || null)
         && approval.policyVersionId === (registration.periodPolicyVersionId || null)
-        && approval.rubricVersionSnapshot === registration.defenseResult.scoreRubricVersion
+        && approval.rubricVersionSnapshot === currentRubricVersion
         && (approval.finalScoreSnapshot === null ? expectedScore === null : Number(approval.finalScoreSnapshot) === expectedScore)
         && approval.scoreFingerprint === hashScoreEvidence(registration);
 }

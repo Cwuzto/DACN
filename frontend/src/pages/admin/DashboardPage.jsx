@@ -12,6 +12,7 @@ import {
     FileTextOutlined,
     FormOutlined,
     HistoryOutlined,
+    PlusOutlined,
     SafetyCertificateOutlined,
     ScheduleOutlined,
     SettingOutlined,
@@ -119,10 +120,48 @@ const WORKFLOW_ORDER = {
 };
 
 const PRIORITY_META = {
-    OVERDUE: { label: 'Quá hạn', color: 'red', border: 'border-l-rose-500', badgeClass: 'text-rose-700' },
-    DUE_SOON: { label: 'Sắp đến hạn', color: 'orange', border: 'border-l-amber-500', badgeClass: 'text-amber-700' },
-    NORMAL: { label: 'Cần xử lý', color: 'teal', border: 'border-l-teal-600', badgeClass: 'text-[#0F766E]' },
-    INFO: { label: 'Theo dõi', color: 'blue', border: 'border-l-sky-600', badgeClass: 'text-sky-700' },
+    OVERDUE: {
+        label: 'Quá hạn',
+        color: 'red',
+        topBar: 'bg-rose-500',
+        cardHover: 'hover:border-rose-300',
+        countBox: 'bg-rose-50 text-rose-700 border-rose-200/80',
+        dotClass: 'bg-rose-500',
+    },
+    DUE_SOON: {
+        label: 'Sắp đến hạn',
+        color: 'orange',
+        topBar: 'bg-amber-500',
+        cardHover: 'hover:border-amber-300',
+        countBox: 'bg-amber-50 text-amber-700 border-amber-200/80',
+        dotClass: 'bg-amber-500',
+    },
+    NORMAL: {
+        label: 'Cần xử lý',
+        color: 'teal',
+        topBar: 'bg-[#0F766E]',
+        cardHover: 'hover:border-teal-300',
+        countBox: 'bg-teal-50 text-[#0F766E] border-teal-200/80',
+        dotClass: 'bg-[#0F766E]',
+    },
+    INFO: {
+        label: 'Theo dõi',
+        color: 'blue',
+        topBar: 'bg-sky-500',
+        cardHover: 'hover:border-sky-300',
+        countBox: 'bg-sky-50 text-sky-700 border-sky-200/80',
+        dotClass: 'bg-sky-500',
+    },
+};
+
+const ACTION_ICON_MAP = {
+    TOPIC_REVIEW: <BookOutlined />,
+    OUTLINE_COUNCIL_ASSIGN: <AuditOutlined />,
+    BM02_REVIEW: <FileTextOutlined />,
+    DEFENSE_COUNCIL_ALLOCATION: <ScheduleOutlined />,
+    RESULT_LOCK: <CheckCircleOutlined />,
+    RESULT_APPROVE: <SafetyCertificateOutlined />,
+    RESULT_PUBLISH: <TrophyOutlined />,
 };
 
 const isSafeInternalTarget = (target) => typeof target === 'string' && target.startsWith('/') && !target.startsWith('//');
@@ -242,25 +281,22 @@ function DashboardPage() {
             {/* Header & Consistent Semester Selector */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-3 border-b border-slate-200/80">
                 <div className="min-w-0">
-                    <div className="text-[11px] font-bold font-mono tracking-widest text-[#0F766E] uppercase">
-                        {activeSemester?.academicYear ? `ĐIỀU HÀNH HỌC VỤ • ${activeSemester.academicYear}` : 'ĐIỀU HÀNH HỌC VỤ'}
-                    </div>
-                    <h1 className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight mt-0.5">
+                    <h1 className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight">
                         Trung Tâm Điều Hành & Quản Trị Học Vụ
                     </h1>
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
-                    <QueryPanel query={semestersQuery} empty={semesters.length === 0} emptyDescription="Chưa có học kỳ">
-                        <Select
-                            aria-label="Chọn đợt đồ án"
-                            value={selectedSemesterId}
-                            onChange={setSelectedSemesterId}
-                            className="w-full sm:w-60"
-                            options={semesters.map((s) => ({ value: s.id, label: formatSemesterLabel(s) }))}
-                            placeholder="Chọn đợt đồ án"
-                        />
-                    </QueryPanel>
+                    <Select
+                        aria-label="Chọn đợt đồ án"
+                        value={selectedSemesterId}
+                        onChange={setSelectedSemesterId}
+                        loading={semestersQuery.isPending}
+                        disabled={semesters.length === 0}
+                        className="w-full sm:w-60"
+                        options={semesters.map((s) => ({ value: s.id, label: formatSemesterLabel(s) }))}
+                        placeholder={semesters.length === 0 ? 'Chưa có đợt đồ án' : 'Chọn đợt đồ án'}
+                    />
                     <Button
                         type="primary"
                         icon={<CalendarOutlined aria-hidden="true" />}
@@ -275,24 +311,68 @@ function DashboardPage() {
             {/* Primary Region: Việc cần xử lý */}
             <section aria-labelledby="admin-actions-heading" className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h2 id="admin-actions-heading" className="text-base font-bold text-slate-900">
-                            Việc cần xử lý
-                        </h2>
-                        <p className="text-xs text-slate-600 mt-0.5">
-                            {activeSemester
-                                ? `Các công việc thuộc quyền xử lý trong ${formatSemesterLabel(activeSemester)}`
-                                : 'Chọn đợt đồ án để xem danh sách việc cần xử lý'}
-                        </p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h2 id="admin-actions-heading" className="text-base font-bold text-slate-900">
+                                    Việc cần xử lý
+                                </h2>
+                                {activeSemester && !adminActionsQuery.isPending && !adminActionsQuery.isError && (
+                                    sortedActions.length > 0 ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                            {sortedActions.length} đầu việc đang chờ
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            Đã xử lý hết
+                                        </span>
+                                    )
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                                {activeSemester
+                                    ? `Các công việc thuộc quyền xử lý trong ${formatSemesterLabel(activeSemester)}`
+                                    : 'Tạo hoặc chọn đợt đồ án để theo dõi các đầu việc cần điều hành'}
+                            </p>
+                        </div>
                     </div>
                     {stats?.totalStudents != null && (
-                        <span className="text-xs text-slate-600 font-mono">
-                            Quy mô đợt: <strong className="text-slate-900">{stats.totalStudents} SV</strong>
-                        </span>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-600 font-mono self-start sm:self-auto">
+                            <span>Quy mô đợt:</span>
+                            <strong className="text-slate-900">{stats.totalStudents} SV</strong>
+                        </div>
                     )}
                 </div>
 
-                {adminActionsQuery.isPending && adminActionsQuery.fetchStatus !== 'idle' ? (
+                {!semestersQuery.isPending && semesters.length === 0 ? (
+                    <div className="relative overflow-hidden rounded-2xl border border-dashed border-teal-300/90 bg-gradient-to-br from-teal-50/70 via-white to-slate-50 p-6 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-teal-100/80 border border-teal-200 flex items-center justify-center text-[#0F766E] text-xl shrink-0">
+                                    <CalendarOutlined aria-hidden="true" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-bold text-slate-900">
+                                        Chưa có đợt đồ án nào được thiết lập
+                                    </h3>
+                                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+                                        Hãy khởi tạo đợt đồ án đầu tiên và gán sinh viên, giảng viên tham gia để bắt đầu theo dõi tiến độ và hàng đợi công việc.
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined aria-hidden="true" />}
+                                onClick={() => handleNavigateTarget('/admin/project-periods')}
+                                className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold shrink-0 self-start sm:self-center"
+                            >
+                                Tạo đợt đồ án mới
+                            </Button>
+                        </div>
+                    </div>
+                ) : adminActionsQuery.isPending && adminActionsQuery.fetchStatus !== 'idle' ? (
                     <ContentSkeleton variant="cards" rows={3} />
                 ) : adminActionsQuery.isError ? (
                     <QueryErrorState
@@ -301,8 +381,40 @@ function DashboardPage() {
                         retrying={adminActionsQuery.isFetching}
                     />
                 ) : sortedActions.length === 0 ? (
-                    <div className="bg-white border border-slate-200 rounded-xl p-6">
-                        <EmptyState description="Chưa có việc cần xử lý trong đợt này" />
+                    <div className="relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 p-6 shadow-xs">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 border border-emerald-200 flex items-center justify-center text-emerald-700 text-xl shrink-0">
+                                    <CheckCircleOutlined aria-hidden="true" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-bold text-slate-900">
+                                        Không có công việc nào đang tồn đọng
+                                    </h3>
+                                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+                                        Mọi đầu việc cần xử lý trong đợt này đã hoàn tất hoặc chưa phát sinh hồ sơ mới. Bạn có thể kiểm tra điều phối sinh viên, giảng viên hoặc danh mục đề tài.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                                <Button
+                                    icon={<CalendarOutlined aria-hidden="true" />}
+                                    onClick={() => handleNavigateTarget(selectedSemesterId ? `/admin/project-enrollments?semesterId=${selectedSemesterId}` : '/admin/project-enrollments')}
+                                    className="text-xs font-semibold"
+                                >
+                                    Điều phối SV &amp; GV
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    ghost
+                                    icon={<BookOutlined aria-hidden="true" />}
+                                    onClick={() => handleNavigateTarget(selectedSemesterId ? `/admin/topics?semesterId=${selectedSemesterId}` : '/admin/topics')}
+                                    className="text-xs font-semibold !border-[#0F766E] !text-[#0F766E] hover:!bg-teal-50"
+                                >
+                                    Xem đề tài
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-4">
@@ -310,36 +422,58 @@ function DashboardPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {topActionCards.map((item) => {
                                 const meta = PRIORITY_META[item.priority] || PRIORITY_META.NORMAL;
+                                const actionIcon = ACTION_ICON_MAP[item.kind] || <FileTextOutlined />;
                                 return (
                                     <article
                                         key={item.kind}
-                                        className={`bg-white border border-slate-200 rounded-xl p-4 shadow-xs border-l-4 ${meta.border} flex flex-col justify-between gap-3`}
+                                        className={`group relative overflow-hidden bg-white border border-slate-200/90 ${meta.cardHover} rounded-2xl shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between`}
                                     >
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className={`text-2xl sm:text-3xl font-extrabold font-display font-mono ${meta.badgeClass}`}>
-                                                    {String(item.count).padStart(2, '0')}
-                                                </span>
-                                                <Tag color={meta.color}>{meta.label}</Tag>
+                                        <div className={`h-1 w-full ${meta.topBar}`} />
+                                        <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                                            <div className="space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border ${meta.countBox}`}>
+                                                        <span className="text-base opacity-85">{actionIcon}</span>
+                                                        <span className="text-2xl font-extrabold font-display font-mono leading-none tabular-nums">
+                                                            {String(item.count).padStart(2, '0')}
+                                                        </span>
+                                                    </div>
+                                                    <Tag color={meta.color} className="m-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
+                                                        {meta.label}
+                                                    </Tag>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-[#0F766E] transition-colors">
+                                                        {item.title}
+                                                    </h3>
+                                                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                                                        {item.description}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
-                                            <p className="text-xs text-slate-600">{item.description}</p>
-                                            {item.dueAt && (
-                                                <p className="text-[11px] font-mono text-slate-500">
-                                                    Hạn xử lý: {dayjs(item.dueAt).format('DD/MM/YYYY')}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="pt-1">
-                                            <Button
-                                                type="primary"
-                                                size="small"
-                                                icon={<ArrowRightOutlined aria-hidden="true" />}
-                                                onClick={() => handleNavigateTarget(item.target)}
-                                                className="!bg-[#0F766E] hover:!bg-[#115E59]"
-                                            >
-                                                Xử lý ngay
-                                            </Button>
+
+                                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                                {item.dueAt ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-500">
+                                                        <CalendarOutlined className="text-slate-400" aria-hidden="true" />
+                                                        Hạn: {dayjs(item.dueAt).format('DD/MM/YYYY')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] text-slate-400 font-medium">
+                                                        Sẵn sàng xử lý
+                                                    </span>
+                                                )}
+                                                <Button
+                                                    type="primary"
+                                                    size="small"
+                                                    icon={<ArrowRightOutlined aria-hidden="true" />}
+                                                    onClick={() => handleNavigateTarget(item.target)}
+                                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold rounded-lg"
+                                                >
+                                                    Xử lý ngay
+                                                </Button>
+                                            </div>
                                         </div>
                                     </article>
                                 );
@@ -348,24 +482,28 @@ function DashboardPage() {
 
                         {/* Remaining Action Queue List */}
                         {queuedActions.length > 0 && (
-                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2">
-                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 pb-2 border-b border-slate-100">
-                                    Hàng đợi công việc khác ({queuedActions.length})
-                                </h3>
-                                <div className="divide-y divide-slate-100">
+                            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Hàng đợi công việc khác ({queuedActions.length})
+                                    </h3>
+                                </div>
+                                <div className="space-y-1.5">
                                     {queuedActions.map((item) => {
                                         const meta = PRIORITY_META[item.priority] || PRIORITY_META.NORMAL;
                                         return (
                                             <div
                                                 key={item.kind}
-                                                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                                className="px-3 py-2.5 rounded-xl border border-transparent hover:border-slate-200/80 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                                             >
                                                 <div className="space-y-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <Tag color={meta.color}>{meta.label}</Tag>
+                                                        <Tag color={meta.color} className="m-0 rounded-full text-[11px] font-semibold">
+                                                            {meta.label}
+                                                        </Tag>
                                                         <span className="text-sm font-semibold text-slate-900">{item.title}</span>
-                                                        <span className="text-xs font-mono font-bold text-slate-700">
-                                                            ({item.count})
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-mono font-bold">
+                                                            {item.count} hồ sơ
                                                         </span>
                                                     </div>
                                                     <p className="text-xs text-slate-600">{item.description}</p>
@@ -379,7 +517,7 @@ function DashboardPage() {
                                                     size="small"
                                                     icon={<ArrowRightOutlined aria-hidden="true" />}
                                                     onClick={() => handleNavigateTarget(item.target)}
-                                                    className="shrink-0 self-start sm:self-center"
+                                                    className="shrink-0 self-start sm:self-center rounded-lg font-medium"
                                                 >
                                                     Mở danh sách
                                                 </Button>
@@ -421,6 +559,9 @@ function DashboardPage() {
                             </div>
                         </div>
 
+                        {!selectedSemesterId ? (
+                            <EmptyState description="Chưa có đợt đồ án để hiển thị tổng quan." />
+                        ) : (
                         <QueryPanel query={overviewQuery} empty={!semesterOverview} emptyDescription="Chưa có dữ liệu học kỳ này.">
                             {semesterOverview ? (
                                 <div className="space-y-4 pt-1">
@@ -482,6 +623,7 @@ function DashboardPage() {
                                 <EmptyState description="Chưa có dữ liệu học kỳ này." />
                             )}
                         </QueryPanel>
+                        )}
                     </section>
 
                     {/* Score Distribution (shown from real data only) */}
@@ -501,6 +643,9 @@ function DashboardPage() {
                             </Button>
                         </div>
 
+                        {!selectedSemesterId ? (
+                            <EmptyState description="Chưa có dữ liệu phân bổ điểm." />
+                        ) : (
                         <QueryPanel query={scoresQuery} empty={scores.length === 0} emptyDescription="Chưa có dữ liệu phân bổ điểm cho đợt đồ án này.">
                             {scores.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -523,6 +668,7 @@ function DashboardPage() {
                                 </div>
                             )}
                         </QueryPanel>
+                        )}
                     </section>
                 </div>
 
@@ -570,6 +716,9 @@ function DashboardPage() {
                             </div>
                         </div>
 
+                        {!selectedSemesterId ? (
+                            <EmptyState description="Chưa có hoạt động gần đây." />
+                        ) : (
                         <QueryPanel query={activitiesQuery} empty={activities.length === 0} emptyDescription="Chưa có hoạt động gần đây">
                             <div className="space-y-3">
                                 {(activities || []).slice(0, 5).map((item) => {
@@ -599,6 +748,7 @@ function DashboardPage() {
                                 })}
                             </div>
                         </QueryPanel>
+                        )}
                     </section>
                 </div>
             </div>

@@ -9,6 +9,8 @@
  * Đồng thời xác định waitingStatus và nextAction cho dashboard và trang "Việc của tôi".
  */
 
+const { buildArchiveDeadlineSummary } = require('../utils/defenseTimeWindowUtils');
+
 const CLOSED_SEMESTER_STATUSES = new Set(['COMPLETED', 'CLOSED', 'DRAFT', 'ARCHIVED']);
 
 const WAIT_ACTION_BY_STATUS = {
@@ -701,22 +703,55 @@ function buildStudentWorkState({
 
     // Giai đoạn BM03_PASSED hoặc BM04_REVIEW
     else if (status === 'BM03_PASSED' || status === 'BM04_REVIEW') {
-        doneItems.push({
-            id: 'done-bm03',
-            kind: 'BM03',
-            title: 'Nhật ký & Đánh giá tiến độ (BM03)',
-            description: 'Đã hoàn thành các mốc tiến độ BM03',
-            bucket: 'DONE',
-            openAt: null,
-            dueAt: null,
-            target: '/student/submissions?work=BM03',
-            canAct: false,
-            sourceStatus: status,
-            completedAt: activeBm03?.studentAckAt || activeBm03?.updatedAt || registration.updatedAt || currentNow,
-        });
+        doneItems.push(
+            {
+                id: 'done-bm01',
+                kind: 'BM01_INITIAL',
+                title: 'Đề cương nghiên cứu chi tiết (BM01)',
+                description: 'Đề cương BM01 đã được duyệt đạt',
+                bucket: 'DONE',
+                openAt: semester?.outlineSubmissionOpenAt || null,
+                dueAt: semester?.outlineSubmissionDeadline || null,
+                target: '/student/submissions?work=BM01_INITIAL',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeOutline?.reviewedAt || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm02',
+                kind: 'BM02',
+                title: 'Đơn đăng ký thực hiện đề tài (BM02)',
+                description: 'Đã ban hành quyết định giao đề tài',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM02',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: registration.decisionDate || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm03',
+                kind: 'BM03',
+                title: 'Nhật ký & Đánh giá tiến độ (BM03)',
+                description: 'Đã hoàn thành các mốc tiến độ BM03',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM03',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeBm03?.studentAckAt || activeBm03?.updatedAt || registration.updatedAt || currentNow,
+            },
+        );
 
-        // BM04 chỉ hiển thị trong DONE khi GVHD đã lập/ký
-        if (activeBm04?.signedAt || activeBm04?.status === 'COMPLETED') {
+        // BM04 chỉ hiển thị trong DONE khi GVHD đã ký nộp chính thức (không tính bản nháp DRAFT)
+        const isBm04Done = Boolean(
+            activeBm04
+            && activeBm04.status !== 'DRAFT'
+            && (activeBm04.isLocked || ['SIGNED_APPROVED', 'COMPLETED', 'PENDING_INSTITUTE_REVIEW'].includes(activeBm04.status)),
+        );
+        if (isBm04Done) {
             doneItems.push({
                 id: 'done-bm04',
                 kind: 'BM04',
@@ -741,7 +776,54 @@ function buildStudentWorkState({
 
     // Giai đoạn trước bảo vệ (DEFENSE_READY, DEFENSE_ELIGIBLE, ELIGIBLE_BY_INSTITUTE)
     else if (['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE'].includes(status)) {
-        if (activeBm04?.signedAt || activeBm04?.status === 'COMPLETED') {
+        doneItems.push(
+            {
+                id: 'done-bm01',
+                kind: 'BM01_INITIAL',
+                title: 'Đề cương nghiên cứu chi tiết (BM01)',
+                description: 'Đề cương BM01 đã được duyệt đạt',
+                bucket: 'DONE',
+                openAt: semester?.outlineSubmissionOpenAt || null,
+                dueAt: semester?.outlineSubmissionDeadline || null,
+                target: '/student/submissions?work=BM01_INITIAL',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeOutline?.reviewedAt || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm02',
+                kind: 'BM02',
+                title: 'Đơn đăng ký thực hiện đề tài (BM02)',
+                description: 'Đã ban hành quyết định giao đề tài',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM02',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: registration.decisionDate || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm03',
+                kind: 'BM03',
+                title: 'Nhật ký & Đánh giá tiến độ (BM03)',
+                description: 'Đã hoàn thành các mốc tiến độ BM03',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM03',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeBm03?.studentAckAt || activeBm03?.updatedAt || registration.updatedAt || currentNow,
+            },
+        );
+
+        const isBm04Done = Boolean(
+            activeBm04
+            && activeBm04.status !== 'DRAFT'
+            && (activeBm04.isLocked || ['SIGNED_APPROVED', 'COMPLETED', 'PENDING_INSTITUTE_REVIEW'].includes(activeBm04.status)),
+        );
+        if (isBm04Done) {
             doneItems.push({
                 id: 'done-bm04',
                 kind: 'BM04',
@@ -775,6 +857,34 @@ function buildStudentWorkState({
 
     // Giai đoạn chờ kết quả chấm bảo vệ (AWAITING_SCORES, AWAITING_FINAL_APPROVAL, SUBMITTED)
     else if (['AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'SUBMITTED'].includes(status)) {
+        doneItems.push(
+            {
+                id: 'done-bm01',
+                kind: 'BM01_INITIAL',
+                title: 'Đề cương nghiên cứu chi tiết (BM01)',
+                description: 'Đề cương BM01 đã được duyệt đạt',
+                bucket: 'DONE',
+                openAt: semester?.outlineSubmissionOpenAt || null,
+                dueAt: semester?.outlineSubmissionDeadline || null,
+                target: '/student/submissions?work=BM01_INITIAL',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeOutline?.reviewedAt || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm02',
+                kind: 'BM02',
+                title: 'Đơn đăng ký thực hiện đề tài (BM02)',
+                description: 'Đã ban hành quyết định giao đề tài',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM02',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: registration.decisionDate || registration.updatedAt || currentNow,
+            },
+        );
         waitingStatus = {
             title: WAIT_ACTION_BY_STATUS[status].title,
             description: WAIT_ACTION_BY_STATUS[status].description,
@@ -784,6 +894,72 @@ function buildStudentWorkState({
 
     // Giai đoạn sau bảo vệ -> Nộp lưu chiểu (DEFENSE_PASSED, ARCHIVE_INCOMPLETE, ARCHIVE_REJECTED)
     else if (['DEFENSE_PASSED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(status)) {
+        doneItems.push(
+            {
+                id: 'done-bm01',
+                kind: 'BM01_INITIAL',
+                title: 'Đề cương nghiên cứu chi tiết (BM01)',
+                description: 'Đề cương BM01 đã được duyệt đạt',
+                bucket: 'DONE',
+                openAt: semester?.outlineSubmissionOpenAt || null,
+                dueAt: semester?.outlineSubmissionDeadline || null,
+                target: '/student/submissions?work=BM01_INITIAL',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeOutline?.reviewedAt || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm02',
+                kind: 'BM02',
+                title: 'Đơn đăng ký thực hiện đề tài (BM02)',
+                description: 'Đã ban hành quyết định giao đề tài',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM02',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: registration.decisionDate || registration.updatedAt || currentNow,
+            },
+            {
+                id: 'done-bm03',
+                kind: 'BM03',
+                title: 'Nhật ký & Đánh giá tiến độ (BM03)',
+                description: 'Đã hoàn thành các mốc tiến độ BM03',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM03',
+                canAct: false,
+                sourceStatus: status,
+                completedAt: activeBm03?.studentAckAt || activeBm03?.updatedAt || registration.updatedAt || currentNow,
+            },
+        );
+        const isBm04Done = Boolean(
+            activeBm04
+            && activeBm04.status !== 'DRAFT'
+            && (activeBm04.isLocked || ['SIGNED_APPROVED', 'COMPLETED', 'PENDING_INSTITUTE_REVIEW'].includes(activeBm04.status)),
+        );
+        if (isBm04Done) {
+            doneItems.push({
+                id: 'done-bm04',
+                kind: 'BM04',
+                title: 'Phiếu nhận xét của người hướng dẫn (BM04)',
+                description: 'Giảng viên hướng dẫn đã đánh giá điều kiện bảo vệ',
+                bucket: 'DONE',
+                openAt: null,
+                dueAt: null,
+                target: '/student/submissions?work=BM04',
+                canAct: false,
+                sourceStatus: activeBm04.status || 'COMPLETED',
+                completedAt: activeBm04.signedAt || activeBm04.createdAt || currentNow,
+            });
+        }
+        const archiveSummary = buildArchiveDeadlineSummary(
+            { ...registration, semester: registration?.semester || semester },
+            activeArchive,
+            currentNow
+        );
         readyItems.push({
             id: 'work-archive',
             kind: 'SUBMIT_ARCHIVE',
@@ -792,17 +968,29 @@ function buildStudentWorkState({
                 'Hoàn thiện và nộp đầy đủ tài liệu lưu chiểu sau bảo vệ để làm thủ tục công nhận hoàn thành đồ án.',
             bucket: 'READY',
             openAt: null,
-            dueAt: activeArchive?.windowClosesAt || pickNextTaskDueDate(taskList) || null,
+            dueAt:
+                archiveSummary.timeWindows.windowClosesAt
+                || archiveSummary.timeWindows.softPreparationDeadlineAt
+                || pickNextTaskDueDate(taskList)
+                || null,
             target: '/student/submissions?work=SUBMIT_ARCHIVE',
             canAct: true,
             sourceStatus: status,
             completedAt: null,
+            meta: {
+                archiveSummary,
+            },
         });
     }
 
     // Giai đoạn DEFENDED
     else if (status === 'DEFENDED') {
         if (allowedSet.has('SUBMIT_ARCHIVE')) {
+            const archiveSummary = buildArchiveDeadlineSummary(
+                { ...registration, semester: registration?.semester || semester },
+                activeArchive,
+                currentNow
+            );
             readyItems.push({
                 id: 'work-archive',
                 kind: 'SUBMIT_ARCHIVE',
@@ -811,11 +999,18 @@ function buildStudentWorkState({
                     'Bạn đã hoàn thành bảo vệ. Hãy nộp đầy đủ hồ sơ lưu chiểu số để làm thủ tục công nhận hoàn thành.',
                 bucket: 'READY',
                 openAt: null,
-                dueAt: activeArchive?.windowClosesAt || pickNextTaskDueDate(taskList) || null,
+                dueAt:
+                    archiveSummary.timeWindows.windowClosesAt
+                    || archiveSummary.timeWindows.softPreparationDeadlineAt
+                    || pickNextTaskDueDate(taskList)
+                    || null,
                 target: '/student/submissions?work=SUBMIT_ARCHIVE',
                 canAct: true,
                 sourceStatus: status,
                 completedAt: null,
+                meta: {
+                    archiveSummary,
+                },
             });
         } else {
             readyItems.push({

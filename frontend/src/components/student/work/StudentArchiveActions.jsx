@@ -31,6 +31,7 @@ import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
 import archiveService from '../../../services/archiveService';
 import ArchiveSubmissionModal from '../../forms/ArchiveSubmissionModal';
+import ArchiveDeadlineBanner from '../../forms/ArchiveDeadlineBanner';
 import ClearanceCertificateModal from '../../forms/ClearanceCertificateModal';
 import { queryKeys } from '../../../query/queryKeys';
 import { dashboardKeys } from '../../../queries/dashboardQueries';
@@ -269,7 +270,19 @@ export default function StudentArchiveActions({
     };
 
     return (
-        <div className="student-archive-actions py-2" data-testid="student-archive-actions">
+        <div className="student-archive-actions py-2 space-y-4" data-testid="student-archive-actions">
+            {(isPreDefenseEligible || isFinalArchiveEligible) && (
+                <ArchiveDeadlineBanner
+                    dossier={dossierData}
+                    archive={resolvedArchive}
+                    registrationStatus={registration?.status}
+                    variant="prominent"
+                    onAction={() => setSubmissionModalOpen(true)}
+                    actionLabel="Bổ sung tài liệu ngay"
+                    showAction={registration?.status !== 'COMPLETED'}
+                />
+            )}
+
             {/* Action Bar */}
             <Space orientation="horizontal" size="small" wrap>
                 {/* Pre-Defense Archive Submission Button */}
@@ -353,13 +366,13 @@ export default function StudentArchiveActions({
                     </div>
                 }
                 width={680}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 pt-2">
                     <Alert
                         type="info"
                         showIcon
-                        message="Yêu cầu nộp tài liệu trước bảo vệ"
+                        title="Yêu cầu nộp tài liệu trước bảo vệ"
                         description="Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt Phiếu nhận xét (BM04)."
                     />
 
@@ -441,13 +454,13 @@ export default function StudentArchiveActions({
                     </div>
                 }
                 width={720}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 pt-2">
                     <Alert
                         type="warning"
                         showIcon
-                        message="Lưu ý nộp lưu chiểu chính thức"
+                        title="Lưu ý nộp lưu chiểu chính thức"
                         description="Hồ sơ lưu chiểu gồm 4 thành phần: Báo cáo toàn văn PDF, Slide thuyết trình, Mã nguồn hoàn chỉnh và Video demo sản phẩm. Sau khi nộp, hồ sơ sẽ được GVHD và Giáo vụ thẩm định trước khi cấp Giấy xác nhận hoàn thành."
                     />
 
@@ -541,7 +554,7 @@ export default function StudentArchiveActions({
                     </div>
                 }
                 width={700}
-                destroyOnClose
+                destroyOnHidden
             >
                 {resolvedArchive ? (
                     <div className="space-y-4 pt-2">
@@ -612,7 +625,7 @@ export default function StudentArchiveActions({
                     <Alert
                         type="info"
                         showIcon
-                        message="Chưa có dữ liệu hồ sơ lưu chiểu"
+                        title="Chưa có dữ liệu hồ sơ lưu chiểu"
                         description="Hồ sơ lưu chiểu sẽ hiển thị chi tiết sau khi sinh viên gửi các tệp báo cáo."
                     />
                 )}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Table,
     Tag,
@@ -50,6 +51,7 @@ export default function PublicationQueue({
     canViewPublications = false,
     canPublishResults = false,
 }) {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const councilMutation = useCouncilMutation(scope, semesterId);
 
@@ -205,7 +207,7 @@ export default function PublicationQueue({
                     <Button
                         type={canPublishResults ? 'primary' : 'default'}
                         icon={canPublishResults ? <SendOutlined /> : <EyeOutlined />}
-                        onClick={() => setPublicationModalOpen(true)}
+                        onClick={() => navigate('/admin/grading?tab=publish')}
                     >
                         {canPublishResults ? 'Mở bảng công bố kết quả' : 'Xem trước công bố'}
                     </Button>
@@ -217,6 +219,7 @@ export default function PublicationQueue({
                 columns={columns}
                 dataSource={items}
                 loading={loading}
+                locale={{ emptyText: 'Không có hồ sơ nào cần xử lý trong hàng đợi.' }}
                 rowClassName={(record) =>
                     selectedKind &&
                     selectedResourceId &&

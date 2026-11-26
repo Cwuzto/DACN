@@ -39,6 +39,81 @@ import {
 const { TextArea } = Input;
 const { Text } = Typography;
 
+const BM02_NOTE_FIELD_LABELS = {
+    bm01ApprovedTitle: 'Tên đề tài BM01 đã duyệt',
+    bm02ProposedTitle: 'Tên đề tài đề xuất (BM02)',
+    titleChangeReason: 'Lý do điều chỉnh tên đề tài',
+    mainTasks: 'Nhiệm vụ chính',
+    timelineMilestones: 'Các mốc thời gian & tiến độ',
+    specialRequirements: 'Yêu cầu kỹ thuật đặc thù',
+    topicTitle: 'Tên đề tài',
+    objectives: 'Mục tiêu & Phạm vi nghiên cứu',
+    technologies: 'Công nghệ & Phương pháp',
+    deliverables: 'Sản phẩm dự kiến',
+    summary: 'Nội dung tóm tắt',
+    note: 'Ghi chú',
+    notes: 'Ghi chú',
+    reason: 'Lý do',
+};
+
+const IGNORED_META_KEYS = new Set(['taskType', 'formCode', 'submittedAt']);
+
+const renderStudentSubmissionNotes = (rawContent) => {
+    if (rawContent == null) return null;
+    let parsed = null;
+    if (typeof rawContent === 'object' && !Array.isArray(rawContent)) {
+        parsed = rawContent;
+    } else if (typeof rawContent === 'string') {
+        const trimmed = rawContent.trim();
+        if (!trimmed) return null;
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            try {
+                const candidate = JSON.parse(trimmed);
+                if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+                    parsed = candidate;
+                }
+            } catch {
+                parsed = null;
+            }
+        }
+    }
+
+    if (parsed) {
+        const source = parsed.fields && typeof parsed.fields === 'object' && !Array.isArray(parsed.fields)
+            ? parsed.fields
+            : parsed;
+        const entries = Object.entries(source).filter(([key, val]) => {
+            if (IGNORED_META_KEYS.has(key)) return false;
+            if (val === null || val === undefined) return false;
+            if (typeof val === 'string' && !val.trim()) return false;
+            return true;
+        });
+
+        if (entries.length > 0) {
+            return (
+                <div className="space-y-1.5">
+                    {entries.map(([key, val]) => {
+                        const label = BM02_NOTE_FIELD_LABELS[key] || key;
+                        const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val).trim();
+                        return (
+                            <div key={key} className="text-xs text-slate-700 leading-relaxed">
+                                <span className="font-semibold text-slate-800">{label}: </span>
+                                <span className="whitespace-pre-wrap">{displayVal}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+    }
+
+    return (
+        <p className="text-xs text-slate-600 whitespace-pre-wrap m-0">
+            {String(rawContent)}
+        </p>
+    );
+};
+
 export default function BM02ReviewDrawer({
     open,
     onClose,
@@ -103,7 +178,10 @@ export default function BM02ReviewDrawer({
                 expectedPayloadHash: verification?.payloadHash || submission?.payloadHash || null,
             });
             message.success('GVHD đã ký xác nhận đơn BM02.');
-            if (onSuccess) onSuccess();
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                onSuccess ? Promise.resolve(onSuccess()) : Promise.resolve(),
+            ]);
         } catch (error) {
             message.error(error?.message || 'Không thể ký xác nhận GVHD.');
         }
@@ -117,7 +195,10 @@ export default function BM02ReviewDrawer({
                 expectedPayloadHash: verification?.payloadHash || submission?.payloadHash || null,
             });
             message.success('Phụ trách bộ môn đã ký xác nhận đơn BM02.');
-            if (onSuccess) onSuccess();
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                onSuccess ? Promise.resolve(onSuccess()) : Promise.resolve(),
+            ]);
         } catch (error) {
             message.error(error?.message || 'Không thể ký xác nhận bộ môn.');
         }
@@ -214,8 +295,8 @@ export default function BM02ReviewDrawer({
             )}
             open={open}
             onClose={onClose}
-            width={580}
-            destroyOnClose
+            size={580}
+            destroyOnHidden
             footer={(
                 <div className="flex justify-end gap-2 py-1">
                     <Button onClick={onClose} disabled={submitting}>
@@ -302,14 +383,12 @@ export default function BM02ReviewDrawer({
                     )}
                     {submission?.content && (
                         <Descriptions.Item label={<Text strong>Ghi chú sinh viên</Text>}>
-                            <p className="text-xs text-slate-600 whitespace-pre-wrap m-0">
-                                {submission.content}
-                            </p>
+                            {renderStudentSubmissionNotes(submission.content)}
                         </Descriptions.Item>
                     )}
                 </Descriptions>
 
-                <Divider orientation="left" className="!my-2 text-xs font-bold text-slate-500">
+                <Divider titlePlacement="left" className="!my-2 text-xs font-bold text-slate-500">
                     CHUỖI XÁC NHẬN BM02 (3 BƯỚC)
                 </Divider>
 
@@ -322,7 +401,7 @@ export default function BM02ReviewDrawer({
                         <Alert
                             type="error"
                             showIcon
-                            message="Không thể tải trạng thái xác thực BM02"
+                            title="Không thể tải trạng thái xác thực BM02"
                             description={verificationQuery.error?.message || 'Vui lòng thử lại.'}
                         />
                     ) : (
@@ -380,14 +459,14 @@ export default function BM02ReviewDrawer({
                     <Alert
                         type="warning"
                         showIcon
-                        message="Chưa thể thẩm định học vụ"
+                        title="Chưa thể thẩm định học vụ"
                         description="Hồ sơ BM02 mới chưa đủ 3 xác nhận hợp lệ (Sinh viên → GVHD → Phụ trách bộ môn). Vui lòng hoàn tất các bước xác nhận trước khi thẩm định."
                         className="text-xs"
                     />
                 )}
 
                 <Alert
-                    message="Quy chuẩn Thẩm định Viện"
+                    title="Quy chuẩn Thẩm định Viện"
                     description="Viện trưởng / Đại diện Viện thẩm định chỉ có 2 hành động hợp lệ: Phê duyệt nếu đề cương đạt chuẩn, hoặc Yêu cầu chỉnh sửa kèm lý do cụ thể. Sinh viên sẽ nhận được thông báo để chỉnh sửa trong thời hạn quy định."
                     type="info"
                     showIcon
@@ -395,7 +474,7 @@ export default function BM02ReviewDrawer({
                     className="text-xs"
                 />
 
-                <Divider orientation="left" className="!my-2 text-xs font-bold text-slate-500">
+                <Divider titlePlacement="left" className="!my-2 text-xs font-bold text-slate-500">
                     KẾT QUẢ THẨM ĐỊNH
                 </Divider>
 

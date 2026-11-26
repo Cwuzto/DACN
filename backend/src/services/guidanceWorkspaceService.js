@@ -298,8 +298,11 @@ const BM02A_STATUS_MAP = {
     EXPIRED: { status: 'EXPIRED', statusLabel: 'Hết hạn', nextActor: null },
 };
 
+const UNSUBMITTED_BM02A_STATUSES = new Set(['STUDENT_PREPARING', 'DRAFT']);
+
 const buildBM02ASummary = (registration, ctx) => {
-    const requests = Array.isArray(registration?.bm02aRequests) ? registration.bm02aRequests : [];
+    const rawRequests = Array.isArray(registration?.bm02aRequests) ? registration.bm02aRequests : [];
+    const requests = rawRequests.filter((req) => req && req.status && !UNSUBMITTED_BM02A_STATUSES.has(req.status));
     if (requests.length === 0) return null;
 
     const sorted = [...requests].sort(

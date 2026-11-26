@@ -268,6 +268,8 @@ const reviseBM02AController = async (req, res, next) => {
 const checkBM02AOwnership = (registration, user) => {
     if (!registration || !user) return false;
 
+    if (user.role === 'ADMIN') return true;
+
     if (user.role === 'STUDENT') {
         const studentId = registration.studentId || registration.student?.id;
         return studentId === user.id;
@@ -284,6 +286,8 @@ const checkBM02AOwnership = (registration, user) => {
         'DECISION_AMENDMENT_SIGN',
         'BM02_REVIEW',
         'PROJECT_ASSIGNMENT_PUBLISH',
+        'VIEW_PROJECT_OVERSIGHT',
+        'DEFENSE_SCORE_VIEW',
     ];
     const hasPermission = Array.isArray(user.permissions) && user.permissions.some((p) => allowedPermissions.includes(p));
     return Boolean(hasPermission);

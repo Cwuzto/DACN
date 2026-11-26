@@ -38,6 +38,7 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
 import GradeDistributionBarChart from '../../components/charts/GradeDistributionBarChart';
 import GradeDonutChart from '../../components/charts/GradeDonutChart';
 import FunnelFlowChart from '../../components/charts/FunnelFlowChart';
@@ -427,63 +428,60 @@ export default function AcademicReportsPage() {
     }, [funnel]);
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-            {/* Top Bar: Tiêu đề & Bộ điều khiển */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center space-x-2">
-                        <BarChartOutlined className="text-teal-600" />
-                        <span>Báo Cáo & Thống Kê Học Vụ</span>
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-1">
-                        Trung tâm phân tích kết quả học vụ, phổ điểm, phễu tiến độ và khối lượng hướng dẫn tốt nghiệp
-                    </p>
-                </div>
+        <div className="space-y-5">
+            <PageHeader
+                icon={<BarChartOutlined />}
+                accent="amber"
+                title="Báo cáo & Thống kê Học vụ"
+                subtitle="Trung tâm phân tích kết quả học vụ, phổ điểm, phễu tiến độ và khối lượng hướng dẫn tốt nghiệp"
+                actions={
+                    <>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={loadReportData}
+                            loading={overviewQuery.isFetching || workloadQuery.isFetching}
+                            disabled={!selectedSemesterId}
+                        >
+                            Làm mới
+                        </Button>
+                        <Button
+                            type="primary"
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportExcel}
+                            loading={exporting}
+                        >
+                            Xuất Báo cáo Excel
+                        </Button>
+                    </>
+                }
+            />
 
+            {/* Thanh bộ lọc học kỳ & chuyên ngành */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Phạm vi phân tích số liệu
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
-                    {/* Chọn học kỳ */}
                     <Select
                         placeholder="Chọn học kỳ"
                         value={selectedSemesterId}
                         onChange={setSelectedSemesterId}
-                        className="w-56"
+                        className="w-60"
                         options={semesters.map((s) => ({
                             value: s.id,
                             label: `${s.name}${['ONGOING', 'REGISTRATION', 'DEFENSE'].includes(s.status) ? ' (Hiện tại)' : ''}`,
                         }))}
                     />
 
-                    {/* Lọc chuyên ngành */}
                     <Select
                         value={selectedMajor}
                         onChange={setSelectedMajor}
-                        className="w-48"
+                        className="w-52"
                         options={[
                             { value: 'ALL', label: 'Tất cả chuyên ngành' },
                             ...availableMajors.map((m) => ({ value: m, label: m })),
                         ]}
                     />
-
-                    {/* Nút Làm mới */}
-                    <Button
-                        icon={<ReloadOutlined />}
-                        onClick={loadReportData}
-                        loading={overviewQuery.isFetching || workloadQuery.isFetching}
-                        disabled={!selectedSemesterId}
-                    >
-                        Làm mới
-                    </Button>
-
-                    {/* Nút Xuất Báo Cáo Excel */}
-                    <Button
-                        type="primary"
-                        icon={<DownloadOutlined />}
-                        onClick={handleExportExcel}
-                        loading={exporting}
-                        className="bg-teal-600 hover:bg-teal-700"
-                    >
-                        Xuất Báo Cáo Excel
-                    </Button>
                 </div>
             </div>
 
@@ -492,10 +490,10 @@ export default function AcademicReportsPage() {
             <QueryPanel query={overviewQuery}>
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} lg={6}>
-                    <Card size="small" className="rounded-xl border border-blue-200 bg-blue-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                    <Card size="small" className="h-full rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50/60 via-white to-white shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '16px 18px' } }}>
                         <div className="flex items-start justify-between gap-2">
                             <div>
-                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng SV Tham Gia</div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng SV tham gia</div>
                                 <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : kpis.totalStudents || 0}
                                 </div>
@@ -503,18 +501,18 @@ export default function AcademicReportsPage() {
                                     Sinh viên đăng ký thực hiện đồ án
                                 </div>
                             </div>
-                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                <UserOutlined className="text-blue-600 text-lg" />
+                            <div className="w-10 h-10 rounded-xl bg-sky-100/80 border border-sky-200/70 flex items-center justify-center shrink-0">
+                                <UserOutlined className="text-sky-700 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card size="small" className="rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                    <Card size="small" className="h-full rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-white shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '16px 18px' } }}>
                         <div className="flex items-start justify-between gap-2">
                             <div>
-                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ Lệ Hoàn Thành</div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ lệ hoàn thành</div>
                                 <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : `${kpis.completionRate ?? 0}%`}
                                 </div>
@@ -522,18 +520,18 @@ export default function AcademicReportsPage() {
                                     {kpis.completedCount || 0} / {kpis.totalStudents || 0} sinh viên hoàn thành
                                 </div>
                             </div>
-                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                <CheckCircleOutlined className="text-emerald-600 text-lg" />
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100/80 border border-emerald-200/70 flex items-center justify-center shrink-0">
+                                <CheckCircleOutlined className="text-emerald-700 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card size="small" className="rounded-xl border border-teal-200 bg-teal-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                    <Card size="small" className="h-full rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-white shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '16px 18px' } }}>
                         <div className="flex items-start justify-between gap-2">
                             <div>
-                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Điểm Trung Bình Viện</div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Điểm trung bình Viện</div>
                                 <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : (kpis.averageScore !== undefined ? Number(kpis.averageScore).toFixed(2) : '0.00')}
                                 </div>
@@ -541,18 +539,18 @@ export default function AcademicReportsPage() {
                                     Min: {kpis.minScore ?? 0} — Max: {kpis.maxScore ?? 0}
                                 </div>
                             </div>
-                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                <BarChartOutlined className="text-teal-600 text-lg" />
+                            <div className="w-10 h-10 rounded-xl bg-teal-100/80 border border-teal-200/70 flex items-center justify-center shrink-0">
+                                <BarChartOutlined className="text-teal-700 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card size="small" className="rounded-xl border border-amber-200 bg-amber-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                    <Card size="small" className="h-full rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 via-white to-white shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '16px 18px' } }}>
                         <div className="flex items-start justify-between gap-2">
                             <div>
-                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ Lệ Xuất Sắc & Giỏi</div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ lệ Xuất sắc & Giỏi</div>
                                 <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : `${excellenceStats.rate}%`}
                                 </div>
@@ -560,8 +558,8 @@ export default function AcademicReportsPage() {
                                     Xuất sắc: {excellenceStats.excellentCount} | Giỏi: {excellenceStats.goodCount}
                                 </div>
                             </div>
-                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                <TrophyOutlined className="text-amber-600 text-lg" />
+                            <div className="w-10 h-10 rounded-xl bg-amber-100/80 border border-amber-200/70 flex items-center justify-center shrink-0">
+                                <TrophyOutlined className="text-amber-700 text-lg" />
                             </div>
                         </div>
                     </Card>
@@ -570,7 +568,7 @@ export default function AcademicReportsPage() {
             </QueryPanel>
 
             {/* Hệ thống 4 Tabs Chuyên Sâu */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
                 <Tabs
                     defaultActiveKey="1"
                     items={[
@@ -659,7 +657,7 @@ export default function AcademicReportsPage() {
                                             type="warning"
                                             showIcon
                                             icon={<WarningOutlined />}
-                                            message="Phát hiện điểm nghẽn học vụ"
+                                            title="Phát hiện điểm nghẽn học vụ"
                                             description={`Giai đoạn "${funnelDropoffAnalysis.stage}" ghi nhận mức độ hao hụt cao nhất với ${funnelDropoffAnalysis.dropCount} sinh viên không đạt yêu cầu (${funnelDropoffAnalysis.dropRate}% so với mốc trước). Cần chú ý rà soát chất lượng hướng dẫn và hồ sơ tại giai đoạn này.`}
                                             className="rounded-lg"
                                         />

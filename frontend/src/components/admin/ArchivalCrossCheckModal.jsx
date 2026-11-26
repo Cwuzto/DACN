@@ -107,7 +107,7 @@ export default function ArchivalCrossCheckModal({
                 </Button>,
             ]}
         >
-            <Spin spinning={loading} tip="AI đang đọc và đối soát trang bìa tài liệu...">
+            <Spin spinning={loading} description="AI đang đọc và đối soát trang bìa tài liệu...">
                 {data ? (
                     <div className="py-2 space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                         {/* Status Alert Banner */}
@@ -116,7 +116,7 @@ export default function ArchivalCrossCheckModal({
                                 type="success"
                                 showIcon
                                 icon={<CheckCircleOutlined />}
-                                message="Hồ sơ lưu chiểu hoàn toàn khớp với văn bản pháp lý"
+                                title="Hồ sơ lưu chiểu hoàn toàn khớp với văn bản pháp lý"
                                 description={guidance || 'Tên đề tài, thông tin sinh viên và GVHD hoàn toàn thống nhất. Đủ điều kiện để Giáo vụ duyệt thủ tục.'}
                             />
                         ) : (
@@ -124,7 +124,7 @@ export default function ArchivalCrossCheckModal({
                                 type="error"
                                 showIcon
                                 icon={<CloseCircleOutlined />}
-                                message="Phát hiện điểm sai lệch trong hồ sơ lưu chiểu"
+                                title="Phát hiện điểm sai lệch trong hồ sơ lưu chiểu"
                                 description={guidance || 'Tài liệu nộp có điểm khác biệt so với văn bản pháp lý. Vui lòng yêu cầu sinh viên kiểm tra lại.'}
                             />
                         )}

@@ -566,7 +566,7 @@ export default function SubmissionPage() {
                     type="error"
                     showIcon
                     banner
-                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Đề tài đã dừng thực hiện trong đợt này</span>}
+                    title={<span style={{ fontWeight: 700, fontSize: 14 }}>Đề tài đã dừng thực hiện trong đợt này</span>}
                     description="Đề cương đồ án không đạt yêu cầu xét duyệt của Hội đồng hoặc quá hạn nộp lại đề cương v2 theo quy định học vụ của Viện."
                     style={{ marginBottom: 20, borderRadius: 8 }}
                 />
@@ -577,7 +577,7 @@ export default function SubmissionPage() {
                 <Alert
                     type="warning"
                     showIcon
-                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
+                    title={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
                     description={
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1.5">
                             <div>
@@ -1384,7 +1384,7 @@ export default function SubmissionPage() {
                         <Alert
                             type="warning"
                             showIcon
-                            message="Đang có đề nghị dừng đề tài chờ Viện thẩm định (STOP_REVIEW_PENDING)"
+                            title="Đang có đề nghị dừng đề tài chờ Viện thẩm định (STOP_REVIEW_PENDING)"
                             description="Nhật ký BM03 đang ở chế độ chỉ đọc trong thời gian Hội đồng/Viện xem xét đề nghị dừng."
                             style={{ marginBottom: 16 }}
                         />
@@ -1393,7 +1393,7 @@ export default function SubmissionPage() {
                         <Alert
                             type="error"
                             showIcon
-                            message="Hồ sơ BM03 đã đóng sớm"
+                            title="Hồ sơ BM03 đã đóng sớm"
                             description="Đề tài đã dừng theo quyết định thẩm định của Viện."
                             style={{ marginBottom: 16 }}
                         />
@@ -1544,7 +1544,7 @@ export default function SubmissionPage() {
                     <Alert
                         type="info"
                         showIcon
-                        message="Thời hạn phản hồi: 48 giờ"
+                        title="Thời hạn phản hồi: 48 giờ"
                         description={`Biểu mẫu BM03 đã được GVHD hoàn tất và ký số lúc ${bm03Record?.advisorSignedAt ? dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm') : '---'}. Sinh viên đọc kỹ nội dung và chọn 1 trong 3 hình thức phản hồi dưới đây.`}
                     />
 

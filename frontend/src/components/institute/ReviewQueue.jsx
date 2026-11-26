@@ -83,6 +83,22 @@ export default function ReviewQueue({
         ]);
     };
 
+    const handleBm02DrawerSuccess = async () => {
+        const regId = selectedBm02Reg?.id;
+        await refreshAllReviewCaches();
+        if (regId) {
+            try {
+                const res = await registrationService.getRegistrationById(regId);
+                const freshReg = res?.data || res;
+                if (freshReg) {
+                    setSelectedBm02Reg(freshReg);
+                }
+            } catch {
+                // Giữ dữ liệu hiện tại nếu refetch chi tiết gặp lỗi mạng tạm thời
+            }
+        }
+    };
+
     const handleOpenBm02 = async (item) => {
         const fallbackReg = {
             id: item.registrationId,
@@ -355,7 +371,7 @@ export default function ReviewQueue({
                     setSelectedBm02Reg(null);
                 }}
                 registration={selectedBm02Reg}
-                onSuccess={refreshAllReviewCaches}
+                onSuccess={handleBm02DrawerSuccess}
             />
 
             <CheckpointAppealReviewModal

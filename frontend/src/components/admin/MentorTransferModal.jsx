@@ -86,12 +86,12 @@ export default function MentorTransferModal({
             okButtonProps={{
                 className: '!bg-[#0F766E] hover:!bg-[#0D655E] text-white font-medium border-0 shadow-sm',
             }}
-            destroyOnClose
+            destroyOnHidden
             width={560}
         >
             <div className="space-y-4 pt-2">
                 <Alert
-                    message="Cân nhắc kỹ trước khi thực hiện"
+                    title="Cân nhắc kỹ trước khi thực hiện"
                     description="Hành động này sẽ thay đổi toàn bộ quyền phê duyệt biểu mẫu, đánh giá tiến độ và nhận xét bảo vệ của đề tài sang GVHD mới."
                     type="warning"
                     showIcon

@@ -86,29 +86,36 @@ const getAllTopics = async (req, res, next) => {
         if (mentorId) conditions.push({ mentorId: parseInt(mentorId, 10) });
         if (projectCatalogId) conditions.push({ projectCatalogId: parseInt(projectCatalogId, 10) });
         if (search) {
-            conditions.push({
-                OR: [
-                    { title: { contains: search, mode: 'insensitive' } },
-                    {
-                        registrations: {
-                            some: {
-                                student: {
-                                    fullName: { contains: search, mode: 'insensitive' },
-                                },
+            const trimmedSearch = String(search).trim();
+            const orConditions = [
+                { title: { contains: trimmedSearch, mode: 'insensitive' } },
+                {
+                    registrations: {
+                        some: {
+                            student: {
+                                fullName: { contains: trimmedSearch, mode: 'insensitive' },
                             },
                         },
                     },
-                    {
-                        registrations: {
-                            some: {
-                                student: {
-                                    code: { contains: search, mode: 'insensitive' },
-                                },
+                },
+                {
+                    registrations: {
+                        some: {
+                            student: {
+                                code: { contains: trimmedSearch, mode: 'insensitive' },
                             },
                         },
                     },
-                ],
-            });
+                },
+            ];
+            const dtMatch = trimmedSearch.match(/^(?:DT-?)?(\d+)$/i);
+            if (dtMatch) {
+                const parsedId = parseInt(dtMatch[1], 10);
+                if (Number.isInteger(parsedId) && parsedId > 0) {
+                    orConditions.push({ id: parsedId });
+                }
+            }
+            conditions.push({ OR: orConditions });
         }
 
         const where = conditions.length > 0 ? { AND: conditions } : {};

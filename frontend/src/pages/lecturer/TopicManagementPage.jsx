@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Empty, message, Modal, Table, Select, Progress, Tag, Tooltip } from 'antd';
+import { Button, Empty, message, Modal, Popconfirm, Table, Select, Progress, Tag, Tooltip } from 'antd';
 import {
     CopyOutlined,
     PlusOutlined,
     EditOutlined,
+    DeleteOutlined,
     AuditOutlined,
     CloseOutlined,
     SearchOutlined,
@@ -72,6 +73,8 @@ export default function TopicManagementPage() {
 
     // Modals
     const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
+    const [editingTopic, setEditingTopic] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
     const cloneableQuery = useCloneableTopics(scope, undefined, cloneModalOpen);
     const cloneableTopics = cloneableQuery.data || [];
@@ -294,6 +297,43 @@ export default function TopicManagementPage() {
         return list;
     }, [periodBaseTopics, activeTab, searchText, sortBy]);
 
+    const openNewTopicModal = () => {
+        setEditingTopic(null);
+        setTitle('');
+        setEnglishTitle('');
+        setDescription('');
+        setRequirements('');
+        setSelectedSemesterId(ongoingSemester?.id || semesters[0]?.id || null);
+        setSelectedProjectCatalogId(catalogs[0]?.id || null);
+        setNewTopicModalOpen(true);
+    };
+
+    const openEditTopicModal = (topic) => {
+        setEditingTopic(topic);
+        setTitle(topic.title || '');
+        setEnglishTitle(topic.englishTitle || '');
+        setDescription(topic.description || '');
+        setRequirements(topic.requirements || '');
+        setSelectedSemesterId(topic.semesterId || ongoingSemester?.id || null);
+        setSelectedProjectCatalogId(topic.projectCatalogId || catalogs[0]?.id || null);
+        setNewTopicModalOpen(true);
+    };
+
+    const handleDeleteTopic = async (topicId) => {
+        try {
+            setDeletingId(topicId);
+            await topicMutation.mutateAsync({
+                action: 'delete',
+                args: [topicId],
+            });
+            message.success('Đã xóa đề tài thành công!');
+        } catch (error) {
+            message.error(error?.message || 'Không thể xóa đề tài.');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     const handleCreateTopic = async () => {
         if (!title.trim()) {
             message.warning('Vui lòng nhập tên đề tài');
@@ -302,28 +342,44 @@ export default function TopicManagementPage() {
 
         try {
             setSubmitting(true);
-            await topicMutation.mutateAsync({
-                action: 'create',
-                args: [{
-                    title: title.trim(),
-                    englishTitle: englishTitle.trim() || undefined,
-                    description: description.trim() || undefined,
-                    requirements: requirements.trim() || undefined,
-                    semesterId: selectedSemesterId,
-                    projectCatalogId: selectedProjectCatalogId || catalogs[0]?.id,
-                    maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
-                }],
-            });
+            if (editingTopic) {
+                await topicMutation.mutateAsync({
+                    action: 'update',
+                    args: [editingTopic.id, {
+                        title: title.trim(),
+                        englishTitle: englishTitle.trim() || undefined,
+                        description: description.trim() || undefined,
+                        requirements: requirements.trim() || undefined,
+                        semesterId: selectedSemesterId,
+                        projectCatalogId: selectedProjectCatalogId || catalogs[0]?.id,
+                    }],
+                });
+                message.success('Đã cập nhật đề tài thành công!');
+            } else {
+                await topicMutation.mutateAsync({
+                    action: 'create',
+                    args: [{
+                        title: title.trim(),
+                        englishTitle: englishTitle.trim() || undefined,
+                        description: description.trim() || undefined,
+                        requirements: requirements.trim() || undefined,
+                        semesterId: selectedSemesterId,
+                        projectCatalogId: selectedProjectCatalogId || catalogs[0]?.id,
+                        maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
+                    }],
+                });
+                message.success('Đã gửi đề xuất đề tài mới thành công!');
+            }
 
-            message.success('Đã gửi đề xuất đề tài mới thành công!');
             setNewTopicModalOpen(false);
+            setEditingTopic(null);
             setTitle('');
             setEnglishTitle('');
             setDescription('');
             setRequirements('');
             setSelectedProjectCatalogId(catalogs[0]?.id || null);
         } catch (error) {
-            message.error(error?.message || 'Không thể tạo đề tài mới');
+            message.error(error?.message || (editingTopic ? 'Không thể cập nhật đề tài' : 'Không thể tạo đề tài mới'));
         } finally {
             setSubmitting(false);
         }
@@ -451,7 +507,7 @@ export default function TopicManagementPage() {
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
-                            onClick={() => setNewTopicModalOpen(true)}
+                            onClick={openNewTopicModal}
                         >
                             Đề xuất Đề tài mới
                         </Button>
@@ -804,6 +860,34 @@ export default function TopicManagementPage() {
                                                             Xem chi tiết
                                                         </button>
                                                     )}
+                                                    {!hasStudent && topic.proposedBy?.role !== 'STUDENT' && (
+                                                        <>
+                                                            <Tooltip title="Chỉnh sửa đề tài">
+                                                                <Button
+                                                                    size="small"
+                                                                    icon={<EditOutlined />}
+                                                                    onClick={() => openEditTopicModal(topic)}
+                                                                />
+                                                            </Tooltip>
+                                                            <Popconfirm
+                                                                title="Xóa đề tài này?"
+                                                                description="Đề tài chưa có sinh viên đăng ký sẽ bị xóa khỏi danh sách."
+                                                                okText="Xóa"
+                                                                cancelText="Hủy"
+                                                                okButtonProps={{ danger: true }}
+                                                                onConfirm={() => handleDeleteTopic(topic.id)}
+                                                            >
+                                                                <Tooltip title="Xóa đề tài">
+                                                                    <Button
+                                                                        size="small"
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        loading={deletingId === topic.id}
+                                                                    />
+                                                                </Tooltip>
+                                                            </Popconfirm>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -821,8 +905,8 @@ export default function TopicManagementPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 600 }}>
                         <div className="modal-head">
-                            <div className="modal-title">Đề Xuất Đề Tài Nghiên Cứu Mới</div>
-                            <button type="button" className="modal-close" onClick={() => setNewTopicModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
+                            <div className="modal-title">{editingTopic ? 'Chỉnh Sửa Đề Tài Hướng Dẫn' : 'Đề Xuất Đề Tài Nghiên Cứu Mới'}</div>
+                            <button type="button" className="modal-close" onClick={() => { setNewTopicModalOpen(false); setEditingTopic(null); }} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div>
@@ -935,14 +1019,14 @@ export default function TopicManagementPage() {
                             </div>
                         </div>
                         <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setNewTopicModalOpen(false)}>Hủy</button>
+                            <button type="button" className="btn btn-secondary" onClick={() => { setNewTopicModalOpen(false); setEditingTopic(null); }}>Hủy</button>
                             <button
                                 type="button"
                                 className="btn btn-primary"
                                 disabled={submitting}
                                 onClick={handleCreateTopic}
                             >
-                                {submitting ? 'Đang lưu...' : 'Lưu đề tài hướng dẫn'}
+                                {submitting ? 'Đang lưu...' : (editingTopic ? 'Lưu thay đổi' : 'Lưu đề tài hướng dẫn')}
                             </button>
                         </div>
                     </div>

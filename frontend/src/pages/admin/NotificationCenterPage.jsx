@@ -23,6 +23,9 @@ import {
     PlusOutlined,
     ReloadOutlined,
     SendOutlined,
+    BellOutlined,
+    CheckCircleOutlined,
+    ThunderboltOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -37,6 +40,7 @@ import {
 } from '../../queries/notificationQueries';
 import { useCouncils } from '../../queries/councilQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import PageHeader from '../../components/common/PageHeader';
 
 function NotificationCenterPage() {
     const user = useAuthStore((state) => state.user);
@@ -204,59 +208,75 @@ function NotificationCenterPage() {
     const activeTemplatesCount = useMemo(() => templates.filter((t) => t.isActive).length, [templates]);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <p className="eyebrow">THÔNG BÁO TÀI KHOẢN NGƯỜI DÙNG</p>
-                    <h1 className="h1">Gửi Thông Báo Người Dùng</h1>
-                </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <Button
-                        icon={<ReloadOutlined />}
-                        onClick={() => {
-                            historyQuery.refetch();
-                            templatesQuery.refetch();
-                        }}
-                    >
-                        Làm mới
-                    </Button>
-                    <Button
-                        type="primary"
-                        icon={<SendOutlined />}
-                        onClick={() => {
-                            setIsSendModalOpen(true);
-                            form.resetFields();
-                        }}
-                    >
-                        Gửi thông báo người dùng
-                    </Button>
-                </div>
-            </div>
+        <div className="space-y-5">
+            <PageHeader
+                icon={<BellOutlined />}
+                accent="rose"
+                title="Gửi Thông báo Người dùng"
+                subtitle="Gửi thông báo trực tiếp tới tài khoản Sinh viên, Giảng viên, Hội đồng và cấu hình mẫu gửi tự động."
+                actions={
+                    <>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={() => {
+                                historyQuery.refetch();
+                                templatesQuery.refetch();
+                            }}
+                        >
+                            Làm mới
+                        </Button>
+                        <Button
+                            type="primary"
+                            icon={<SendOutlined />}
+                            onClick={() => {
+                                setIsSendModalOpen(true);
+                                form.resetFields();
+                            }}
+                        >
+                            Gửi thông báo người dùng
+                        </Button>
+                    </>
+                }
+            />
 
             {/* 3 KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng lượt gửi broadcast</span>
-                    <p className="h2 num" style={{ marginTop: 2 }}>{history.length}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Lịch sử tin nhắn toàn trường</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng lượt gửi broadcast</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{history.length}</div>
+                        <div className="text-xs text-slate-500 mt-1">Lịch sử tin nhắn toàn trường</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center justify-center shrink-0 text-rose-600 text-lg">
+                        <BellOutlined />
+                    </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tỉ lệ đã đọc trung bình</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{averageReadRate}%</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Hiệu quả tiếp cận thông tin</div>
+                <div className="bg-white rounded-2xl border border-sky-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-sky-600">Tỉ lệ đã đọc trung bình</div>
+                        <div className="text-2xl font-bold text-sky-700 mt-1 tabular-nums">{averageReadRate}%</div>
+                        <div className="text-xs text-slate-500 mt-1">Hiệu quả tiếp cận thông tin</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200/80 flex items-center justify-center shrink-0 text-sky-600 text-lg">
+                        <CheckCircleOutlined />
+                    </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Mẫu tự động đang kích hoạt</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>
-                        {activeTemplatesCount} / {templates.length}
-                    </p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Đang tự kích hoạt theo sự kiện</div>
+                <div className="bg-white rounded-2xl border border-emerald-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-3">
+                    <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Mẫu tự động kích hoạt</div>
+                        <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
+                            {activeTemplatesCount} / {templates.length}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">Đang tự kích hoạt theo sự kiện</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 text-emerald-600 text-lg">
+                        <ThunderboltOutlined />
+                    </div>
                 </div>
             </div>
 
             {/* Main Content Tabs Card */}
-            <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                 <Tabs
                     activeKey={activeTab}
                     onChange={setActiveTab}
@@ -378,8 +398,11 @@ function NotificationCenterPage() {
                 confirmLoading={sending}
                 centered
             >
-                <div className="text-xs text-blue-700 bg-blue-50 p-2.5 rounded-lg border border-blue-200 mb-3">
-                    🔔 <b>Lưu ý:</b> Tính năng này gửi tin nhắn trực tiếp đến quả chuông của tài khoản cá nhân người dùng (Sinh viên/Giảng viên/Hội đồng). Nếu bạn muốn đăng tin tức hoặc quyết định công khai lên trang chủ Portal, vui lòng dùng mục <b>Bản tin & Quyết định Portal</b>.
+                <div className="text-xs text-blue-700 bg-blue-50 p-2.5 rounded-lg border border-blue-200 mb-3 flex items-start gap-2">
+                    <BellOutlined className="text-blue-600 mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>
+                        <b>Lưu ý:</b> Tính năng này gửi tin nhắn trực tiếp đến quả chuông của tài khoản cá nhân người dùng (Sinh viên/Giảng viên/Hội đồng). Nếu bạn muốn đăng tin tức hoặc quyết định công khai lên trang chủ Portal, vui lòng dùng mục <b>Bản tin & Quyết định Portal</b>.
+                    </span>
                 </div>
                 <Form form={form} layout="vertical" className="pt-1">
                     <Form.Item

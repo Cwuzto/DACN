@@ -7,6 +7,7 @@ import {
     AuditOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
+    EditOutlined,
     FileTextOutlined,
     PrinterOutlined,
     SafetyCertificateOutlined,
@@ -16,17 +17,20 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
+import { canViewFeature } from '../../auth/policyEvaluator';
 import { queryKeys } from '../../query/queryKeys';
 import { useRegistrationDetail } from '../../queries/registrationQueries';
 import { useRegistrationMeetingLogs, useBM03Record } from '../../queries/meetingQueries';
 import { useRegistrationCheckpoints } from '../../queries/checkpointQueries';
 import { useBM04Record } from '../../queries/gradingQueries';
 import { useRegistrationBm02aRequests } from '../../queries/bm02aQueries';
+import { useDefenseDossier } from '../../queries/archiveQueries';
 import { getAssetDownloadUrl } from '../../services/resumableUploadService';
 import { getErrorStatus } from '../../utils/apiError';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import { getStatusTagConfig } from '../../components/common/statusMap';
+import ArchiveDeadlineBanner from '../../components/forms/ArchiveDeadlineBanner';
 import GuidanceFormList from '../../components/lecturer/GuidanceFormList';
 import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
 import BM02PrintSheet from '../../components/prints/BM02PrintSheet';
@@ -95,6 +99,38 @@ const MILESTONE_STYLES = {
 
 const PRINTABLE_BUNDLE_ORDER = ['BM02', 'BM02-A', 'BM03', 'BM04', 'BM05'];
 
+const UNSUBMITTED_BM02A_STATUSES = new Set([
+    'STUDENT_PREPARING',
+    'NOT_STARTED',
+    'NOT_SUBMITTED',
+    'NOT_CREATED',
+]);
+
+const READONLY_ACTION_CODES = new Set(['VIEW', 'VIEW_PRINT']);
+const COMPLETED_FORM_STATUSES = new Set(['APPROVED', 'FINALIZED', 'SIGNED', 'PUBLISHED']);
+
+const ARCHIVE_VISIBLE_STATUSES = new Set([
+    'BM03_PASSED',
+    'BM04_PENDING',
+    'BM04_SUBMITTED',
+    'BM04_REVIEW',
+    'BM04_REVISION',
+    'READY_FOR_DEFENSE',
+    'DEFENSE_READY',
+    'DEFENSE_ELIGIBLE',
+    'ELIGIBLE_BY_INSTITUTE',
+    'AWAITING_FINAL_APPROVAL',
+    'DEFENSE_PASSED',
+    'DEFENSE_FAILED',
+    'DEFENDED',
+    'APPROVED_FOR_GRADUATION',
+    'ARCHIVE_INCOMPLETE',
+    'ARCHIVE_REJECTED',
+    'PENDING_INSTITUTE_SIGNATURE',
+    'COMPLETED',
+    'ARCHIVED',
+]);
+
 const hasPrintableData = (formCode, registration, isBm05Published) => {
     if (!registration) return false;
     switch (formCode) {
@@ -107,11 +143,16 @@ const hasPrintableData = (formCode, registration, isBm05Published) => {
             );
         case 'BM02':
             return Boolean(registration.currentBM02Submission || registration.bm02Submissions?.[0]);
-        case 'BM02-A':
-            return Boolean(
-                (Array.isArray(registration.bm02aRequests) && registration.bm02aRequests.length > 0) ||
-                registration.latestBm02aRequest
+        case 'BM02-A': {
+            const hasSubmittedList =
+                Array.isArray(registration.bm02aRequests) &&
+                registration.bm02aRequests.some((r) => r && r.status !== 'STUDENT_PREPARING');
+            const hasSubmittedLatest = Boolean(
+                registration.latestBm02aRequest &&
+                registration.latestBm02aRequest.status !== 'STUDENT_PREPARING'
             );
+            return hasSubmittedList || hasSubmittedLatest;
+        }
         case 'BM03':
             return Boolean(
                 registration.bm03Record ||
@@ -133,15 +174,26 @@ const formatDateValue = (value) => {
     return parsed.isValid() ? parsed.format('DD/MM/YYYY') : FALLBACK_TEXT;
 };
 
-export default function LecturerStudentGuidancePage() {
+export default function LecturerStudentGuidancePage({ mode: modeProp }) {
     const { registrationId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
 
+    const mode = modeProp || (location.pathname.startsWith('/admin/') ? 'admin' : 'lecturer');
+    const isAdminMode = mode === 'admin';
+
     const detailQuery = useRegistrationDetail(scope, registrationId);
     const registration = detailQuery.data || null;
+
+    const shouldFetchArchive = Boolean(
+        registration?.id && ARCHIVE_VISIBLE_STATUSES.has(registration.status)
+    );
+    const dossierQuery = useDefenseDossier(scope, registration?.id, {
+        enabled: shouldFetchArchive,
+        retry: false,
+    });
 
     // On-demand A4 print modal state — never mounted on initial render
     const [printModal, setPrintModal] = useState({
@@ -168,16 +220,56 @@ export default function LecturerStudentGuidancePage() {
             });
             return;
         }
-        navigate('/lecturer/students');
+        navigate(isAdminMode ? '/admin/grading' : '/lecturer/students');
     };
 
+    const canReviewOutline = useMemo(() => {
+        if (isAdminMode) return false;
+        if (canViewFeature(user, 'outline-reviews')) return true;
+        const members = registration?.outlineCouncil?.members || [];
+        return members.some((m) => m.lecturerId === user?.id || m.lecturer?.id === user?.id);
+    }, [user, registration, isAdminMode]);
+
     const workspace = registration?.guidanceWorkspace || null;
-    const forms = useMemo(
-        () => (Array.isArray(workspace?.forms) ? workspace.forms : []),
-        [workspace]
-    );
+    const forms = useMemo(() => {
+        const rawForms = Array.isArray(workspace?.forms) ? workspace.forms : [];
+        return rawForms
+            .filter((item) => {
+                if (!item) return false;
+                if (item.code === 'BM02-A') {
+                    if (!item.status || UNSUBMITTED_BM02A_STATUSES.has(item.status)) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .map((item) => {
+                if (!Array.isArray(item.actions)) return item;
+                if (isAdminMode) {
+                    return {
+                        ...item,
+                        actions: item.actions.filter((a) => READONLY_ACTION_CODES.has(a?.code)),
+                    };
+                }
+                if (!canReviewOutline && item.code === 'BM01') {
+                    return {
+                        ...item,
+                        actions: item.actions.filter((a) => a.code !== 'REVIEW'),
+                    };
+                }
+                return item;
+            });
+    }, [workspace, canReviewOutline, isAdminMode]);
     const formMap = useMemo(() => new Map(forms.map((item) => [item.code, item])), [forms]);
-    const nextAction = workspace?.nextAction || null;
+    const nextAction = useMemo(() => {
+        if (isAdminMode) return null;
+        const action = workspace?.nextAction || null;
+        if (!action) return null;
+        if (!canReviewOutline && action.code === 'REVIEW' && action.params?.formCode === 'BM01') {
+            return null;
+        }
+        return action;
+    }, [workspace, canReviewOutline, isAdminMode]);
 
     const isBm05Published = useMemo(() => {
         if (!registration) return false;
@@ -253,7 +345,7 @@ export default function LecturerStudentGuidancePage() {
         const requestId = action.params?.requestId;
         const formCode = form?.code || action.params?.formCode || '';
 
-        if (action.code === 'VIEW_PRINT') {
+        if (action.code === 'VIEW_PRINT' || (isAdminMode && action.code === 'VIEW')) {
             if (formCode === 'BM01') {
                 const hasBm01 = hasPrintableData('BM01', registration, isBm05Published)
                     || Boolean(action?.params?.assetId || action?.params?.fileUrl);
@@ -278,6 +370,10 @@ export default function LecturerStudentGuidancePage() {
                 formCode,
                 title: form?.title ? `${formCode} · ${form.title}` : `Biểu mẫu ${formCode}`,
             });
+            return;
+        }
+
+        if (isAdminMode) {
             return;
         }
 
@@ -308,7 +404,11 @@ export default function LecturerStudentGuidancePage() {
         }
 
         if (formCode === 'BM01') {
-            navigate(`/lecturer/approvals?tab=outline&registrationId=${regId}`);
+            if (!canReviewOutline) {
+                message.warning('Bạn chưa được phân công vào hội đồng thẩm định đề cương cho hồ sơ này.');
+                return;
+            }
+            navigate(`/lecturer/outline-evaluations?registrationId=${regId}`);
             return;
         }
 
@@ -318,7 +418,11 @@ export default function LecturerStudentGuidancePage() {
         }
 
         if (action.code === 'REVIEW') {
-            navigate(`/lecturer/approvals?tab=outline&registrationId=${regId}`);
+            if (!canReviewOutline) {
+                message.warning('Bạn chưa được phân công vào hội đồng thẩm định đề cương cho hồ sơ này.');
+                return;
+            }
+            navigate(`/lecturer/outline-evaluations?registrationId=${regId}`);
             return;
         }
 
@@ -461,120 +565,177 @@ export default function LecturerStudentGuidancePage() {
     const statusTag = getStatusTagConfig(registration.status);
     const classMajor = [profile.className, profile.major].filter(Boolean).join(' · ') || FALLBACK_TEXT;
 
+    const mentorId =
+        registration.topic?.mentorId ??
+        registration.topic?.mentor?.id ??
+        registration.mentorId ??
+        registration.mentor?.id ??
+        null;
+    const isAssignedMentor = Boolean(user?.id && mentorId && Number(user.id) === Number(mentorId));
+    const showProgressLogButton = !isAdminMode || isAssignedMentor;
+
+    const completedFormsCount = forms.filter((f) => COMPLETED_FORM_STATUSES.has(f?.status)).length;
+    const progressPercent = forms.length > 0 ? Math.round((completedFormsCount / forms.length) * 100) : 0;
+    const archiveDossier = dossierQuery.data?.data || null;
+
     return (
-        <div className="mx-auto max-w-6xl space-y-6 pb-10">
-            {/* Header: Hồ sơ sinh viên & đề tài */}
-            <header className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <Button icon={<ArrowLeftOutlined aria-hidden="true" />} onClick={handleBack}>
-                        Quay lại danh sách
-                    </Button>
-                    <Tag color={statusTag.color} className="m-0 rounded-full px-3 py-0.5 text-xs font-semibold">
-                        {statusTag.label}
-                    </Tag>
-                </div>
-
-                <div className="space-y-3">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <h1 className="m-0 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                            {student.fullName || FALLBACK_TEXT}
-                        </h1>
-                        <span className="rounded-md border border-teal-200 bg-teal-50 px-2.5 py-0.5 font-mono text-xs font-bold text-teal-800">
-                            MSSV: {student.code || FALLBACK_TEXT}
-                        </span>
-                        <span className="text-sm font-medium text-slate-500">
-                            {classMajor}
-                        </span>
-                    </div>
-
-                    <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-3 sm:p-3.5">
-                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-teal-800">
-                            Tên đề tài chính thức
+        <div className="mx-auto max-w-6xl space-y-5 pb-10">
+            {/* Hero Header Card — Nordic Precision / Pine Teal */}
+            <header className="rounded-2xl bg-white border border-slate-200/80 shadow-sm p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <Button
+                                size="small"
+                                icon={<ArrowLeftOutlined aria-hidden="true" />}
+                                onClick={handleBack}
+                            >
+                                Quay lại
+                            </Button>
+                            <Tag color={statusTag.color} className="m-0 rounded-full px-3 py-0.5 text-xs font-semibold">
+                                {statusTag.label}
+                            </Tag>
                         </div>
-                        <p className="m-0 text-base font-bold leading-relaxed text-teal-950 sm:text-lg">
-                            {officialTopicTitle}
-                        </p>
+
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                            <h1 className="m-0 font-display text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                                {student.fullName || FALLBACK_TEXT}
+                            </h1>
+                            <span className="rounded-md border border-teal-200 bg-teal-50 px-2.5 py-0.5 font-mono tabular-nums text-xs font-bold text-[#0F766E]">
+                                MSSV: {student.code || FALLBACK_TEXT}
+                            </span>
+                            {classMajor !== FALLBACK_TEXT && (
+                                <span className="text-sm font-medium text-slate-500">
+                                    {classMajor}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="rounded-xl border border-teal-200/70 bg-teal-50/40 px-4 py-3">
+                            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#0F766E]">
+                                Tên đề tài chính thức
+                            </div>
+                            <p className="m-0 text-sm font-bold leading-relaxed text-slate-900 sm:text-base">
+                                {officialTopicTitle}
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 text-xs sm:text-sm text-slate-600">
+                            <span>
+                                Đợt đồ án: <strong className="font-semibold text-slate-800">{semesterName}</strong>
+                            </span>
+                            <span>
+                                GVHD: <strong className="font-semibold text-slate-800">{mentorName}</strong>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                Tiến độ biểu mẫu:
+                                <strong className="font-mono tabular-nums font-bold text-[#0F766E]">
+                                    {progressPercent}%
+                                </strong>
+                                <span className="font-mono tabular-nums text-xs text-slate-500">
+                                    ({completedFormsCount}/{forms.length})
+                                </span>
+                            </span>
+                        </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
-                        <span>GVHD: <strong className="font-semibold text-slate-800">{mentorName}</strong></span>
-                        <span>Đợt đồ án: <strong className="font-semibold text-slate-800">{semesterName}</strong></span>
-                    </div>
+                    {/* Top-right Action Group */}
+                    {(showProgressLogButton || eligiblePrintCodes.length > 0) && (
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0 lg:pt-0.5">
+                            {showProgressLogButton && (
+                                <Button
+                                    type="primary"
+                                    icon={<EditOutlined aria-hidden="true" />}
+                                    onClick={() => navigate(`/lecturer/progress?registrationId=${registration.id}`)}
+                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-semibold shadow-xs"
+                                >
+                                    Ghi nhật ký
+                                </Button>
+                            )}
+                            {eligiblePrintCodes.length > 0 && (
+                                <Button
+                                    icon={<PrinterOutlined aria-hidden="true" />}
+                                    onClick={() =>
+                                        setPrintModal({
+                                            open: true,
+                                            mode: 'all',
+                                            formCode: 'DOSSIER_FULL',
+                                            title: 'In toàn bộ biểu mẫu đủ điều kiện',
+                                        })
+                                    }
+                                >
+                                    In toàn bộ
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </header>
 
-            {/* Việc cần xử lý — luôn đứng trước danh mục trên màn hình hẹp */}
-            <section
-                aria-labelledby="next-action-heading"
-                className={`overflow-hidden rounded-2xl border transition-all ${
-                    nextAction
-                        ? 'border-teal-300 bg-gradient-to-r from-teal-500/10 via-teal-50 to-white shadow-xs'
-                        : 'border-slate-200 bg-slate-50/70'
-                } p-4 sm:p-5`}
-            >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                            <span
-                                className={`flex h-6 w-6 items-center justify-center rounded-lg text-white shadow-xs ${
-                                    nextAction ? 'bg-teal-600' : 'bg-slate-400'
-                                }`}
-                            >
-                                <CheckCircleOutlined className="text-xs" aria-hidden="true" />
-                            </span>
-                            <h2
-                                id="next-action-heading"
-                                className="m-0 text-base font-bold text-slate-900"
-                            >
-                                Việc cần xử lý
-                            </h2>
-                            {nextAction && (
-                                <Tag color="orange" className="m-0 rounded-full font-semibold animate-pulse">
+            {/* Hồ sơ lưu chiểu (từ giai đoạn BM03_PASSED trở đi) */}
+            {shouldFetchArchive && archiveDossier && !dossierQuery.isError && (
+                <ArchiveDeadlineBanner
+                    variant="compact"
+                    audience="lecturer"
+                    showAction={false}
+                    dossier={archiveDossier}
+                    registrationStatus={registration.status}
+                />
+            )}
+
+            {/* Việc cần xử lý — chỉ hiển thị cho chế độ GVHD khi có hành động ưu tiên */}
+            {!isAdminMode && nextAction && (
+                <section
+                    aria-labelledby="next-action-heading"
+                    className="overflow-hidden rounded-2xl border border-teal-300 bg-gradient-to-r from-teal-500/10 via-teal-50 to-white p-4 shadow-sm sm:p-5"
+                >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0F766E] text-white shadow-xs">
+                                    <CheckCircleOutlined className="text-xs" aria-hidden="true" />
+                                </span>
+                                <h2
+                                    id="next-action-heading"
+                                    className="m-0 font-display text-base font-bold text-slate-900"
+                                >
+                                    Việc cần xử lý
+                                </h2>
+                                <Tag color="orange" className="m-0 rounded-full font-semibold">
                                     Ưu tiên
                                 </Tag>
-                            )}
+                            </div>
+                            <p className="m-0 text-sm font-medium text-slate-700">
+                                {nextAction.label}
+                            </p>
                         </div>
-                        <p className="m-0 text-sm font-medium text-slate-700">
-                            {nextAction ? nextAction.label : 'Hiện không có việc cần xử lý'}
-                        </p>
-                    </div>
-                    {nextAction && (
                         <Button
                             type="primary"
                             icon={<ArrowRightOutlined aria-hidden="true" />}
                             onClick={() => handleAction(nextAction, formMap.get(nextAction.params?.formCode))}
-                            className="self-start sm:self-center shadow-xs"
+                            className="self-start sm:self-center !bg-[#0F766E] hover:!bg-[#115E59] shadow-xs"
                         >
                             Thực hiện ngay
                         </Button>
-                    )}
-                </div>
-            </section>
+                    </div>
+                </section>
+            )}
 
-            {/* Quá trình hướng dẫn: Milestone Steps */}
+            {/* Thanh tiến trình 5 chặng BM01 -> BM05 */}
             <section
                 aria-labelledby="guidance-timeline-heading"
-                className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5"
+                className="rounded-2xl bg-white border border-slate-200/80 shadow-sm p-5"
             >
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-800 text-white shadow-xs">
-                            <ClockCircleOutlined className="text-xs" aria-hidden="true" />
-                        </span>
-                        <h2
-                            id="guidance-timeline-heading"
-                            className="m-0 text-base font-bold text-slate-900"
-                        >
-                            Quá trình hướng dẫn
-                        </h2>
-                    </div>
-                    <Button
-                        size="small"
-                        icon={<ScheduleOutlined aria-hidden="true" />}
-                        onClick={() => navigate(`/lecturer/progress?registrationId=${registration.id}`)}
+                <div className="mb-4 flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-white shadow-xs">
+                        <ClockCircleOutlined className="text-xs" aria-hidden="true" />
+                    </span>
+                    <h2
+                        id="guidance-timeline-heading"
+                        className="m-0 font-display text-base font-bold text-slate-900"
                     >
-                        Mở theo dõi tiến độ
-                    </Button>
+                        Tiến trình học vụ 5 chặng
+                    </h2>
                 </div>
 
                 <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-5">
@@ -586,7 +747,7 @@ export default function LecturerStudentGuidancePage() {
                             matchedForm.status !== 'NOT_STARTED' &&
                             matchedForm.status !== 'NOT_CREATED' &&
                             matchedForm.status !== 'NO_RESULT';
-                        const isDone = matchedForm && ['APPROVED', 'FINALIZED', 'SIGNED', 'PUBLISHED'].includes(matchedForm.status);
+                        const isDone = matchedForm && COMPLETED_FORM_STATUSES.has(matchedForm.status);
                         const style = MILESTONE_STYLES[step.key] || MILESTONE_STYLES.BM01;
 
                         return (
@@ -612,7 +773,7 @@ export default function LecturerStudentGuidancePage() {
                                     >
                                         {style.icon}
                                     </span>
-                                    <span className="font-mono text-[11px] font-semibold text-slate-400">
+                                    <span className="font-mono tabular-nums text-[11px] font-semibold text-slate-400">
                                         {style.stepNumber}
                                     </span>
                                 </div>
@@ -641,45 +802,34 @@ export default function LecturerStudentGuidancePage() {
                 </ol>
             </section>
 
-            <section aria-label="Danh sách biểu mẫu học vụ" className="space-y-3">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    {eligiblePrintCodes.length > 0 && (
-                        <Button
-                            size="small"
-                            icon={<PrinterOutlined aria-hidden="true" />}
-                            onClick={() =>
-                                setPrintModal({
-                                    open: true,
-                                    mode: 'all',
-                                    formCode: 'DOSSIER_FULL',
-                                    title: 'In toàn bộ biểu mẫu đủ điều kiện',
-                                })
-                            }
-                        >
-                            In toàn bộ
-                        </Button>
-                    )}
-                </div>
-                <GuidanceFormList forms={forms} onAction={handleAction} />
+            {/* Hồ sơ biểu mẫu đã nộp */}
+            <section aria-label="Danh sách biểu mẫu học vụ">
+                <GuidanceFormList forms={forms} onAction={handleAction} readOnly={isAdminMode} />
             </section>
 
             {/* Thông tin sinh viên */}
             <Card
                 title={(
-                    <span className="flex items-center gap-2 text-base font-bold text-slate-900">
+                    <span className="flex items-center gap-2 font-display text-base font-bold text-slate-900">
                         <UserOutlined aria-hidden="true" />
                         Thông tin sinh viên
                     </span>
                 )}
-                className="overflow-hidden rounded-2xl border-slate-200/90 shadow-xs"
+                className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm"
             >
                 <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
                     <Descriptions.Item label="Email">{student.email || FALLBACK_TEXT}</Descriptions.Item>
-                    <Descriptions.Item label="Số điện thoại">{student.phone || FALLBACK_TEXT}</Descriptions.Item>
+                    <Descriptions.Item label="Số điện thoại">
+                        <span className="font-mono tabular-nums">{student.phone || FALLBACK_TEXT}</span>
+                    </Descriptions.Item>
                     <Descriptions.Item label="Lớp">{profile.className || FALLBACK_TEXT}</Descriptions.Item>
                     <Descriptions.Item label="Chuyên ngành">{profile.major || FALLBACK_TEXT}</Descriptions.Item>
-                    <Descriptions.Item label="Ngày sinh">{formatDateValue(profile.dateOfBirth)}</Descriptions.Item>
-                    <Descriptions.Item label="Khóa đào tạo">{profile.academicYear || FALLBACK_TEXT}</Descriptions.Item>
+                    <Descriptions.Item label="Ngày sinh">
+                        <span className="font-mono tabular-nums">{formatDateValue(profile.dateOfBirth)}</span>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Khóa đào tạo">
+                        <span className="font-mono tabular-nums">{profile.academicYear || FALLBACK_TEXT}</span>
+                    </Descriptions.Item>
                     <Descriptions.Item label="Nơi sinh">{profile.placeOfBirth || FALLBACK_TEXT}</Descriptions.Item>
                 </Descriptions>
             </Card>
@@ -696,7 +846,7 @@ export default function LecturerStudentGuidancePage() {
                         <Alert
                             type="warning"
                             showIcon
-                            message="Kết quả BM05 chưa được công bố chính thức"
+                            title="Kết quả BM05 chưa được công bố chính thức"
                         />
                     ) : (
                         renderPrintSheet()

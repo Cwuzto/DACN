@@ -353,7 +353,7 @@ export default function LecturerStudentsPage() {
                 <Alert
                     type="error"
                     showIcon
-                    message="Không thể tải danh sách sinh viên đang hướng dẫn"
+                    title="Không thể tải danh sách sinh viên đang hướng dẫn"
                     description={overviewQuery.error?.message || 'Đã xảy ra lỗi khi tải dữ liệu.'}
                     action={(
                         <Button

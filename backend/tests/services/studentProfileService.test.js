@@ -64,7 +64,7 @@ describe('studentProfileService payload normalization and validation', () => {
         gender: 'Nam',
         dateOfBirth: '15/05/2002',
         className: '  D20PM01  ',
-        major: '  Ky thuat phan mem  ',
+        major: '  Kỹ thuật Phần mềm  ',
     };
 
     describe('normalizeStudentPayload', () => {
@@ -81,7 +81,7 @@ describe('studentProfileService payload normalization and validation', () => {
             });
             expect(normalized.studentProfile.gender).toBe('MALE');
             expect(normalized.studentProfile.className).toBe('D20PM01');
-            expect(normalized.studentProfile.major).toBe('Ky thuat phan mem');
+            expect(normalized.studentProfile.major).toBe('Kỹ thuật Phần mềm');
             expect(normalized.studentProfile.dateOfBirth).toBeInstanceOf(Date);
             expect(normalized.studentProfile.dateOfBirth.toISOString().startsWith('2002-05-15')).toBe(true);
         });
@@ -160,6 +160,15 @@ describe('studentProfileService payload normalization and validation', () => {
 
         test('rejects missing or blank major', () => {
             expect(() => validateStudentPayload({ ...validStudentInput, major: '' })).toThrow(/Ngành là bắt buộc/i);
+        });
+
+        test('normalizes canonical student major case-insensitively and rejects non-canonical major', () => {
+            const validated = validateStudentPayload({ ...validStudentInput, major: 'công nghệ thông tin' });
+            expect(validated.studentProfile.major).toBe('Công Nghệ Thông Tin');
+
+            expect(() => validateStudentPayload({ ...validStudentInput, major: 'Khoa học Máy tính' })).toThrow(
+                /Ngành học không hợp lệ/i
+            );
         });
 
         test('supports non-throwing mode returning error array for batch imports', () => {

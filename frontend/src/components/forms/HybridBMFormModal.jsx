@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Form, Input, InputNumber, Radio, Upload, Button, message, Alert, Typography, Divider, Space } from 'antd';
-import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import { UploadOutlined, FilePdfOutlined, FileTextOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
 import { uploadGovernedAsset } from '../../services/resumableUploadService';
 import BM01CopilotDrawer from '../student/BM01CopilotDrawer';
@@ -389,7 +389,7 @@ export default function HybridBMFormModal({
             footer={null}
             onCancel={onClose}
             width={720}
-            destroyOnClose
+            destroyOnHidden
             className="hybrid-bm-modal"
             centered
         >
@@ -397,7 +397,7 @@ export default function HybridBMFormModal({
                 {/* Header */}
                 <div className="border-b border-slate-100 pb-4 mb-5">
                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-                        <span className="material-symbols-outlined text-[14px]">description</span>
+                        <FileTextOutlined className="text-[14px]" />
                         BIỂU MẪU ĐỒ ÁN
                     </div>
                     <Title level={4} className="!mb-1 !text-slate-800">
@@ -414,7 +414,7 @@ export default function HybridBMFormModal({
                         type="info"
                         showIcon
                         className="mb-4 rounded-lg border-blue-200 bg-blue-50/70"
-                        message="Lưu ý quy định nộp đề cương v1"
+                        title="Lưu ý quy định nộp đề cương v1"
                         description="Bản nộp đầu tiên là bản chính thức và không thể thay thế sau khi nộp. Vui lòng rà soát kỹ tệp đề cương trước khi nhấn nộp."
                     />
                 )}
@@ -423,7 +423,7 @@ export default function HybridBMFormModal({
                         type="warning"
                         showIcon
                         className="mb-4 rounded-lg border-amber-200 bg-amber-50/70"
-                        message="Cảnh báo: Nộp lại đề cương v2 duy nhất"
+                        title="Cảnh báo: Nộp lại đề cương v2 duy nhất"
                         description="Sinh viên chỉ được nộp lại đúng 01 lần duy nhất. Sau khi nộp, hệ thống sẽ khóa cổng nộp và chuyển cho Chủ tịch Hội đồng phê duyệt."
                     />
                 )}
@@ -434,7 +434,7 @@ export default function HybridBMFormModal({
                         type="warning"
                         showIcon
                         className="mb-4 rounded-lg border-amber-200 bg-amber-50/70"
-                        message="Yêu cầu chỉnh sửa từ GVHD"
+                        title="Yêu cầu chỉnh sửa từ GVHD"
                         description={task.submissions?.[0]?.feedback || 'Vui lòng hoàn thiện lại các mục chưa đạt và nộp lại bản mới.'}
                     />
                 )}
@@ -495,7 +495,7 @@ export default function HybridBMFormModal({
                             showIcon
                             icon={<CheckCircleOutlined />}
                             className="mb-6 rounded-lg border-blue-200 bg-blue-50/70"
-                            message="Xác nhận trực tuyến theo quy trình BM02"
+                            title="Xác nhận trực tuyến theo quy trình BM02"
                             description="Đơn BM02 được xác nhận trực tuyến theo chuỗi Sinh viên, Giảng viên hướng dẫn và Phụ trách bộ môn. Không cần tải lên bản scan có chữ ký tay."
                         />
                     ) : (

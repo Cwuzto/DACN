@@ -400,7 +400,7 @@ export default function InstituteOperationsPage() {
                 />
             );
         }
-        if (items.length === 0) {
+        if (items.length === 0 && activeTab !== 'publish') {
             return (
                 <div className="py-10">
                     <Empty description="Không có hồ sơ nào cần xử lý trong hàng đợi." />

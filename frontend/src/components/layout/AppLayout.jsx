@@ -1,7 +1,7 @@
 import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Badge, Button } from 'antd';
-import { MenuOutlined } from '@ant-design/icons';
+import { MenuOutlined, HomeOutlined } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import authService from '../../services/authService';
 import notificationService from '../../services/notificationService';
@@ -18,9 +18,103 @@ import RouteContentBoundary from '../common/RouteContentBoundary';
 import ContentSkeleton from '../common/ContentSkeleton';
 import { queryKeys } from '../../query/queryKeys';
 import { useMyNotifications } from '../../queries/notificationQueries';
-import { useSemesters, usePublicSemesters } from '../../queries/semesterQueries';
+import { useSemesters, usePublicSemesters, useAssignedSemesters } from '../../queries/semesterQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
 import { useLecturerOverview } from '../../queries/dashboardQueries';
+
+function getPeriodBadgeConfig(semester) {
+    if (!semester?.name) {
+        return {
+            label: 'Chưa có đợt đồ án',
+            pillClass: 'bg-slate-50 border-slate-200 text-slate-500',
+            dotColor: '#94A3B8',
+            dotRing: 'transparent',
+            pulse: false,
+        };
+    }
+
+    switch (semester.status) {
+        case 'REGISTRATION':
+            return {
+                label: `${semester.name} · Mở đăng ký`,
+                pillClass: 'bg-sky-50/90 border-sky-200/80 text-sky-800',
+                dotColor: '#0284C7',
+                dotRing: 'rgba(2, 132, 199, 0.18)',
+                pulse: true,
+            };
+        case 'ONGOING':
+            return {
+                label: `${semester.name} · Đang thực hiện`,
+                pillClass: 'bg-teal-50/90 border-teal-200/80 text-teal-800',
+                dotColor: '#0F766E',
+                dotRing: 'rgba(15, 118, 110, 0.18)',
+                pulse: true,
+            };
+        case 'DEFENSE':
+            return {
+                label: `${semester.name} · Đang bảo vệ`,
+                pillClass: 'bg-purple-50/90 border-purple-200/80 text-purple-800',
+                dotColor: '#7C3AED',
+                dotRing: 'rgba(124, 58, 237, 0.18)',
+                pulse: true,
+            };
+        case 'UPCOMING':
+            return {
+                label: `${semester.name} · Sắp mở`,
+                pillClass: 'bg-amber-50/90 border-amber-200/80 text-amber-800',
+                dotColor: '#D97706',
+                dotRing: 'transparent',
+                pulse: false,
+            };
+        case 'COMPLETED':
+            return {
+                label: `${semester.name} · Đã kết thúc`,
+                pillClass: 'bg-slate-100 border-slate-200 text-slate-600',
+                dotColor: '#64748B',
+                dotRing: 'transparent',
+                pulse: false,
+            };
+        default:
+            return {
+                label: `${semester.name} · Đang diễn ra`,
+                pillClass: 'bg-teal-50/90 border-teal-200/80 text-teal-800',
+                dotColor: '#0F766E',
+                dotRing: 'rgba(15, 118, 110, 0.18)',
+                pulse: true,
+            };
+    }
+}
+
+function getTopbarRoleStyle({ currentRole, isVienTruong, roleLabel }) {
+    if (isVienTruong) {
+        return {
+            pill: 'bg-purple-50 border-purple-200/80 text-purple-800',
+            avatar: 'bg-gradient-to-br from-purple-600 to-amber-500',
+        };
+    }
+    if (roleLabel === 'Giáo vụ') {
+        return {
+            pill: 'bg-sky-50 border-sky-200/80 text-sky-800',
+            avatar: 'bg-gradient-to-br from-sky-600 to-blue-600',
+        };
+    }
+    if (currentRole === 'ADMIN') {
+        return {
+            pill: 'bg-rose-50 border-rose-200/80 text-rose-800',
+            avatar: 'bg-gradient-to-br from-rose-600 to-slate-800',
+        };
+    }
+    if (currentRole === 'LECTURER') {
+        return {
+            pill: 'bg-teal-50 border-teal-200/80 text-teal-800',
+            avatar: 'bg-gradient-to-br from-teal-600 to-emerald-600',
+        };
+    }
+    return {
+        pill: 'bg-emerald-50 border-emerald-200/80 text-emerald-800',
+        avatar: 'bg-gradient-to-br from-emerald-600 to-cyan-600',
+    };
+}
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -166,10 +260,19 @@ function AppLayout({ role }) {
         };
     }, [refreshSession, refreshPermissions, updateUser]);
 
+    const isAssignedScopedRole = user?.role === 'STUDENT' || user?.role === 'LECTURER';
     const semestersQuery = useSemesters(scope);
     const publicSemestersQuery = usePublicSemesters(scope);
+    const assignedSemestersQuery = useAssignedSemesters(scope, isAssignedScopedRole);
 
     const currentSemester = useMemo(() => {
+        if (isAssignedScopedRole) {
+            const assignedList = assignedSemestersQuery.data;
+            if (Array.isArray(assignedList) && assignedList.length > 0) {
+                return resolveCurrentSemester(assignedList);
+            }
+            return null;
+        }
         const list = (semestersQuery.data && semestersQuery.data.length > 0)
             ? semestersQuery.data
             : publicSemestersQuery.data;
@@ -177,7 +280,7 @@ function AppLayout({ role }) {
             return resolveCurrentSemester(list);
         }
         return null;
-    }, [semestersQuery.data, publicSemestersQuery.data]);
+    }, [isAssignedScopedRole, assignedSemestersQuery.data, semestersQuery.data, publicSemestersQuery.data]);
 
     // Resolve effective permissions
     const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
@@ -225,6 +328,8 @@ function AppLayout({ role }) {
     const currentRole = role || user?.role || 'STUDENT';
     const isVienTruong = isInstituteDirector(user);
     const roleLabel = getUserDisplayRole(user);
+    const periodBadge = getPeriodBadgeConfig(currentSemester);
+    const topbarRoleStyle = getTopbarRoleStyle({ currentRole, isVienTruong, roleLabel });
     const basePath = currentRole === 'ADMIN' ? '/admin' : currentRole === 'LECTURER' ? '/lecturer' : '/student';
     const dashboardPath = `${basePath}/dashboard`;
     const profilePath = `${basePath}/profile`;
@@ -303,18 +408,37 @@ function AppLayout({ role }) {
                 <header className="topbar">
                     <div className="topbar-left">
                         {/* Institutional Period Badge */}
-                        <div className="period-badge">
-                            <span className="period-dot"></span>
-                            <span>{currentSemester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027'} · Đang diễn ra</span>
+                        <div className={`period-badge ${periodBadge.pillClass}`}>
+                            <span
+                                className={`period-dot ${periodBadge.pulse ? '' : 'period-dot-static'}`}
+                                style={{
+                                    background: periodBadge.dotColor,
+                                    boxShadow: periodBadge.pulse ? `0 0 0 3px ${periodBadge.dotRing}` : 'none',
+                                }}
+                            ></span>
+                            <span>{periodBadge.label}</span>
                         </div>
 
                         <span className="hidden sm:inline" style={{ color: 'var(--border)' }}>|</span>
-                        <span className="hidden md:inline" style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                            Vai trò: <strong style={{ color: 'var(--fg)' }}>{roleLabel}</strong>
+                        <span
+                            className={`hidden md:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${topbarRoleStyle.pill}`}
+                        >
+                            {roleLabel}
                         </span>
                     </div>
 
                     <div className="topbar-right">
+                        {/* Portal Home Quick Link */}
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => navigate('/')}
+                            title="Về cổng thông tin công khai"
+                        >
+                            <HomeOutlined aria-hidden="true" />
+                            <span className="hidden md:inline">Trang chủ</span>
+                        </button>
+
                         {/* Notifications Quick Link */}
                         <Badge count={unreadCount} overflowCount={99} size="small" offset={[-2, 2]}>
                             <button
@@ -335,7 +459,7 @@ function AppLayout({ role }) {
                             onClick={() => navigate(profilePath)}
                             title="Thông tin tài khoản"
                         >
-                            <div className="w-5 h-5 rounded bg-[#0F766E] text-white flex items-center justify-center font-bold text-[10px]">
+                            <div className={`w-6 h-6 rounded-lg ${topbarRoleStyle.avatar} text-white flex items-center justify-center font-bold text-[10px] shadow-sm`}>
                                 {initials}
                             </div>
                             <span className="hidden md:inline font-semibold">

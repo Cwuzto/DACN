@@ -68,6 +68,82 @@ const validateDefenseCouncilTargetSize = (rawValue, { isUpdate = false, currentV
     return { value: num, error: null };
 };
 
+const toDayStartMs = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+
+const validateSemesterTimelineOrder = ({
+    startDate,
+    endDate,
+    registrationDeadline,
+    outlineSubmissionOpenAt,
+    outlineSubmissionDeadline,
+    bm03MidtermEvaluationOpenAt,
+    midtermReportDate,
+    bm03FinalizationOpenAt,
+    defenseDate,
+}) => {
+    const startMs = toDayStartMs(startDate);
+    const endMs = toDayStartMs(endDate);
+    if (startMs === null || endMs === null) return null;
+
+    if (startMs >= endMs) {
+        return 'Ngày bắt đầu đợt phải trước ngày kết thúc đợt.';
+    }
+
+    const boundedFields = [
+        { label: 'Ngày đóng đăng ký đề tài', ms: toDayStartMs(registrationDeadline) },
+        { label: 'Ngày mở nộp đề cương chi tiết', ms: toDayStartMs(outlineSubmissionOpenAt) },
+        { label: 'Hạn nộp đề cương chi tiết', ms: toDayStartMs(outlineSubmissionDeadline) },
+        { label: 'Ngày mở đánh giá giữa kỳ', ms: toDayStartMs(bm03MidtermEvaluationOpenAt) },
+        { label: 'Hạn nộp báo cáo giữa kỳ', ms: toDayStartMs(midtermReportDate) },
+        { label: 'Ngày mở chốt đánh giá cuối kỳ', ms: toDayStartMs(bm03FinalizationOpenAt) },
+        { label: 'Ngày dự kiến bảo vệ', ms: toDayStartMs(defenseDate) },
+    ];
+
+    for (const field of boundedFields) {
+        if (field.ms === null) continue;
+        if (field.ms < startMs) {
+            return `${field.label} không được trước ngày bắt đầu đợt.`;
+        }
+        if (field.ms > endMs) {
+            return `${field.label} không được sau ngày kết thúc đợt.`;
+        }
+    }
+
+    const regMs = toDayStartMs(registrationDeadline);
+    const outlineDeadlineMs = toDayStartMs(outlineSubmissionDeadline);
+    const midtermMs = toDayStartMs(midtermReportDate);
+    const finalOpenMs = toDayStartMs(bm03FinalizationOpenAt);
+    const defenseMs = toDayStartMs(defenseDate);
+
+    if (defenseMs !== null) {
+        if (regMs !== null && regMs > defenseMs) {
+            return 'Ngày đóng đăng ký đề tài phải trước hoặc bằng ngày dự kiến bảo vệ.';
+        }
+        if (outlineDeadlineMs !== null && outlineDeadlineMs > defenseMs) {
+            return 'Hạn nộp đề cương chi tiết phải trước hoặc bằng ngày dự kiến bảo vệ.';
+        }
+        if (midtermMs !== null && midtermMs > defenseMs) {
+            return 'Hạn nộp báo cáo giữa kỳ phải trước hoặc bằng ngày dự kiến bảo vệ.';
+        }
+    }
+    if (regMs !== null && midtermMs !== null && regMs > midtermMs) {
+        return 'Ngày đóng đăng ký đề tài phải trước hoặc bằng hạn nộp báo cáo giữa kỳ.';
+    }
+    if (regMs !== null && outlineDeadlineMs !== null && outlineDeadlineMs < regMs) {
+        return 'Hạn nộp đề cương chi tiết phải sau hoặc bằng ngày đóng đăng ký đề tài.';
+    }
+    if (finalOpenMs !== null && defenseMs !== null && finalOpenMs > defenseMs) {
+        return 'Ngày mở chốt đánh giá cuối kỳ phải trước hoặc bằng ngày dự kiến bảo vệ.';
+    }
+
+    return null;
+};
+
 const deriveSemesterCode = ({ code, name, startDate }) => {
     if (code && typeof code === 'string' && code.trim()) {
         return code.trim().toUpperCase();
@@ -161,9 +237,25 @@ const getToggleWindowWarning = (semester) => {
     return null;
 };
 
-const getAllSemesters = async (_req, res, next) => {
+const getAllSemesters = async (req, res, next) => {
     try {
+        const assignedOnly = String(req.query?.assignedOnly || '').toLowerCase() === 'true';
+        const where = {};
+
+        if (assignedOnly && req.user) {
+            if (req.user.role === 'STUDENT') {
+                where.projectEnrollments = {
+                    some: { studentId: req.user.id, status: 'ACTIVE' },
+                };
+            } else if (req.user.role === 'LECTURER') {
+                where.lecturerAssignments = {
+                    some: { lecturerId: req.user.id, status: 'ACTIVE' },
+                };
+            }
+        }
+
         const semesters = await prisma.semester.findMany({
+            where,
             orderBy: { startDate: 'desc' },
         });
 
@@ -264,6 +356,21 @@ const createSemester = async (req, res, next) => {
         const outlineWindowOrderError = validateOutlineWindowOrder(nextOutlineOpenAt, nextOutlineDeadline);
         if (outlineWindowOrderError) {
             return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: outlineWindowOrderError });
+        }
+
+        const timelineOrderError = validateSemesterTimelineOrder({
+            startDate,
+            endDate,
+            registrationDeadline,
+            outlineSubmissionOpenAt: nextOutlineOpenAt,
+            outlineSubmissionDeadline: nextOutlineDeadline,
+            bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
+            midtermReportDate,
+            bm03FinalizationOpenAt: nextFinalOpenAt,
+            defenseDate,
+        });
+        if (timelineOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_SEMESTER_TIMELINE', message: timelineOrderError });
         }
 
         const calculatedStatus = calculateStatus({
@@ -428,6 +535,21 @@ const updateSemester = async (req, res, next) => {
             return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: outlineWindowOrderError });
         }
 
+        const timelineOrderError = validateSemesterTimelineOrder({
+            startDate: nextStartDate,
+            endDate: nextEndDate,
+            registrationDeadline: nextRegistrationDeadline,
+            outlineSubmissionOpenAt: nextOutlineOpenAt,
+            outlineSubmissionDeadline: nextOutlineDeadline,
+            bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
+            midtermReportDate: nextMidtermReportDate,
+            bm03FinalizationOpenAt: nextFinalOpenAt,
+            defenseDate: nextDefenseDate,
+        });
+        if (timelineOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_SEMESTER_TIMELINE', message: timelineOrderError });
+        }
+
         const calculatedStatus = calculateStatus({
             startDate: nextStartDate,
             endDate: nextEndDate,
@@ -473,7 +595,7 @@ const updateSemester = async (req, res, next) => {
                 const activePolicy = prisma.periodWorkflowPolicyVersion?.findFirst
                     ? await getActivePolicyVersion(semesterId)
                     : null;
-                await createPolicyVersion({
+                const newPolicyVersion = await createPolicyVersion({
                     semesterId,
                     policy: {
                         ...(activePolicy?.policy || DEFAULT_POLICY),
@@ -482,6 +604,18 @@ const updateSemester = async (req, res, next) => {
                     },
                     createdById: req.user?.id || null,
                 });
+                if (newPolicyVersion?.id) {
+                    await prisma.semester.update({
+                        where: { id: semesterId },
+                        data: { lockedPolicyVersionId: newPolicyVersion.id },
+                    });
+                    if (prisma.topicRegistration?.updateMany) {
+                        await prisma.topicRegistration.updateMany({
+                            where: { semesterId },
+                            data: { periodPolicyVersionId: newPolicyVersion.id },
+                        });
+                    }
+                }
             } catch (policyErr) {
                 console.error('Failed to create updated workflow policy version for semester:', policyErr);
             }
@@ -752,7 +886,7 @@ const issuePeriodDecision = async (req, res, next) => {
         }
 
         const generatedDecisionNumber = normalizedDecisionNumber
-            || `QĐ-${semester.name.replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
+            || `QĐ-${(semester.code || semester.name.replace(/\s+/g, '')).trim()}-${Date.now().toString().slice(-4)}`;
         const effectiveDecisionDate = decisionDate ? new Date(decisionDate) : new Date();
 
         const registrationIds = eligibleRegistrations.map((r) => r.id);

@@ -138,7 +138,7 @@ export default function TopicSimilarityModal({
                 </Button>,
             ]}
         >
-            <Spin spinning={loading} tip="AI đang so khớp ngữ nghĩa với kho đề tài...">
+            <Spin spinning={loading} description="AI đang so khớp ngữ nghĩa với kho đề tài...">
                 {data ? (
                     <div className="py-2 space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                         {/* Similarity Score Metric */}

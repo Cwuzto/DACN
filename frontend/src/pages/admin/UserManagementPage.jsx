@@ -36,6 +36,8 @@ import {
     BankOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
+    TeamOutlined,
+    InfoCircleOutlined,
 } from '@ant-design/icons';
 import userService from '../../services/userService';
 import { useUsers, useUserRoleCounts, useUserPermissions, useUserMutation } from '../../queries/userQueries';
@@ -48,11 +50,24 @@ import PageHeader from '../../components/common/PageHeader';
 import ExcelImportModal from '../../components/common/ExcelImportModal';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
+import { LECTURER_DEPARTMENT_OPTIONS, STUDENT_MAJOR_OPTIONS } from '../../constants/academicUnits';
 
 const roleMap = {
     ADMIN: { label: 'Quản trị viên', color: 'error', badgeBg: 'bg-rose-50 text-rose-700 border-rose-200' },
     LECTURER: { label: 'Giảng viên', color: 'teal', badgeBg: 'bg-teal-50 text-teal-700 border-teal-200' },
     STUDENT: { label: 'Sinh viên', color: 'green', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+};
+
+const getDisplayRoleMeta = (record) => {
+    if (!record) return roleMap.LECTURER;
+    const groupCodes = (record.permissionGroups || []).map((g) => g?.code).filter(Boolean);
+    if (groupCodes.includes('VIEN_TRUONG')) {
+        return { label: 'Viện trưởng', color: 'purple', badgeBg: 'bg-purple-50 text-purple-700 border-purple-200' };
+    }
+    if (record.role !== 'ADMIN' && groupCodes.includes('GIAO_VU')) {
+        return { label: 'Giáo vụ', color: 'blue', badgeBg: 'bg-blue-50 text-blue-700 border-blue-200' };
+    }
+    return roleMap[record.role] || { label: record.role, color: 'default', badgeBg: 'bg-slate-50 text-slate-700 border-slate-200' };
 };
 
 const ACADEMIC_TITLE_LABELS = {
@@ -430,84 +445,47 @@ function UserManagementPage() {
             width: 210,
             render: (email) => <span className="text-xs text-slate-600 font-medium">{email}</span>,
         },
-        {
-            title: 'Vai trò',
-            dataIndex: 'role',
-            key: 'role',
-            width: 130,
-            render: (role) => {
-                const currentRole = roleMap[role];
-                return (
-                    <Tag color={currentRole?.color || 'default'} className="font-semibold text-xs m-0">
-                        {currentRole?.label || role}
-                    </Tag>
-                );
-            },
-        },
+        ...(activeRole === 'ADMIN'
+            ? [
+                  {
+                      title: 'Vai trò',
+                      dataIndex: 'role',
+                      key: 'role',
+                      width: 130,
+                      render: (role, record) => {
+                          const currentRole = getDisplayRoleMeta(record || { role });
+                          return (
+                              <Tag color={currentRole?.color || 'default'} className="font-semibold text-xs m-0">
+                                  {currentRole?.label || role}
+                              </Tag>
+                          );
+                      },
+                  },
+              ]
+            : []),
         ...(activeRole === 'LECTURER'
             ? [
                   {
-                      title: 'Chuyên môn',
-                      dataIndex: 'expertiseAreas',
-                      key: 'expertiseAreas',
-                      width: 220,
-                      render: (areas) => {
-                          const list = Array.isArray(areas) ? areas : [];
-                          if (list.length === 0) {
-                              return (
-                                  <span className="inline-flex items-center text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                      Cần bổ sung chuyên môn
-                                  </span>
-                              );
-                          }
+                      title: 'Chỉ tiêu hướng dẫn',
+                      key: 'quotaOrPerm',
+                      width: 170,
+                      render: (_, record) => {
+                          const max = record.maxStudents || 10;
                           return (
-                              <div className="flex flex-wrap gap-1 max-w-[240px]">
-                                  {list.map((area, idx) => (
-                                      <Tag key={idx} color="cyan" className="text-[11px] m-0">
-                                          {area}
-                                      </Tag>
-                                  ))}
+                              <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs font-mono">
+                                      <span className="text-slate-500 font-medium">Tối đa:</span>
+                                      <span className="font-bold text-teal-800">{max} SV</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                      <div className="bg-teal-600 h-full rounded-full" style={{ width: '40%' }}></div>
+                                  </div>
                               </div>
                           );
                       },
                   },
               ]
             : []),
-        {
-            title: activeRole === 'LECTURER' ? 'Chỉ tiêu hướng dẫn' : 'Nhóm quyền',
-            key: 'quotaOrPerm',
-            width: 170,
-            render: (_, record) => {
-                if (record.role === 'LECTURER') {
-                    const max = record.maxStudents || 10;
-                    return (
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs font-mono">
-                                <span className="text-slate-500 font-medium">Tối đa:</span>
-                                <span className="font-bold text-teal-800">{max} SV</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-teal-600 h-full rounded-full" style={{ width: '40%' }}></div>
-                            </div>
-                        </div>
-                    );
-                }
-                return record.permissionGroups?.length ? (
-                    <div className="flex flex-wrap gap-1">
-                        {record.permissionGroups.map((group) => (
-                            <span
-                                key={group.code || group}
-                                className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200"
-                            >
-                                {group.name || group}
-                            </span>
-                        ))}
-                    </div>
-                ) : (
-                    <span className="text-slate-400 font-bold">—</span>
-                );
-            },
-        },
         {
             title: 'Trạng thái',
             dataIndex: 'isActive',
@@ -603,8 +581,10 @@ function UserManagementPage() {
     ];
 
     return (
-        <div className="py-2 space-y-6">
+        <div className="space-y-5">
             <PageHeader
+                icon={<TeamOutlined />}
+                accent="rose"
                 breadcrumb={[
                     { label: 'Quản trị hệ thống' },
                     { label: 'Người dùng & Phân quyền' },
@@ -643,45 +623,45 @@ function UserManagementPage() {
             />
 
             <QueryPanel query={countsQuery}>
-            {/* 4 Top KPI Cards — Aligned with Overview KPI Typography Standards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
+            {/* 4 Top KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng Tài khoản</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng Tài khoản</div>
                         <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{totalAllAccounts}</div>
                         <div className="text-xs text-slate-500 mt-1">Toàn hệ thống</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100 shrink-0">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200/80 shrink-0">
                         Đang hoạt động
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-teal-200/80 bg-teal-50/30 shadow-sm flex items-start justify-between gap-2">
+                <div className="bg-white p-4 rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/40 via-white to-white shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cán bộ & Giảng viên</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cán bộ & Giảng viên</div>
                         <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{roleCounts.LECTURER || 0}</div>
                         <div className="text-xs text-slate-500 mt-1">ThS · TS · PGS</div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-medium shrink-0">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200/80 font-semibold shrink-0">
                         GVHD & HĐ
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/30 shadow-sm flex items-start justify-between gap-2">
+                <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-white shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sinh viên Làm đồ án</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sinh viên Làm đồ án</div>
                         <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{roleCounts.STUDENT || 0}</div>
                         <div className="text-xs text-slate-500 mt-1">1 SV / 1 Đề tài</div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium shrink-0">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-semibold shrink-0">
                         Chính khóa
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-rose-200/80 bg-rose-50/30 shadow-sm flex items-start justify-between gap-2">
+                <div className="bg-white p-4 rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-white shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-2">
                     <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quản trị & Giáo vụ</div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quản trị & Giáo vụ</div>
                         <div className="text-2xl font-bold text-rose-800 mt-1 tabular-nums">{roleCounts.ADMIN || 0}</div>
                         <div className="text-xs text-slate-500 mt-1">Toàn quyền hệ thống</div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-medium shrink-0">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 font-semibold shrink-0">
                         Admin
                     </span>
                 </div>
@@ -689,7 +669,7 @@ function UserManagementPage() {
 
             </QueryPanel>
             {/* Faceted Filter Toolbar & Data Table Container */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 lg:p-5 space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 lg:p-5 space-y-4">
                 {/* Segmented Role Tabs with Counters */}
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3 flex-wrap">
                     <button
@@ -758,10 +738,7 @@ function UserManagementPage() {
                             onChange={(value) => { resetPage(); setDepartmentFilter(value || null); }}
                             options={[
                                 { label: 'Tất cả Bộ môn', value: null },
-                                { label: 'Công nghệ Phần mềm', value: 'Công nghệ Phần mềm' },
-                                { label: 'Hệ thống Thông tin', value: 'Hệ thống Thông tin' },
-                                { label: 'Mạng Máy tính', value: 'Mạng Máy tính' },
-                                { label: 'Khoa học Máy tính', value: 'Khoa học Máy tính' },
+                                ...LECTURER_DEPARTMENT_OPTIONS,
                             ]}
                         />
                         <Select
@@ -842,7 +819,7 @@ function UserManagementPage() {
                             <div>
                                 <h3 className="text-base font-bold text-slate-900 leading-snug">{drawerUser.fullName}</h3>
                                 <p className="text-xs text-slate-500 font-mono font-medium">
-                                    {drawerUser.code} · {roleMap[drawerUser.role]?.label}
+                                    {drawerUser.code} · {getDisplayRoleMeta(drawerUser).label}
                                 </p>
                             </div>
                         </div>
@@ -850,8 +827,8 @@ function UserManagementPage() {
                 }
                 open={isDrawerOpen}
                 onClose={() => setIsDrawerOpen(false)}
-                width={520}
-                destroyOnClose
+                size={520}
+                destroyOnHidden
             >
                 {drawerUser && (
                     <div className="space-y-6">
@@ -1040,7 +1017,7 @@ function UserManagementPage() {
                 }}
                 width={620}
                 centered
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form
                     form={form}
@@ -1143,9 +1120,13 @@ function UserManagementPage() {
                             <Form.Item
                                 label="Ngành học (*)"
                                 name="major"
-                                rules={[{ required: true, message: 'Nhập ngành học!' }]}
+                                rules={[{ required: true, message: 'Vui lòng chọn ngành học!' }]}
                             >
-                                <Input placeholder="VD: Kỹ thuật Phần mềm" />
+                                <Select
+                                    placeholder="Chọn ngành học"
+                                    options={STUDENT_MAJOR_OPTIONS}
+                                    showSearch={false}
+                                />
                             </Form.Item>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1168,12 +1149,11 @@ function UserManagementPage() {
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Form.Item label="Bộ môn" name="department">
-                                    <Select placeholder="Chọn Bộ môn" allowClear>
-                                        <Select.Option value="Công nghệ Phần mềm">Công nghệ Phần mềm</Select.Option>
-                                        <Select.Option value="Hệ thống Thông tin">Hệ thống Thông tin</Select.Option>
-                                        <Select.Option value="Mạng Máy tính">Mạng Máy tính</Select.Option>
-                                        <Select.Option value="Khoa học Máy tính">Khoa học Máy tính</Select.Option>
-                                    </Select>
+                                    <Select
+                                        placeholder="Chọn bộ môn"
+                                        allowClear
+                                        options={LECTURER_DEPARTMENT_OPTIONS}
+                                    />
                                 </Form.Item>
 
                                 <Form.Item label="Số điện thoại" name="phone">
@@ -1245,8 +1225,11 @@ function UserManagementPage() {
                     )}
 
                     {!editingUser && (
-                        <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                            💡 Mật khẩu mặc định khi tạo mới là <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">mã số</code> của tài khoản.
+                        <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-start gap-2">
+                            <InfoCircleOutlined className="text-sky-600 mt-0.5 shrink-0" aria-hidden="true" />
+                            <span>
+                                Mật khẩu mặc định khi tạo mới là <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">mã số</code> của tài khoản.
+                            </span>
                         </div>
                     )}
                 </Form>
@@ -1269,7 +1252,7 @@ function UserManagementPage() {
                 okButtonProps={{ disabled: !groupsQuery.isSuccess || !permissionsQuery.isSuccess || draftUserId !== permModal.user?.id }}
                 width={560}
                 centered
-                destroyOnClose
+                destroyOnHidden
             >
                 {permModal.user && (
                     <div className="space-y-4 pt-2">
@@ -1288,7 +1271,7 @@ function UserManagementPage() {
                             <div>
                                 <p className="font-bold text-sm text-slate-900 leading-snug">{permModal.user.fullName}</p>
                                 <p className="text-xs text-slate-500">
-                                    {permModal.user.email} • {roleMap[permModal.user.role]?.label}
+                                    {permModal.user.email} • {getDisplayRoleMeta(permModal.user).label}
                                 </p>
                             </div>
                         </div>
@@ -1305,7 +1288,7 @@ function UserManagementPage() {
                                 .filter((g) => {
                                     if (permModal.user.role === 'STUDENT') return false;
                                     if (permModal.user.role === 'ADMIN') return g.code === 'QUAN_TRI_VIEN';
-                                    if (permModal.user.role === 'LECTURER') return g.code === 'GVHD' || g.code === 'VIEN_TRUONG';
+                                    if (permModal.user.role === 'LECTURER') return g.code === 'GVHD' || g.code === 'GIAO_VU';
                                     return true;
                                 })
                                 .map((group) => {

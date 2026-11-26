@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { message } from 'antd';
 import useAuthStore from '../../stores/authStore';
 import { getRouteRedirect, getRoleHomePath } from '../../utils/authRedirect';
 import { canViewFeature, getEffectivePermissions } from '../../auth/policyEvaluator';
@@ -18,9 +20,7 @@ function ProtectedRoute({
 }) {
     const { isAuthenticated, user } = useAuthStore();
 
-    if (!isAuthenticated || !user) {
-        return <Navigate to="/" replace />;
-    }
+    const isAuthed = Boolean(isAuthenticated && user);
 
     const effectiveRequiredPermissions = requiredPermission
         ? (requiredPermissions.includes(requiredPermission)
@@ -28,23 +28,39 @@ function ProtectedRoute({
             : [...requiredPermissions, requiredPermission])
         : requiredPermissions;
 
-    const effectivePermissions = Array.from(getEffectivePermissions(user, context));
-    const effectiveUser = {
-        ...user,
-        permissions: effectivePermissions,
-    };
+    let redirectTo = null;
+    if (isAuthed) {
+        const effectivePermissions = Array.from(getEffectivePermissions(user, context));
+        const effectiveUser = {
+            ...user,
+            permissions: effectivePermissions,
+        };
 
-    let redirectTo = getRouteRedirect({
-        isAuthenticated,
-        user: effectiveUser,
-        allowedRoles,
-        requiredPermissions: effectiveRequiredPermissions,
-        requiredAnyPermissions,
-        allowedPermissionGroups,
-    });
+        redirectTo = getRouteRedirect({
+            isAuthenticated,
+            user: effectiveUser,
+            allowedRoles,
+            requiredPermissions: effectiveRequiredPermissions,
+            requiredAnyPermissions,
+            allowedPermissionGroups,
+        });
 
-    if (!redirectTo && featureKey && !canViewFeature(user, featureKey, context)) {
-        redirectTo = getRoleHomePath(user);
+        if (!redirectTo && featureKey && !canViewFeature(user, featureKey, context)) {
+            redirectTo = getRoleHomePath(user);
+        }
+    }
+
+    useEffect(() => {
+        if (isAuthed && redirectTo) {
+            message.warning({
+                content: 'Bạn không có quyền truy cập trang này.',
+                key: 'rbac-access-denied',
+            });
+        }
+    }, [isAuthed, redirectTo]);
+
+    if (!isAuthed) {
+        return <Navigate to="/" replace />;
     }
 
     if (redirectTo) return <Navigate to={redirectTo} replace />;

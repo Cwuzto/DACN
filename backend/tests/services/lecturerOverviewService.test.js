@@ -1,4 +1,5 @@
 const {
+    resolveNextMilestoneByStatus,
     resolveLecturerSemester,
     buildMentorOverview,
 } = require('../../src/services/lecturerOverviewService');
@@ -408,6 +409,81 @@ describe('lecturerOverviewService', () => {
             });
             expect(overdueResult.watchItems[0].dueAt).toEqual(pastDeadline);
             expect(overdueResult.watchItems[0].deadlineState).toBe('OVERDUE');
+        });
+    });
+
+    describe('resolveNextMilestoneByStatus', () => {
+        const staleBm01Task = {
+            id: 1,
+            taskType: 'BM01_INITIAL_SUBMISSION',
+            title: 'BM01 - Đề cương chi tiết đồ án',
+            dueDate: new Date('2026-09-10T00:00:00.000Z'),
+            status: 'PENDING',
+        };
+
+        it('never leaks stale BM01 task/deadline for DEFENSE_PASSED or COMPLETED students', () => {
+            expect(
+                resolveNextMilestoneByStatus({ status: 'DEFENSE_PASSED', tasks: [staleBm01Task] })
+            ).toEqual({
+                nextMilestone: 'Hoàn thiện hồ sơ lưu chiểu sau bảo vệ',
+                nextMilestoneAt: null,
+            });
+
+            expect(
+                resolveNextMilestoneByStatus({ status: 'COMPLETED', tasks: [staleBm01Task] })
+            ).toEqual({
+                nextMilestone: null,
+                nextMilestoneAt: null,
+            });
+        });
+
+        it('maps each lifecycle status accurately and keeps BM01 dueDate only during BM01 stage', () => {
+            const sem = { outlineSubmissionDeadline: new Date('2026-09-15T00:00:00.000Z') };
+
+            expect(resolveNextMilestoneByStatus({ status: 'PENDING', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Chờ GVHD duyệt đăng ký',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'MENTOR_APPROVED', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'BM01 - Nộp & thẩm định đề cương',
+                nextMilestoneAt: staleBm01Task.dueDate,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'BM01_SUBMITTED', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Thẩm định đề cương BM01',
+                nextMilestoneAt: staleBm01Task.dueDate,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'BM01_PASSED', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'BM02 - Hoàn thiện đơn giao đề tài',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'BM02_APPROVED', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Ban hành Quyết định giao đề tài',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'IN_PROGRESS_BM03', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'BM03 - Theo dõi tiến độ & đánh giá',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'BM03_SIGNATURE_PENDING', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Chờ sinh viên xác nhận BM03',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'BM04_REVIEW', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'BM04 - Phiếu nhận xét GVHD',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'DEFENSE_READY', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Bảo vệ trước Hội đồng',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'AWAITING_FINAL_APPROVAL', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Chờ phê duyệt kết quả bảo vệ',
+                nextMilestoneAt: null,
+            });
+            expect(resolveNextMilestoneByStatus({ status: 'DEFENSE_FAILED', tasks: [staleBm01Task] }, sem)).toEqual({
+                nextMilestone: 'Không đạt bảo vệ',
+                nextMilestoneAt: null,
+            });
         });
     });
 });

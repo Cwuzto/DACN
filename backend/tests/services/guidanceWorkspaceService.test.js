@@ -231,6 +231,25 @@ describe('guidanceWorkspaceService.buildGuidanceWorkspace', () => {
         expect(ws.nextAction).toBeNull();
     });
 
+    test('omits BM02-A when requests are only in unsubmitted STUDENT_PREPARING status', () => {
+        const reg = baseRegistration({
+            status: 'DECISION_ISSUED',
+            bm02aRequests: [
+                {
+                    id: 12,
+                    status: 'STUDENT_PREPARING',
+                    createdAt: new Date('2026-10-05T12:00:00.000Z'),
+                    updatedAt: new Date('2026-10-05T12:00:00.000Z'),
+                },
+            ],
+        });
+
+        const ws = buildGuidanceWorkspace(reg, mentorActor, { allowedActions: [] });
+
+        expect(ws.forms.map((f) => f.code)).toEqual(['BM01', 'BM02', 'BM03', 'BM04', 'BM05']);
+        expect(ws.forms.find((f) => f.code === 'BM02-A')).toBeUndefined();
+    });
+
     test('sets nextAction to OPEN_PROGRESS when BM03 is in progress and mentor can issue checkpoint', () => {
         const reg = baseRegistration({
             status: 'IN_PROGRESS_BM03',

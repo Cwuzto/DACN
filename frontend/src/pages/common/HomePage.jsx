@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRoleHomePath, getUserDisplayRole } from '../../utils/authRedirect';
+import { getRoleHomePath, getUserDisplayRole, isInstituteDirector } from '../../utils/authRedirect';
 import useAuthStore from '../../stores/authStore';
 import { getPublicPortalView } from '../../utils/portalContent';
 import { getClosestSemester } from '../../utils/semesterDisplay';
@@ -10,6 +10,7 @@ import { queryKeys } from '../../query/queryKeys';
 import { usePublicSemesters } from '../../queries/semesterQueries';
 import { usePublicLecturers } from '../../queries/userQueries';
 import { usePublicPortalContent } from '../../queries/portalQueries';
+import { LECTURER_DEPARTMENTS } from '../../constants/academicUnits';
 import {
     LoginOutlined,
     ArrowRightOutlined,
@@ -338,9 +339,55 @@ const ANNOUNCEMENTS_DATA = {
     },
 };
 
+const PORTAL_NAV_ITEMS = [
+    { id: 'roadmap', label: 'Lộ trình 6 Chặng', Icon: CompassOutlined, accent: 'teal' },
+    { id: 'faculty', label: 'Danh bạ Giảng viên', Icon: TeamOutlined, accent: 'sky' },
+    { id: 'downloads', label: 'Biểu mẫu Học vụ', Icon: FileTextOutlined, accent: 'indigo' },
+    { id: 'announcements', label: 'Bản tin & Quyết định', Icon: NotificationOutlined, accent: 'amber' },
+];
+
+function getPortalRoleStyle(user) {
+    if (!user) {
+        return {
+            avatar: 'bg-gradient-to-br from-emerald-600 to-cyan-600',
+            chip: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+        };
+    }
+    const displayRole = getUserDisplayRole(user);
+    if (isInstituteDirector(user)) {
+        return {
+            avatar: 'bg-gradient-to-br from-purple-600 to-amber-500',
+            chip: 'bg-purple-50 text-purple-700 border-purple-200/80',
+        };
+    }
+    if (displayRole === 'Giáo vụ') {
+        return {
+            avatar: 'bg-gradient-to-br from-sky-600 to-blue-600',
+            chip: 'bg-sky-50 text-sky-700 border-sky-200/80',
+        };
+    }
+    if (user.role === 'ADMIN') {
+        return {
+            avatar: 'bg-gradient-to-br from-rose-600 to-slate-800',
+            chip: 'bg-rose-50 text-rose-700 border-rose-200/80',
+        };
+    }
+    if (user.role === 'LECTURER') {
+        return {
+            avatar: 'bg-gradient-to-br from-teal-600 to-emerald-600',
+            chip: 'bg-teal-50 text-teal-700 border-teal-200/80',
+        };
+    }
+    return {
+        avatar: 'bg-gradient-to-br from-emerald-600 to-cyan-600',
+        chip: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+    };
+}
+
 export default function HomePage() {
     const navigate = useNavigate();
     const { user, setAuth } = useAuthStore();
+    const portalRoleStyle = useMemo(() => getPortalRoleStyle(user), [user]);
 
     // Data State via Domain Queries
     const scope = queryKeys.scope(user);
@@ -404,7 +451,8 @@ export default function HomePage() {
             }
 
             if (deptFilter !== 'ALL') {
-                if (!lec.department?.toLowerCase().includes(deptFilter.toLowerCase())) {
+                const lecDept = (lec.department || '').trim().toLowerCase();
+                if (lecDept !== deptFilter.toLowerCase()) {
                     return false;
                 }
             }
@@ -740,74 +788,44 @@ export default function HomePage() {
                         onClick={() => handleBackToPortal()}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleBackToPortal(); }}
-                        style={{ cursor: 'pointer' }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleBackToPortal(); }}
                     >
-                        <div className="brand-logo-frame">
-                            <img
-                                className="brand-logo"
-                                src="/assets/tdmu-logo.svg"
-                                onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
-                                alt="Đại học Thủ Dầu Một"
-                                width="107"
-                                height="40"
-                            />
-                            <div className="brand-logo-shine" aria-hidden="true" />
-                        </div>
-                        <div className="brand-text">
+                        <img
+                            src="/assets/tdmu-logo.svg"
+                            onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
+                            alt="Đại học Thủ Dầu Một"
+                            className="portal-brand-logo"
+                        />
+                        <span className="portal-brand-divider" aria-hidden="true" />
+                        <div className="portal-brand-text">
                             <div className="brand-title-row">
-                                <span className="brand-title">{portalConfiguration.institutionName}</span>
+                                <span className="portal-brand-title">{portalConfiguration.institutionName}</span>
                                 <span className="brand-badge-live">
                                     <span className="live-dot" />
-                                    <span className="live-text">Học vụ Số</span>
                                 </span>
                             </div>
-                            <p className="brand-subtitle">{portalConfiguration.siteTitle}</p>
+                            <p className="portal-brand-subtitle">{portalConfiguration.siteTitle}</p>
                         </div>
                     </div>
 
-                    <nav className="topnav-nav">
-                        <ul className="nav-links">
-                            <li>
-                                <a
-                                    href="#roadmap"
-                                    className={`nav-link ${activeNavSection === 'roadmap' ? 'active' : ''}`}
-                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#roadmap'); }}
-                                >
-                                    <CompassOutlined className="nav-link-icon" />
-                                    <span>Lộ trình 6 Chặng</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a
-                                    href="#faculty"
-                                    className={`nav-link ${activeNavSection === 'faculty' ? 'active' : ''}`}
-                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#faculty'); }}
-                                >
-                                    <TeamOutlined className="nav-link-icon" />
-                                    <span>Danh bạ Giảng viên</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a
-                                    href="#downloads"
-                                    className={`nav-link ${activeNavSection === 'downloads' ? 'active' : ''}`}
-                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#downloads'); }}
-                                >
-                                    <FileTextOutlined className="nav-link-icon" />
-                                    <span>Biểu mẫu Học vụ</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a
-                                    href="#announcements"
-                                    className={`nav-link ${activeNavSection === 'announcements' ? 'active' : ''}`}
-                                    onClick={(e) => { e.preventDefault(); handleBackToPortal('#announcements'); }}
-                                >
-                                    <NotificationOutlined className="nav-link-icon" />
-                                    <span>Bản tin & Quyết định</span>
-                                </a>
-                            </li>
+                    <nav className="topnav-nav" aria-label="Điều hướng cổng thông tin">
+                        <ul className="portal-nav-dock">
+                            {PORTAL_NAV_ITEMS.map(({ id, label, Icon, accent }) => (
+                                <li key={id}>
+                                    <a
+                                        href={`#${id}`}
+                                        data-accent={accent}
+                                        className={`portal-nav-link ${activeNavSection === id ? 'active' : ''}`}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            handleBackToPortal(`#${id}`);
+                                        }}
+                                    >
+                                        <Icon className="nav-link-icon" aria-hidden="true" />
+                                        <span>{label}</span>
+                                    </a>
+                                </li>
+                            ))}
                         </ul>
                     </nav>
 
@@ -819,14 +837,16 @@ export default function HomePage() {
                                 type="button"
                                 aria-label="Vào Bàn làm việc"
                             >
-                                <div className="user-avatar-badge">
+                                <div className={`user-avatar-badge ${portalRoleStyle.avatar}`}>
                                     {user.fullName?.[0]?.toUpperCase() || 'U'}
                                 </div>
                                 <div className="user-info-group">
                                     <span className="user-workspace-title">Bàn làm việc</span>
-                                    <span className="user-role-chip">{getUserDisplayRole(user)}</span>
+                                    <span className={`user-role-chip border ${portalRoleStyle.chip}`}>
+                                        {getUserDisplayRole(user)}
+                                    </span>
                                 </div>
-                                <ArrowRightOutlined className="workspace-arrow-icon" />
+                                <ArrowRightOutlined className="workspace-arrow-icon" aria-hidden="true" />
                             </button>
                         ) : (
                             <button
@@ -836,7 +856,7 @@ export default function HomePage() {
                                 data-od-id="btn-login-trigger"
                                 aria-label="Đăng nhập Cổng Học vụ"
                             >
-                                <LoginOutlined className="login-btn-icon" />
+                                <LoginOutlined className="login-btn-icon" aria-hidden="true" />
                                 <span className="login-btn-text">Đăng nhập</span>
                                 <div className="login-btn-glow" aria-hidden="true" />
                             </button>
@@ -849,7 +869,7 @@ export default function HomePage() {
                             aria-label={isMobileMenuOpen ? 'Đóng trình đơn' : 'Mở trình đơn'}
                             aria-expanded={isMobileMenuOpen}
                         >
-                            {isMobileMenuOpen ? <CloseOutlined /> : <MenuOutlined />}
+                            {isMobileMenuOpen ? <CloseOutlined aria-hidden="true" /> : <MenuOutlined aria-hidden="true" />}
                         </button>
                     </div>
                 </div>
@@ -857,51 +877,22 @@ export default function HomePage() {
                 {/* Mobile Dropdown Navigation */}
                 {isMobileMenuOpen && (
                     <div className="topnav-mobile-dropdown">
-                        <nav className="mobile-nav-list">
-                            <a
-                                href="#roadmap"
-                                className={`mobile-nav-item ${activeNavSection === 'roadmap' ? 'active' : ''}`}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleBackToPortal('#roadmap');
-                                }}
-                            >
-                                <CompassOutlined className="mobile-nav-icon" />
-                                <span>Lộ trình 6 Chặng</span>
-                            </a>
-                            <a
-                                href="#faculty"
-                                className={`mobile-nav-item ${activeNavSection === 'faculty' ? 'active' : ''}`}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleBackToPortal('#faculty');
-                                }}
-                            >
-                                <TeamOutlined className="mobile-nav-icon" />
-                                <span>Danh bạ Giảng viên</span>
-                            </a>
-                            <a
-                                href="#downloads"
-                                className={`mobile-nav-item ${activeNavSection === 'downloads' ? 'active' : ''}`}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleBackToPortal('#downloads');
-                                }}
-                            >
-                                <FileTextOutlined className="mobile-nav-icon" />
-                                <span>Biểu mẫu Học vụ</span>
-                            </a>
-                            <a
-                                href="#announcements"
-                                className={`mobile-nav-item ${activeNavSection === 'announcements' ? 'active' : ''}`}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleBackToPortal('#announcements');
-                                }}
-                            >
-                                <NotificationOutlined className="mobile-nav-icon" />
-                                <span>Bản tin & Quyết định</span>
-                            </a>
+                        <nav className="mobile-nav-list" aria-label="Điều hướng di động">
+                            {PORTAL_NAV_ITEMS.map(({ id, label, Icon, accent }) => (
+                                <a
+                                    key={id}
+                                    href={`#${id}`}
+                                    data-accent={accent}
+                                    className={`mobile-nav-item ${activeNavSection === id ? 'active' : ''}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleBackToPortal(`#${id}`);
+                                    }}
+                                >
+                                    <Icon className="mobile-nav-icon" aria-hidden="true" />
+                                    <span>{label}</span>
+                                </a>
+                            ))}
                         </nav>
                         <div className="mobile-nav-footer">
                             {user ? (
@@ -913,14 +904,16 @@ export default function HomePage() {
                                     }}
                                     type="button"
                                 >
-                                    <div className="user-avatar-badge">
+                                    <div className={`user-avatar-badge ${portalRoleStyle.avatar}`}>
                                         {user.fullName?.[0]?.toUpperCase() || 'U'}
                                     </div>
                                     <div className="user-info-group">
                                         <span className="user-workspace-title">Bàn làm việc</span>
-                                        <span className="user-role-chip">{getUserDisplayRole(user)}</span>
+                                        <span className={`user-role-chip border ${portalRoleStyle.chip}`}>
+                                            {getUserDisplayRole(user)}
+                                        </span>
                                     </div>
-                                    <ArrowRightOutlined className="workspace-arrow-icon" />
+                                    <ArrowRightOutlined className="workspace-arrow-icon" aria-hidden="true" />
                                 </button>
                             ) : (
                                 <button
@@ -931,7 +924,7 @@ export default function HomePage() {
                                     }}
                                     type="button"
                                 >
-                                    <LoginOutlined className="login-btn-icon" />
+                                    <LoginOutlined className="login-btn-icon" aria-hidden="true" />
                                     <span className="login-btn-text">Đăng nhập</span>
                                 </button>
                             )}
@@ -1391,10 +1384,11 @@ export default function HomePage() {
                                         onChange={(e) => setDeptFilter(e.target.value)}
                                     >
                                         <option value="ALL">Tất cả Bộ môn</option>
-                                        <option value="Phần mềm">Kỹ thuật Phần mềm</option>
-                                        <option value="Máy tính">Khoa học Dữ liệu & AI</option>
-                                        <option value="Mạng">Mạng máy tính & An ninh mạng</option>
-                                        <option value="Hệ thống">Hệ thống thông tin quản lý</option>
+                                        {LECTURER_DEPARTMENTS.map((dept) => (
+                                            <option key={dept} value={dept}>
+                                                {dept}
+                                            </option>
+                                        ))}
                                     </select>
                                     <select
                                         className="filter-select"

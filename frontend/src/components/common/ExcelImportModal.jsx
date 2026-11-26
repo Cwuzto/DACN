@@ -386,6 +386,10 @@ export default function ExcelImportModal({
                     academicTitle = 'THAC_SI';
                 }
                 const quota = row['Chỉ tiêu hướng dẫn tối đa'] || row['Chỉ tiêu hướng dẫn'] || row['SV Tối Đa (Quota)'] || row.maxStudents || null;
+                const rawExpertise = row['Chuyên môn (*)'] || row['Chuyên môn'] || row['Lĩnh vực chuyên môn'] || row.expertiseAreas || '';
+                const expertiseAreas = Array.isArray(rawExpertise)
+                    ? rawExpertise.map((v) => String(v).trim()).filter(Boolean).join(', ')
+                    : String(rawExpertise || '').trim();
                 const note = String(row['Ghi chú'] || row.note || '').trim();
 
                 // Validation Rules cho LECTURER / PROJECT_ENROLLMENT
@@ -422,6 +426,7 @@ export default function ExcelImportModal({
                     phone,
                     department,
                     academicTitle,
+                    expertiseAreas,
                     quota,
                     note,
                     isValid: errors.length === 0,
@@ -637,6 +642,7 @@ export default function ExcelImportModal({
             major: record.major,
             department: record.department,
             academicTitle: record.academicTitle,
+            expertiseAreas: record.expertiseAreas || '',
             plannedQuota: record.plannedQuota || 10,
             note: record.note,
         });
@@ -660,6 +666,7 @@ export default function ExcelImportModal({
                     major: String(values.major || '').trim(),
                     department: String(values.department || '').trim(),
                     academicTitle: String(values.academicTitle || '').trim(),
+                    expertiseAreas: String(values.expertiseAreas || '').trim(),
                     plannedQuota: Number(values.plannedQuota) || r.plannedQuota || 10,
                     note: String(values.note || '').trim(),
                 };
@@ -769,6 +776,7 @@ export default function ExcelImportModal({
                         phone: r.phone || null,
                         department: r.department || null,
                         academicTitle: r.academicTitle || null,
+                        expertiseAreas: r.expertiseAreas || '',
                     })),
                 };
             }
@@ -909,12 +917,39 @@ export default function ExcelImportModal({
                     title: 'Học vị',
                     dataIndex: 'academicTitle',
                     key: 'academicTitle',
-                    width: 100,
-                    render: (title) => (
-                        <Tag color="blue" className="text-[11px]">
-                            {title || 'ThS'}
-                        </Tag>
-                    ),
+                    width: 120,
+                    render: (title) => {
+                        const labelMap = {
+                            THAC_SI: 'Thạc sĩ',
+                            TIEN_SI: 'Tiến sĩ',
+                            PHO_GIAO_SU: 'Phó Giáo sư',
+                            GIAO_SU: 'Giáo sư',
+                        };
+                        return (
+                            <Tag color="blue" className="text-[11px]">
+                                {labelMap[title] || title || 'Thạc sĩ'}
+                            </Tag>
+                        );
+                    },
+                },
+                {
+                    title: 'Chuyên môn',
+                    dataIndex: 'expertiseAreas',
+                    key: 'expertiseAreas',
+                    width: 200,
+                    render: (val) => {
+                        const tags = String(val || '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+                        if (tags.length === 0) return <span className="text-slate-400 text-xs">—</span>;
+                        return (
+                            <div className="flex flex-wrap gap-1">
+                                {tags.map((t, i) => (
+                                    <Tag key={i} color="cyan" className="text-[11px] m-0">
+                                        {t}
+                                    </Tag>
+                                ))}
+                            </div>
+                        );
+                    },
                 }
             );
         } else if (effectiveType === 'LECTURER_ASSIGNMENT') {
@@ -1361,6 +1396,12 @@ export default function ExcelImportModal({
                                         { label: 'Giáo sư', value: 'GIAO_SU' },
                                     ]}
                                 />
+                            </Form.Item>
+                            <Form.Item
+                                name="expertiseAreas"
+                                label="Chuyên môn (ngăn cách bởi dấu phẩy)"
+                            >
+                                <Input placeholder="VD: Trí tuệ nhân tạo, Công nghệ phần mềm" />
                             </Form.Item>
                         </>
                     )}

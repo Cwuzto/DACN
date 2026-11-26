@@ -132,6 +132,9 @@ export function canViewFeature(user, featureKey, context = {}) {
     if (role && role !== 'STUDENT' && policy.workspace === 'student') {
         return false;
     }
+    if (role === 'ADMIN' && policy.workspace === 'lecturer') {
+        return false;
+    }
 
     // Role dashboards
     if (policy.key === 'admin-dashboard') {

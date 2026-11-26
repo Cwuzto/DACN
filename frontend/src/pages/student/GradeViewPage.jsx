@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Button,
     Empty,
@@ -14,11 +14,12 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useMyGrades, useMyPublishedResult } from '../../queries/gradingQueries';
 import { useStudentRegistration } from '../../queries/registrationQueries';
-import { useStudentArchive, useClearanceCertificate } from '../../queries/archiveQueries';
+import { useStudentArchive, useDefenseDossier, useClearanceCertificate } from '../../queries/archiveQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import { STATUS_MAP, getStatusTagConfig } from '../../components/common/statusMap';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
+import ArchiveDeadlineBanner, { computeArchiveDocumentStatus } from '../../components/forms/ArchiveDeadlineBanner';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 
 const getLetterGrade = (score) => {
@@ -53,7 +54,19 @@ export default function GradeViewPage() {
             if (idx === -1) {
                 list.unshift(activeReg);
             } else {
-                list[idx] = { ...list[idx], ...activeReg };
+                const existing = list[idx];
+                const mergedCouncil = activeReg.council?.members?.length > 0
+                    ? activeReg.council
+                    : (existing.council?.members?.length > 0 ? existing.council : (activeReg.council || existing.council));
+                const mergedDefenseCouncil = activeReg.defenseCouncil?.members?.length > 0
+                    ? activeReg.defenseCouncil
+                    : (existing.defenseCouncil?.members?.length > 0 ? existing.defenseCouncil : (activeReg.defenseCouncil || existing.defenseCouncil));
+                list[idx] = {
+                    ...existing,
+                    ...activeReg,
+                    council: mergedCouncil,
+                    defenseCouncil: mergedDefenseCouncil,
+                };
             }
         }
         return list;
@@ -73,6 +86,12 @@ export default function GradeViewPage() {
 
     const archiveQuery = useStudentArchive(scope, selectedRegistration?.id);
     const archiveData = archiveQuery.data?.data?.archive || null;
+    const dossierQuery = useDefenseDossier(scope, selectedRegistration?.id);
+    const dossierData = dossierQuery.data?.data || null;
+    const archiveDocStatus = useMemo(
+        () => computeArchiveDocumentStatus({ dossier: dossierData, archive: archiveData }),
+        [dossierData, archiveData]
+    );
 
     // Archive & Certificate states
     const [archiveModalOpen, setArchiveModalOpen] = useState(false);
@@ -80,6 +99,16 @@ export default function GradeViewPage() {
     const certQuery = useClearanceCertificate(scope, selectedRegistration?.id, certModalOpen);
     const certificateData = certQuery.data?.data ?? certQuery.data ?? null;
     const certLoading = certQuery.isLoading;
+
+    useEffect(() => {
+        if (certModalOpen && certQuery.isError) {
+            const errMsg = certQuery.error?.response?.data?.message
+                || certQuery.error?.message
+                || 'Chưa đủ điều kiện hoặc không thể tải Giấy xác nhận hoàn thành đồ án.';
+            message.warning(errMsg);
+            setCertModalOpen(false);
+        }
+    }, [certModalOpen, certQuery.isError, certQuery.error]);
 
     const handleOpenCertificate = () => {
         if (!selectedRegistration?.id) return;
@@ -314,43 +343,98 @@ export default function GradeViewPage() {
 
                 {/* Right Column: Digital Archive Submission */}
                 <div className="card">
-                    <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
                             <span>Hồ Sơ Lưu Chiểu Số & Thư Viện</span>
                         </div>
-                        <span className={`tag ${archiveData?.status === 'COMPLETED' || archiveData?.reportFileUrl ? 'green' : 'teal'}`}>
-                            {archiveData?.status === 'COMPLETED' ? 'Đã nghiệm thu lưu chiểu' : (archiveData?.reportFileUrl ? 'Đã nộp lưu chiểu' : 'Sẵn sàng nộp')}
-                        </span>
+                        {archiveData?.status === 'COMPLETED' || isCompleted ? (
+                            <Tag color="success" style={{ marginInlineEnd: 0, fontWeight: 700 }}>
+                                Đã nghiệm thu lưu chiểu
+                            </Tag>
+                        ) : archiveDocStatus.isComplete ? (
+                            <Tag color="success" style={{ marginInlineEnd: 0, fontWeight: 700 }}>
+                                Đã nộp đủ 4/4 tài liệu
+                            </Tag>
+                        ) : (
+                            <Tag color="error" style={{ marginInlineEnd: 0, fontWeight: 700 }}>
+                                Thiếu {archiveDocStatus.missingDocs.length}/4 tài liệu
+                            </Tag>
+                        )}
                     </div>
                     <div className="card-body" style={{ padding: 18 }}>
-                        <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                            Theo quy định, sau khi chỉnh sửa theo góp ý của Hội đồng, sinh viên phải nộp 4 tài liệu lưu chiểu số (Báo cáo Word, Báo cáo PDF, Video demo, Slide thuyết trình) để được cấp Giấy xác nhận hoàn thành.
-                        </p>
+                        <div className="mb-4">
+                            <ArchiveDeadlineBanner
+                                dossier={dossierData}
+                                archive={archiveData}
+                                registrationStatus={selectedRegistration?.status}
+                                variant="prominent"
+                                onAction={() => setArchiveModalOpen(true)}
+                                actionLabel="Bổ sung tài liệu ngay"
+                                showAction={!isCompleted}
+                            />
+                        </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>1. Toàn văn Báo cáo (Word .docx)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_WORD') || archiveData?.reportWordFileUrl || archiveData?.sourceCodeUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_WORD') || archiveData?.reportWordFileUrl || archiveData?.sourceCodeUrl ? 'Đã tải lên' : 'Chưa nộp'}
-                                </span>
+                                {(() => {
+                                    const hasWord = Boolean(
+                                        dossierData?.currentFiles?.REPORT_WORD
+                                        || archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_WORD')
+                                        || archiveData?.reportWordFileUrl
+                                    );
+                                    return (
+                                        <span className={`tag ${hasWord ? 'green' : 'gray'}`}>
+                                            {hasWord ? 'Đã tải lên' : 'Chưa nộp'}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>2. Báo cáo đóng cuốn (PDF .pdf)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_PDF') || archiveData?.reportPdfFileUrl || archiveData?.reportFileUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_PDF') || archiveData?.reportPdfFileUrl || archiveData?.reportFileUrl ? 'Đã tải lên' : 'Chưa nộp'}
-                                </span>
+                                {(() => {
+                                    const hasPdf = Boolean(
+                                        dossierData?.currentFiles?.REPORT_PDF
+                                        || archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_PDF')
+                                        || archiveData?.reportPdfFileUrl
+                                        || archiveData?.reportFileUrl
+                                    );
+                                    return (
+                                        <span className={`tag ${hasPdf ? 'green' : 'gray'}`}>
+                                            {hasPdf ? 'Đã tải lên' : 'Chưa nộp'}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>3. Video giới thiệu sản phẩm (MP4/Link)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'Đã tải lên' : 'Chưa nộp'}
-                                </span>
+                                {(() => {
+                                    const hasVideo = Boolean(
+                                        dossierData?.currentFiles?.DEMO_VIDEO
+                                        || archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'DEMO_VIDEO')
+                                        || archiveData?.demoVideoUrl
+                                    );
+                                    return (
+                                        <span className={`tag ${hasVideo ? 'green' : 'gray'}`}>
+                                            {hasVideo ? 'Đã tải lên' : 'Chưa nộp'}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>4. Slide thuyết trình (PPTX .pptx)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'SLIDE_PPTX') || archiveData?.slideFileUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'SLIDE_PPTX') || archiveData?.slideFileUrl ? 'Đã tải lên' : 'Chưa nộp'}
-                                </span>
+                                {(() => {
+                                    const hasSlide = Boolean(
+                                        dossierData?.currentFiles?.SLIDE_PPTX
+                                        || archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'SLIDE_PPTX')
+                                        || archiveData?.slideFileUrl
+                                    );
+                                    return (
+                                        <span className={`tag ${hasSlide ? 'green' : 'gray'}`}>
+                                            {hasSlide ? 'Đã tải lên' : 'Chưa nộp'}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                         </div>
 

@@ -152,7 +152,7 @@ export default function AcademicFormPrintModal({
         >
             {!canPrint && printBlockedReason && (
                 <div className="mb-3 no-print">
-                    <Alert type="warning" showIcon message={printBlockedReason} />
+                    <Alert type="warning" showIcon title={printBlockedReason} />
                 </div>
             )}
             <div

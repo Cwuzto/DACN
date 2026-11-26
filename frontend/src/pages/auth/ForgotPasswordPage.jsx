@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeftOutlined, MailOutlined } from '@ant-design/icons';
 
 function ForgotPasswordPage() {
     const navigate = useNavigate();
@@ -50,9 +51,7 @@ function ForgotPasswordPage() {
                                 Địa chỉ Email
                             </label>
                             <div className="relative flex items-center">
-                                <span className="material-symbols-outlined absolute left-3 text-slate-500 text-[20px]">
-                                    mail
-                                </span>
+                                <MailOutlined className="absolute left-3 text-slate-500 text-base pointer-events-none" />
                                 <input 
                                     className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" 
                                     placeholder="example@email.com" 
@@ -71,7 +70,7 @@ function ForgotPasswordPage() {
                             className="inline-flex items-center gap-2 text-primary dark:text-primary/80 text-sm font-semibold hover:underline cursor-pointer" 
                             onClick={(e) => { e.preventDefault(); navigate('/login'); }}
                         >
-                            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                            <ArrowLeftOutlined className="text-sm" />
                             Quay lại đăng nhập
                         </a>
                     </div>

@@ -25,6 +25,7 @@ import AcademicFormPrintModal from '../../prints/AcademicFormPrintModal';
 import BM01PrintSheet from '../../prints/BM01PrintSheet';
 import BM02PrintSheet from '../../prints/BM02PrintSheet';
 import { queryKeys } from '../../../query/queryKeys';
+import { dashboardKeys } from '../../../queries/dashboardQueries';
 import useAuthStore from '../../../stores/authStore';
 
 export default function StudentSubmissionActions({ item, registration, sources = {}, onCompleted }) {
@@ -99,8 +100,9 @@ export default function StudentSubmissionActions({ item, registration, sources =
     // Helper: trigger refetch / invalidate
     const handleSuccessCallback = () => {
         if (queryClient) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.studentDashboard(scope) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.studentRegistration(scope) });
+            queryClient.invalidateQueries({ queryKey: dashboardKeys.studentDashboard(scope) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.registrations.current(scope) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
             queryClient.invalidateQueries({ queryKey: ['workItems'] });
             queryClient.invalidateQueries({ queryKey: ['outline'] });
             queryClient.invalidateQueries({ queryKey: ['tasks'] });

@@ -16,7 +16,7 @@ export const normalizeDefenseDossier = (data) => {
     const currentFiles = Object.fromEntries(DOCUMENT_TYPES.map(documentType => {
         const file = source.currentFiles?.[documentType];
         return [documentType, file ? {
-            ...pick(file, ['id', 'fileUrl', 'fileName', 'versionNumber', 'checksum', 'uploadedAt', 'fileSizeBytes', 'advisorFeedback', 'academicAffairsFeedback']),
+            ...pick(file, ['id', 'assetId', 'fileUrl', 'demoVideoExternalUrl', 'fileName', 'versionNumber', 'checksum', 'uploadedAt', 'fileSizeBytes', 'advisorFeedback', 'academicAffairsFeedback']),
             documentType,
         } : null];
     }));
@@ -27,6 +27,7 @@ export const normalizeDefenseDossier = (data) => {
         documents: Object.values(currentFiles).filter(Boolean),
         bm03Record: source.linkedBm03 ? pick(source.linkedBm03, ['id', 'finalPdfFileUrl', 'advisorSignedAt']) : null,
         bm04Record: source.linkedBm04 ? pick(source.linkedBm04, ['id', 'finalPdfFileUrl', 'signedAt']) : null,
+        bm05Record: source.linkedBm05 ? pick(source.linkedBm05, ['id', 'finalPdfFileUrl', 'signedAt', 'lockedAt']) : null,
         isWindowClosed: Boolean(source.isWindowClosed),
         isSoftDeadlinePast: Boolean(source.isSoftDeadlinePast),
         missingTypes: DOCUMENT_TYPES.filter(type => !currentFiles[type]),

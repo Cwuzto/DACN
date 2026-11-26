@@ -321,7 +321,7 @@ export default function BMSubmissionViewer({
                             type="info"
                             showIcon
                             icon={<FileWordOutlined />}
-                            message={`Tệp Word lịch sử: ${fileName || 'de_cuong.docx'}`}
+                            title={`Tệp Word lịch sử: ${fileName || 'de_cuong.docx'}`}
                             description="Tệp đề cương lịch sử định dạng Word (.docx) không hỗ trợ xem trước PDF trực tiếp. Vui lòng tải xuống để xem."
                             action={
                                 downloadHref ? (
@@ -344,7 +344,7 @@ export default function BMSubmissionViewer({
                         <Alert
                             type="error"
                             showIcon
-                            message="Không thể mở tệp PDF đề cương BM01"
+                            title="Không thể mở tệp PDF đề cương BM01"
                             description={pdfError}
                             action={
                                 activeSubmission.fileUrl && !String(pdfError).includes('quyền') ? (
@@ -366,7 +366,7 @@ export default function BMSubmissionViewer({
                         <Alert
                             type="warning"
                             showIcon
-                            message="Không tìm thấy tệp PDF đính kèm cho phiên bản BM01 này."
+                            title="Không tìm thấy tệp PDF đính kèm cho phiên bản BM01 này."
                         />
                     )}
 
@@ -412,7 +412,7 @@ export default function BMSubmissionViewer({
                                 <Alert
                                     type="error"
                                     showIcon
-                                    message="Trình duyệt không thể hiển thị trực tiếp tệp PDF này"
+                                    title="Trình duyệt không thể hiển thị trực tiếp tệp PDF này"
                                     description="Vui lòng nhấn nút Tải xuống PDF để mở tệp trên thiết bị."
                                 />
                             ) : (

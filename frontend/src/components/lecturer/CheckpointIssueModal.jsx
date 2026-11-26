@@ -73,14 +73,14 @@ export default function CheckpointIssueModal({
             open={open}
             onCancel={onClose}
             footer={null}
-            destroyOnClose
+            destroyOnHidden
             width={680}
         >
             <div className="space-y-4 pt-2">
                 <Alert
                     type="info"
                     showIcon
-                    message="Quy trình ký xác nhận song phương đánh giá tiến độ"
+                    title="Quy trình ký xác nhận song phương đánh giá tiến độ"
                     description="Sau khi GVHD ký phát hành, sinh viên sẽ nhận được thông báo và có 3 ngày để xem và ký xác nhận biên bản. Nếu sinh viên không đạt, đề tài sẽ dừng thực hiện theo quy chế đào tạo."
                 />
 

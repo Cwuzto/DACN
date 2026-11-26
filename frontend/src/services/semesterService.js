@@ -14,9 +14,9 @@ export const semesterService = {
         }
     },
 
-    getAll: async () => {
+    getAll: async (params = undefined) => {
         try {
-            return await api.get('/semesters');
+            return await api.get('/semesters', params ? { params } : undefined);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách học kỳ');
         }

@@ -72,7 +72,7 @@ export default function CorrectDefenseResultModal({
             onCancel={onClose}
             footer={null}
             width={680}
-            destroyOnClose
+            destroyOnHidden
             title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
@@ -135,7 +135,7 @@ export default function CorrectDefenseResultModal({
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}
-                    message="Cơ chế lưu vết kiểm toán"
+                    title="Cơ chế lưu vết kiểm toán"
                     description="Thao tác điều chỉnh sẽ thay thế quyết định phê duyệt hiện hành và tạo quyết định mới có liên kết truy vết. Sau khi điều chỉnh, sinh viên sẽ thấy kết quả mới sau khi Viện ban hành đợt Công Bố Đính Chính."
                 />
 
